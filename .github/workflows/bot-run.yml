@@ -4,7 +4,7 @@ name: Hurda Fiyat Botu
 on:
   schedule:
     # Her 6 saatte bir otomatik çalışır
-    - cron: '0 */6 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
