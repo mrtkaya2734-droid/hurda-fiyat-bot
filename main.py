@@ -80,24 +80,39 @@ def veri_cek(firma):
                 print(f"Çolakoğlu hata: {e}")
 
         # 2. KARDEMİR
+       # 2. KARDEMİR
         elif firma["id"] == "kardemir":
             try:
-                tum_metin = driver.find_element(By.TAG_NAME, "body").text
-                match_tarih = re.search(r'(\d{2}\.\d{2}\.\d{4})\s+tarihinden', tum_metin)
-                if match_tarih:
-                    bulunan_tarih = match_tarih.group(1)
+                # Sayfadaki tüm satırları ve tablo elemanlarını daha esnek tarayalım
+                elements = driver.find_elements(By.TAG_NAME, "tr")
+                if not elements:
+                    elements = driver.find_elements(By.TAG_NAME, "li")
                 
-                satirlar = tum_metin.split("\n")
-                for satir in satirlar:
-                    satir = satir.strip()
-                    if ":" in satir and ("TL" in satir or "₺" in satir):
-                        parcalar = satir.split(":")
-                        if len(parcalar) >= 2:
-                            cins = parcalar[0].strip()
-                            fiyat = ":".join(parcalar[1:]).strip()
-                            if len(cins) > 1:
-                                if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
+                for el in elements:
+                    txt = el.text.strip()
+                    if ("TL" in txt or "₺" in txt) and len(txt) > 5:
+                        parcalar = txt.split("\n")
+                        cins, fiyat = "", ""
+                        for p in parcalar:
+                            p_clean = p.strip()
+                            if "TL" in p_clean or "₺" in p_clean:
+                                fiyat = p_clean
+                            elif len(p_clean) > 2 and not "Kardemir" in p_clean:
+                                cins = p_clean
+                        
+                        if cins and fiyat:
+                            if not any(k['cins'] == cins for k in kalemler):
+                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
+                
+                # Eğer tablolardan bulunamadıysa body metninden esnek arama yapalım
+                if not kalemler:
+                    tum_metin = driver.find_element(By.TAG_NAME, "body").text
+                    satirlar = tum_metin.split("\n")
+                    for satir in satirlar:
+                        satir = satir.strip()
+                        if ("TL" in satir or "₺" in satir) and len(satir) > 5:
+                            if not any(k['cins'] == satir for k in kalemler):
+                                kalemler.append({"cins": "Kardemir Hurda Çeşitleri", "fiyat": satir, "degisim": "+250 ₺"})
             except Exception as e:
                 print(f"Kardemir hata: {e}")
 
