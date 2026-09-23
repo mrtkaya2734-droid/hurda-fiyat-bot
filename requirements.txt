@@ -1,5 +1,10 @@
 webdriver-manager 
-requests
+fastapi==0.110.0
+uvicorn==0.29.0
+requests==2.31.0
+beautifulsoup4==4.12.3
+apscheduler==3.10.4
+requests==2.31.0
 pywebpush
 annotated-doc==0.0.5
 annotated-types==0.8.0
