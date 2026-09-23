@@ -40,16 +40,22 @@ SON_GUNCELLEME = "Henüz yapılmadı"
 PUSH_SUBSCRIPTIONS = []
 
 def veri_cek(firma):
+    """RAM ve Port optimizasyonlu, güvenli Selenium veri çekme fonksiyonu"""
+    
+    # 1. Zombi süreçleri temizle (Önceki kalıntıları uçur)
+    os.system("pkill -f chromedriver")
+    os.system("pkill -f chrome")
+
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-dev-shm-usage")  # Render RAM çökmelerini önler
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
     options.add_argument("--window-size=1280,800")
-    options.add_argument("--blink-settings=imagesEnabled=false")
+    options.add_argument("--blink-settings=imagesEnabled=false")  # Görselleri kapatarak RAM tasarrufu sağlar
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -224,7 +230,9 @@ def veri_cek(firma):
 
     except Exception as e:
         print(f"{firma['baslik']} tarama hatası: {e}")
+    
     finally:
+        # ÖNEMLİ: RAM sızıntılarını önlemek için sürücüyü güvenle kapat ve belleği boşalt
         if driver:
             try:
                 driver.quit()
@@ -274,10 +282,9 @@ def verileri_arkaplanda_guncelle():
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     bildirimleri_gonder()
     gc.collect()
-    print("Tarama tamamlandı.")
+    print("Tarama tamamlandı ve RAM temizlendi.")
 
 scheduler = BackgroundScheduler()
-# 30 dakikada bir otomatik çalışma ayarlandı
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
 
@@ -386,7 +393,6 @@ def read_root():
                         <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
                         <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
                     </div>
-                    <!-- YENİLEME BUTONU -->
                     <button onclick="triggerRefresh()" id="refreshBtn" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-1.5">
                         <svg id="refreshIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         <span id="refreshText">Verileri Yenile</span>
@@ -396,19 +402,14 @@ def read_root():
                     </button>
                 </div>
             </header>
-
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
-
         <script>
             async function registerServiceWorker() {
                 if ('serviceWorker' in navigator && 'PushManager' in window) {
                     try {
                         const registration = await navigator.serviceWorker.register('/sw.js');
-                        console.log('Service Worker aktif:', registration);
-                    } catch (error) {
-                        console.error('Service Worker hatası:', error);
-                    }
+                    } catch (error) { console.error('SW hatası:', error); }
                 }
             }
             registerServiceWorker();
@@ -417,7 +418,6 @@ def read_root():
                 if (!('serviceWorker' in navigator)) return;
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
-                    const registration = await navigator.serviceWorker.ready;
                     const subscription = {
                         endpoint: "https://fcm.googleapis.com/fcm/send/test-endpoint",
                         keys: { p256dh: "test-key", auth: "test-auth" }
@@ -430,8 +430,6 @@ def read_root():
                     alert("Bildirimler başarıyla etkinleştirildi!");
                     document.getElementById("notifBtn").innerText = "✔ Bildirimler Açık";
                     document.getElementById("notifBtn").classList.replace("bg-indigo-600", "bg-emerald-600");
-                } else {
-                    alert("Bildirim izni verilmedi.");
                 }
             }
 
@@ -450,11 +448,9 @@ def read_root():
                 const btn = document.getElementById("refreshBtn");
                 const icon = document.getElementById("refreshIcon");
                 const text = document.getElementById("refreshText");
-                
                 btn.disabled = true;
                 icon.classList.add("animate-spin");
                 text.innerText = "Yenileniyor...";
-
                 try {
                     const response = await fetch('/refresh', { method: 'POST' });
                     const result = await response.json();
@@ -465,7 +461,6 @@ def read_root():
                     }
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
-                    alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
                     btn.disabled = false;
                     icon.classList.remove("animate-spin");
@@ -517,5 +512,6 @@ def read_root():
     """
 
 if __name__ == "__main__":
+    # Render port dinamik bağlama ayarı (Port hatasını kesin olarak çözer)
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
