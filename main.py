@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="65.0.0",
+    version="66.0.0",
 )
 
 FIRMALAR = [
@@ -60,32 +60,23 @@ def veri_cek(firma):
         if firma["id"] == "colakoglu":
             scrap_section = soup.find(id="scrap")
             if scrap_section:
-                # Tüm div, span veya p elemanlarını tarayarak fiyat ve metin ikililerini bulalım
-                elementler = scrap_section.find_all(['div', 'p', 'span'])
-                metinler = [el.get_text(strip=True) for el in elementler if el.get_text(strip=True)]
-                # Benzersiz sıralı hale getir
-                gorulen = []
-                for m in metinler:
-                    if m not in gorulen:
-                        gorulen.append(m)
-                
+                metinler = scrap_section.get_text(separator="\n").split("\n")
+                temiz_satirlar = [m.strip() for m in metinler if m.strip()]
                 i = 0
-                while i < len(gorulen) - 1:
-                    b1, b2 = gorulen[i], gorulen[i+1]
+                while i < len(temiz_satirlar) - 1:
+                    birinci, ikinci = temiz_satirlar[i], temiz_satirlar[i+1]
                     cins, fiyat = "", ""
-                    if "TL" in b1 or "₺" in b1:
-                        fiyat, cins = b1, b2
-                    elif "TL" in b2 or "₺" in b2:
-                        cins, fiyat = b1, b2
-                    
-                    if cins and fiyat and len(cins) > 1 and "TL" not in cins and "₺" not in cins:
+                    if "TL" in birinci or "₺" in birinci:
+                        fiyat, cins = birinci, ikinci
+                    elif "TL" in ikinci or "₺" in ikinci:
+                        cins, fiyat = birinci, ikinci
+                    if cins and fiyat and len(cins) > 1:
                         cins_temiz = temizle_metin(cins)
-                        fiyat_temiz = fiyat.replace("t/ton", "TL").replace("₺/ton", "TL")
                         if not any(k['cins'] == cins_temiz for k in kalemler):
-                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat_temiz, "degisim": "+200 ₺"})
+                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat, "degisim": "+200 ₺"})
                     i += 1
         
-        # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI
+        # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI (Kroman, Kardemir, Diler vb.)
         tables = soup.find_all('table')
         for table in tables:
             rows = table.find_all('tr')
@@ -260,11 +251,11 @@ def read_root():
                     let kalemlerHtml = "";
                     item.kalemler.forEach(k => {
                         kalemlerHtml += `
-                            <div class="flex items-center justify-between py-3 px-2 border-b border-slate-100 last:border-none gap-3">
-                                <div class="w-7/12 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</div>
-                                <div class="w-5/12 flex items-center justify-end space-x-1.5 shrink-0 text-right">
+                            <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
+                                <span class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</span>
+                                <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
                                     <span class="text-slate-900 font-extrabold text-xs">${k.fiyat}</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50">${k.degisim}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
                                 </div>
                             </div>
                         `;
@@ -279,7 +270,7 @@ def read_root():
                             </div>
                             <span class="text-[11px] bg-white/10 px-2.5 py-1 rounded-xl shrink-0">${item.tarih}</span>
                         </div>
-                        <div class="p-4"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
+                        <div class="p-5"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
                     `;
                     container.appendChild(card);
                 });
