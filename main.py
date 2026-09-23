@@ -21,7 +21,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="51.0.0",
+    version="52.0.0",
 )
 
 FIRMALAR = [
@@ -43,7 +43,7 @@ PUSH_SUBSCRIPTIONS = []
 def veri_cek(firma):
     """RAM ve Port optimizasyonlu, güvenli Selenium veri çekme fonksiyonu"""
     
-    # 1. Zombi süreçleri temizle
+    # Zombi süreçleri temizle
     os.system("pkill -f chromedriver")
     os.system("pkill -f chrome")
 
@@ -67,6 +67,7 @@ def veri_cek(firma):
     driver = None
     
     try:
+        # Render (Linux) apt.txt ile kurulduğu için ek servis istemez, doğrudan başlar
         driver = webdriver.Chrome(options=options)
         driver.set_page_load_timeout(20)
         driver.get(firma["url"])
@@ -278,7 +279,6 @@ def verileri_arkaplanda_guncelle():
         except Exception as ex:
             print(f"{firma['baslik']} taranamadı: {ex}")
         
-        # Her fabrika arası RAM ve süreçleri temizleyip nefes aldırıyoruz
         os.system("pkill -f chromedriver")
         os.system("pkill -f chrome")
         gc.collect()
@@ -297,7 +297,6 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    # RENDER PORT TIMEOUT ÇÖZÜMÜ: Taramayı arka plan thread'ine atarak sunucunun anında port açmasını sağlıyoruz
     threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
