@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="51.0.0",
+    version="52.0.0",
 )
 
 FIRMALAR = [
@@ -40,7 +40,7 @@ def veri_cek(firma):
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
     kalemler = []
-    bulunan_tarih = datetime.now().strftime("%d.%m.%Y %H:%M")
+    bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     driver = None
     
     try:
