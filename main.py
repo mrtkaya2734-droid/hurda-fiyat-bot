@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="48.0.0",
+    version="49.0.0",
 )
 
 FIRMALAR = [
@@ -178,9 +178,10 @@ def verileri_arkaplanda_guncelle():
             print(f"{firma['baslik']} taranamadı: {ex}")
         time.sleep(1)
     
-    GUNCEL_VERILER.clear()
-    GUNCEL_VERILER = yeni_veriler
-    SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    if yeni_veriler:
+        GUNCEL_VERILER.clear()
+        GUNCEL_VERILER = yeni_veriler
+        SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
     print(f"Önbellek güncellendi. Yeni saat: {SON_GUNCELLEME}")
 
@@ -190,7 +191,9 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    verileri_arkaplanda_guncelle()
+    # Render port timeout yememesi için başlangıçta tarama yapmıyoruz.
+    # Arka plan planlayıcısı (scheduler) ilk 30 dakikada bir veya manuel yenileme ile dolacak.
+    pass
 
 @app.get("/prices")
 def get_prices():
@@ -269,7 +272,7 @@ def read_root():
                 }
                 Notification.requestPermission().then(permission => {
                     if (permission === "granted") {
-                        new Notification("Hurda Takip Sistemi", "Fiyat değişim bildirimleri başarıyla aktif edildi!");
+                        new Notification("Hurda Takip Sistemi", { body: "Fiyat değişim bildirimleri başarıyla aktif edildi!" });
                     } else {
                         alert("Bildirim izni reddedildi.");
                     }
@@ -314,8 +317,10 @@ def read_root():
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        fiyatlariKarsilastirVeBildir(result.data);
-                        renderCards(result.data);
+                        if(result.data.length > 0) {
+                            fiyatlariKarsilastirVeBildir(result.data);
+                            renderCards(result.data);
+                        }
                     }
                 } catch (error) { console.error("Hata:", error); }
             }
@@ -329,8 +334,10 @@ def read_root():
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        fiyatlariKarsilastirVeBildir(result.data);
-                        renderCards(result.data);
+                        if(result.data.length > 0) {
+                            fiyatlariKarsilastirVeBildir(result.data);
+                            renderCards(result.data);
+                        }
                     }
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
