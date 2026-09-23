@@ -14,8 +14,10 @@ import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="55.0.0",
+    version="56.0.0",
 )
+
+VERI_DOSYASI = "veriler.json"
 
 FIRMALAR = [
     {"id": "colakoglu", "baslik": "Çolakoğlu Metalurji", "url": "https://www.colakoglu.com.tr/hurda"},
@@ -29,8 +31,26 @@ FIRMALAR = [
     {"id": "asil", "baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
 ]
 
-GUNCEL_VERILER = []
-SON_GUNCELLEME = "Henüz yapılmadı"
+# Verileri dosyadan yükle (Eğer daha önce kaydedilmişse)
+def verileri_diskten_yukle():
+    if os.path.exists(VERI_DOSYASI):
+        try:
+            with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {"son_guncelleme": "Henüz yapılmadı", "data": []}
+
+kayitli_durum = verileri_diskten_yukle()
+GUNCEL_VERILER = kayitli_durum["data"]
+SON_GUNCELLEME = kayitli_durum["son_guncelleme"]
+
+def verileri_diske_kaydet(data, zaman):
+    try:
+        with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
+            json.dump({"son_guncelleme": zaman, "data": data}, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Dosya kayıt hatası: {e}")
 
 def tarayici_olustur():
     options = Options()
@@ -41,7 +61,6 @@ def tarayici_olustur():
     options.add_argument("--window-size=1280,800")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
     
-    # Render'daki apt.txt ile kurulan chromium yolunu otomatik tanır
     if os.path.exists("/usr/bin/google-chrome"):
         options.binary_location = "/usr/bin/google-chrome"
     elif os.path.exists("/usr/bin/chromium-browser"):
@@ -75,7 +94,6 @@ def verileri_arkaplanda_guncelle():
             driver.get(firma["url"])
             time.sleep(3)
             
-            # 1. ÇOLAKOĞLU METALURJİ
             if firma["id"] == "colakoglu":
                 try:
                     scrap_section = driver.find_element(By.ID, "scrap")
@@ -100,7 +118,6 @@ def verileri_arkaplanda_guncelle():
                 except Exception as e:
                     print(f"Çolakoğlu detay hata: {e}")
 
-            # 2. KARDEMİR
             elif firma["id"] == "kardemir":
                 try:
                     elements = driver.find_elements(By.TAG_NAME, "tr")
@@ -125,7 +142,6 @@ def verileri_arkaplanda_guncelle():
                 except Exception as e:
                     print(f"Kardemir detay hata: {e}")
 
-            # 3. ERDEMİR & 4. İSDEMİR
             elif firma["id"] in ["erdemir", "isdemir"]:
                 try:
                     tables = driver.find_elements(By.TAG_NAME, "table")
@@ -146,7 +162,6 @@ def verileri_arkaplanda_guncelle():
                 except Exception as e:
                     print(f"{firma['baslik']} detay hata: {e}")
 
-            # 5. KROMAN, 6. DİLER, 7. EKİNCİLER
             elif firma["id"] in ["kroman", "diler", "ekinciler"]:
                 try:
                     tables = driver.find_elements(By.TAG_NAME, "table")
@@ -175,7 +190,6 @@ def verileri_arkaplanda_guncelle():
                 except Exception as e:
                     print(f"{firma['baslik']} detay hata: {e}")
 
-            # 8. HASÇELİK
             elif firma["id"] == "hascelik":
                 try:
                     elements = driver.find_elements(By.TAG_NAME, "tr")
@@ -202,7 +216,6 @@ def verileri_arkaplanda_guncelle():
                 except Exception as e:
                     print(f"Hasçelik detay hata: {e}")
 
-            # 9. ASİL ÇELİK
             elif firma["id"] == "asil":
                 try:
                     tables = driver.find_elements(By.TAG_NAME, "table")
@@ -239,11 +252,11 @@ def verileri_arkaplanda_guncelle():
         except:
             pass
 
-    GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    verileri_diske_kaydet(GUNCEL_VERILER, SON_GUNCELLEME)
     gc.collect()
-    print("Tüm tarama süreci başarıyla tamamlandı.")
+    print("Tüm tarama süreci başarıyla tamamlandı ve diske kaydedildi.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
@@ -251,7 +264,9 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    threading.Thread(target=verileri_arkaplanda_guncelle).start()
+    # Eğer daha önce hiç veri kaydedilmemişse veya liste boşsa hemen arka planda ilk taramayı başlat
+    if not GUNCEL_VERILER:
+        threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
@@ -323,7 +338,7 @@ def read_root():
                 icon.classList.add("animate-spin");
                 text.innerText = "Yenileniyor...";
                 try {
-                    const response = await fetch('/refresh', { method: 'POST' });
+                    const response = await fetch('/refresh', { method: 'POST' }],
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
