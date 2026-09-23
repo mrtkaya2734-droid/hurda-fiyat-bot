@@ -167,9 +167,10 @@ def veri_cek(firma):
                 print(f"{firma['baslik']} hata: {e}")
 
         # 8. HASÇELİK
-       # 8. HASÇELİK
+      # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
+                time.sleep(3) # Render ortamı için ekstra bekleme süresi
                 # Önce standart tablolara bakalım
                 tables = driver.find_elements(By.TAG_NAME, "table")
                 for table in tables:
