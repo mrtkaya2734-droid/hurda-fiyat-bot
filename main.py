@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 FIRMALAR = [
@@ -234,6 +234,9 @@ def verileri_guncelle():
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
     print("Tarama tamamlandı.")
+
+# Uygulama başlar başlamaz ilk taramayı hemen yap (böylece site açıldığında boş kalmaz)
+verileri_guncelle()
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_guncelle, 'interval', minutes=30)
