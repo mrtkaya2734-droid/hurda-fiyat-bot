@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.6.0",
+    version="48.0.0",
 )
 
 FIRMALAR = [
@@ -182,7 +182,7 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
-    print("Önbellek güncellendi.")
+    print(f"Önbellek güncellendi. Yeni saat: {SON_GUNCELLEME}")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
@@ -252,17 +252,69 @@ def read_root():
                     <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
                         <span>Önbelleği Temizle & Yenile</span>
                     </button>
+                    <button onclick="requestNotificationPermission()" class="inline-flex items-center text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
+                        🔔 Bildirimleri Aç
+                    </button>
                 </div>
             </header>
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
         <script>
+            let eskiVerilerKarsilastirma = null;
+
+            function requestNotificationPermission() {
+                if (!("Notification" in window)) {
+                    alert("Tarayıcınız bildirimleri desteklemiyor.");
+                    return;
+                }
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification("Hurda Takip Sistemi", "Fiyat değişim bildirimleri başarıyla aktif edildi!");
+                    } else {
+                        alert("Bildirim izni reddedildi.");
+                    }
+                });
+            }
+
+            function fiyatlariKarsilastirVeBildir(yeniVeriListesi) {
+                if (!eskiVerilerKarsilastirma) {
+                    eskiVerilerKarsilastirma = JSON.stringify(yeniVeriListesi);
+                    return;
+                }
+                
+                const eskiListe = JSON.parse(eskiVerilerKarsilastirma);
+                let degisiklikVarMi = false;
+
+                yeniVeriListesi.forEach(yeniFirma => {
+                    const eskiFirma = eskiListe.find(f => f.baslik === yeniFirma.baslik);
+                    if (eskiFirma) {
+                        yeniFirma.kalemler.forEach(yeniKalem => {
+                            const eskiKalem = eskiFirma.kalemler.find(k => k.cins === yeniKalem.cins);
+                            if (eskiKalem && eskiKalem.fiyat !== yeniKalem.fiyat) {
+                                degisiklikVarMi = true;
+                                if (Notification.permission === "granted") {
+                                    new Notification(`⚠️ Hurda Fiyatı Değişti: ${yeniFirma.baslik}`, {
+                                        body: `${yeniKalem.cins} fiyatı güncellendi!\nEski: ${eskiKalem.fiyat} ➔ Yeni: ${yeniKalem.fiyat}`,
+                                        icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+
+                if (degisiklikVarMi) {
+                    eskiVerilerKarsilastirma = JSON.stringify(yeniVeriListesi);
+                }
+            }
+
             async function fetchPrices() {
                 try {
                     const response = await fetch('/prices');
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        fiyatlariKarsilastirVeBildir(result.data);
                         renderCards(result.data);
                     }
                 } catch (error) { console.error("Hata:", error); }
@@ -277,6 +329,7 @@ def read_root():
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        fiyatlariKarsilastirVeBildir(result.data);
                         renderCards(result.data);
                     }
                 } catch (error) {
