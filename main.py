@@ -6,18 +6,14 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
-import json
 import os
 import uvicorn
 import gc
-import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="57.0.0",
+    version="1.0.0",
 )
-
-VERI_DOSYASI = "veriler.json"
 
 FIRMALAR = [
     {"id": "colakoglu", "baslik": "Çolakoğlu Metalurji", "url": "https://www.colakoglu.com.tr/hurda"},
@@ -31,25 +27,8 @@ FIRMALAR = [
     {"id": "asil", "baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
 ]
 
-def verileri_diskten_yukle():
-    if os.path.exists(VERI_DOSYASI):
-        try:
-            with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
-    return {"son_guncelleme": "Henüz yapılmadı", "data": []}
-
-kayitli_durum = verileri_diskten_yukle()
-GUNCEL_VERILER = kayitli_durum["data"]
-SON_GUNCELLEME = kayitli_durum["son_guncelleme"]
-
-def verileri_diske_kaydet(data, zaman):
-    try:
-        with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
-            json.dump({"son_guncelleme": zaman, "data": data}, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"Dosya kayıt hatası: {e}")
+GUNCEL_VERILER = []
+SON_GUNCELLEME = "Henüz yapılmadı"
 
 def tarayici_olustur():
     options = Options()
@@ -71,9 +50,9 @@ def tarayici_olustur():
     driver.set_page_load_timeout(25)
     return driver
 
-def verileri_arkaplanda_guncelle():
+def verileri_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] Tek oturumla 9 fabrika taranmaya başlanıyor...")
+    print(f"[{datetime.now()}] 9 fabrika taranmaya başlanıyor...")
     
     yeni_veriler = []
     driver = None
@@ -253,18 +232,12 @@ def verileri_arkaplanda_guncelle():
 
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    verileri_diske_kaydet(GUNCEL_VERILER, SON_GUNCELLEME)
     gc.collect()
-    print("Tüm tarama süreci başarıyla tamamlandı ve diske kaydedildi.")
+    print("Tarama tamamlandı.")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
+scheduler.add_job(verileri_guncelle, 'interval', minutes=30)
 scheduler.start()
-
-@app.on_event("startup")
-def startup_event():
-    if not GUNCEL_VERILER:
-        threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
@@ -276,7 +249,7 @@ def get_prices():
 
 @app.post("/refresh")
 def manual_refresh():
-    verileri_arkaplanda_guncelle()
+    verileri_guncelle()
     return {
         "status": "success",
         "son_guncelleme": SON_GUNCELLEME,
