@@ -14,7 +14,7 @@ import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="56.0.0",
+    version="57.0.0",
 )
 
 VERI_DOSYASI = "veriler.json"
@@ -31,7 +31,6 @@ FIRMALAR = [
     {"id": "asil", "baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
 ]
 
-# Verileri dosyadan yükle (Eğer daha önce kaydedilmişse)
 def verileri_diskten_yukle():
     if os.path.exists(VERI_DOSYASI):
         try:
@@ -264,7 +263,6 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    # Eğer daha önce hiç veri kaydedilmemişse veya liste boşsa hemen arka planda ilk taramayı başlat
     if not GUNCEL_VERILER:
         threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
@@ -338,7 +336,7 @@ def read_root():
                 icon.classList.add("animate-spin");
                 text.innerText = "Yenileniyor...";
                 try {
-                    const response = await fetch('/refresh', { method: 'POST' }],
+                    const response = await fetch('/refresh', { method: 'POST' });
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
