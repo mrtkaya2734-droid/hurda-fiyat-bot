@@ -1,4 +1,4 @@
-name: Build Python Webview APK
+name: Build Python APK
 
 on:
   push:
@@ -16,42 +16,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-        python-version: '3.10'
+          python-version: '3.10'
 
-      - name: Install Buildozer and Dependencies
+      - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-              python3-pip \
-              git \
-              zip \
-              unzip \
-              autoconf \
-              libtool \
-              pkg-config \
-              zlib1g-dev \
-              libncurses5-dev \
-              libncursesw5-dev \
-              libtinfo5 \
-              cmake \
-              libffi-dev \
-              libssl-dev
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install buildozer cython
 
-      - name: Initialize Buildozer Config (if missing)
+      - name: Run Buildozer Build
         run: |
-          if [ ! -f "buildozer.spec" ]; then
-            buildozer init
-          fi
-
-      - name: Build APK with Buildozer
-        run: |
-          # Buildozer ile Android APK derlemesini başlat
           buildozer -v android debug
 
-      - name: Upload APK Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: package-apk
+          name: android-apk
           path: bin/*.apk
