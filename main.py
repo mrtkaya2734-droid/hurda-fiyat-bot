@@ -20,7 +20,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.2.0",
+    version="46.3.0",
 )
 
 FIRMALAR = [
@@ -37,7 +37,7 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
-PUSH_SUBSCRIPTIONS = [] # Bildirime abone olan cihazlar burada saklanır
+PUSH_SUBSCRIPTIONS = []
 
 def veri_cek(firma):
     options = Options()
@@ -48,9 +48,13 @@ def veri_cek(firma):
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
-    options.add_argument("--window-size=1024,768")
+    options.add_argument("--window-size=1280,800")
     options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+    # Bot algılamasını önlemek için ek parametreler
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
 
     kalemler = []
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
@@ -58,9 +62,9 @@ def veri_cek(firma):
     
     try:
         driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(15)
+        driver.set_page_load_timeout(20)
         driver.get(firma["url"])
-        time.sleep(2)
+        time.sleep(3)
         
         # 1. ÇOLAKOĞLU METALURJİ
         if firma["id"] == "colakoglu":
@@ -109,15 +113,6 @@ def veri_cek(firma):
                         if cins and fiyat:
                             if not any(k['cins'] == cins for k in kalemler):
                                 kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
-                
-                if not kalemler:
-                    tum_metin = driver.find_element(By.TAG_NAME, "body").text
-                    satirlar = tum_metin.split("\n")
-                    for satir in satirlar:
-                        satir = satir.strip()
-                        if ("TL" in satir or "₺" in satir) and len(satir) > 5:
-                            if not any(k['cins'] == satir for k in kalemler):
-                                kalemler.append({"cins": "Kardemir Hurda Çeşitleri", "fiyat": satir, "degisim": "+250 ₺"})
             except Exception as e:
                 print(f"Kardemir hata: {e}")
 
@@ -171,45 +166,41 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK (Render Gecikme Korumalı)
+        # 8. HASÇELİK (Gelişmiş Bot Koruması ve Esnek Seçici)
         elif firma["id"] == "hascelik":
             try:
-                time.sleep(3)
-                tables = driver.find_elements(By.TAG_NAME, "table")
-                for table in tables:
-                    rows = table.find_elements(By.TAG_NAME, "tr")
-                    for row in rows:
-                        cols = row.find_elements(By.TAG_NAME, "td")
-                        if len(cols) >= 2:
-                            cins = cols[0].text.strip()
-                            fiyat = cols[1].text.strip()
-                            if cins and fiyat:
-                                temiz_fiyat = fiyat.replace("£", "₺").strip()
-                                if not ("TL" in temiz_fiyat or "₺" in temiz_fiyat):
-                                    temiz_fiyat += " TL"
-                                if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({
-                                        "cins": cins,
-                                        "fiyat": temiz_fiyat,
-                                        "degisim": "+180 ₺"
-                                    })
+                time.sleep(4) # Render için güvenli bekleme
+                # Tüm tablo ve listeleri tara
+                elements = driver.find_elements(By.TAG_NAME, "tr")
+                if not elements:
+                    elements = driver.find_elements(By.TAG_NAME, "li")
                 
+                for el in elements:
+                    txt = el.text.strip()
+                    if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) > 3:
+                        satirlar = txt.split("\n")
+                        cins, fiyat = "", ""
+                        for s in satirlar:
+                            s_clean = s.strip()
+                            if "TL" in s_clean or "₺" in s_clean or "£" in s_clean:
+                                fiyat = s_clean.replace("£", "₺")
+                                if not ("TL" in fiyat or "₺" in fiyat):
+                                    fiyat += " TL"
+                            elif len(s_clean) > 2 and not "Hasçelik" in s_clean:
+                                cins = s_clean
+                        
+                        if cins and fiyat:
+                            if not any(k['cins'] == cins for k in kalemler):
+                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+
+                # Eğer tabloda bulunamadıysa tüm metin bloklarını tara
                 if not kalemler:
-                    elementler = driver.find_elements(By.TAG_NAME, "div")
-                    for el in elementler:
-                        txt = el.text.strip()
-                        if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) < 100:
-                            satirlar = txt.split("\n")
-                            cins, fiyat = "", ""
-                            for satir in satirlar:
-                                s = satir.strip()
-                                if "TL" in s or "₺" in s or "£" in s:
-                                    fiyat = s.replace("£", "₺")
-                                elif len(s) > 2 and not "Hasçelik" in s:
-                                    cins = s
-                            if cins and fiyat:
-                                if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+                    body_text = driver.find_element(By.TAG_NAME, "body").text
+                    for satir in body_text.split("\n"):
+                        satir = satir.strip()
+                        if ("TL" in satir or "₺" in satir) and len(satir) < 60:
+                            if not any(k['cins'] == satir for k in kalemler):
+                                kalemler.append({"cins": "Hasçelik Hurda Çeşitleri", "fiyat": satir, "degisim": "+180 ₺"})
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
@@ -254,12 +245,10 @@ def veri_cek(firma):
 def bildirimleri_gonder():
     if not PUSH_SUBSCRIPTIONS or not PYWEBPUSH_AVAILABLE:
         return
-    
     mesaj = json.dumps({
         "title": "Hurda Fiyatları Güncellendi!",
         "body": "9 fabrikaya ait güncel hurda fiyatları yenilendi."
     })
-    
     for sub in PUSH_SUBSCRIPTIONS:
         try:
             webpush(
@@ -273,7 +262,7 @@ def bildirimleri_gonder():
 
 def verileri_arkaplanda_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor (RAM Dostu Mod)...")
+    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor...")
     
     yeni_veriler = []
     for firma in FIRMALAR:
@@ -287,12 +276,9 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    
-    # Güncelleme bittikten sonra abone olanlara push bildirim fırlat
     bildirimleri_gonder()
-    
     gc.collect()
-    print("Tüm tarama tamamlandı, bellek temizlendi.")
+    print("Tarama tamamlandı.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
@@ -421,7 +407,6 @@ def read_root():
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
                     const registration = await navigator.serviceWorker.ready;
-                    // Test amaçlı basit abonelik nesnesi gönderiyoruz
                     const subscription = {
                         endpoint: "https://fcm.googleapis.com/fcm/send/test-endpoint",
                         keys: { p256dh: "test-key", auth: "test-auth" }
