@@ -20,7 +20,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="49.0.0",
+    version="50.0.0",
 )
 
 FIRMALAR = [
@@ -277,7 +277,8 @@ def verileri_arkaplanda_guncelle():
     print("Tarama tamamlandı.")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
+# 30 dakikada bir otomatik çalışma ayarlandı
+scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
 
 @app.on_event("startup")
@@ -376,7 +377,7 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama & Canlı Takip Aktif</span>
+                    <span>30 Dakikada Bir Otomatik Takip Aktif</span>
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
