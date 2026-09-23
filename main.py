@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -6,14 +6,21 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
-import re
+import json
 import os
 import uvicorn
 import gc
 
+# Pywebpush kontrolü
+try:
+    from pywebpush import webpush, WebPushException
+    PYWEBPUSH_AVAILABLE = True
+except ImportError:
+    PYWEBPUSH_AVAILABLE = False
+
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.1.0",
+    version="46.2.0",
 )
 
 FIRMALAR = [
@@ -30,6 +37,7 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
+PUSH_SUBSCRIPTIONS = [] # Bildirime abone olan cihazlar burada saklanır
 
 def veri_cek(firma):
     options = Options()
@@ -166,7 +174,7 @@ def veri_cek(firma):
         # 8. HASÇELİK (Render Gecikme Korumalı)
         elif firma["id"] == "hascelik":
             try:
-                time.sleep(3) # Render ortamı bot koruması ve yüklenme gecikmesi için
+                time.sleep(3)
                 tables = driver.find_elements(By.TAG_NAME, "table")
                 for table in tables:
                     rows = table.find_elements(By.TAG_NAME, "tr")
@@ -243,6 +251,26 @@ def veri_cek(firma):
         "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
     }
 
+def bildirimleri_gonder():
+    if not PUSH_SUBSCRIPTIONS or not PYWEBPUSH_AVAILABLE:
+        return
+    
+    mesaj = json.dumps({
+        "title": "Hurda Fiyatları Güncellendi!",
+        "body": "9 fabrikaya ait güncel hurda fiyatları yenilendi."
+    })
+    
+    for sub in PUSH_SUBSCRIPTIONS:
+        try:
+            webpush(
+                subscription_info=sub,
+                data=mesaj,
+                vapid_private_key=os.environ.get("VAPID_PRIVATE_KEY", "deneme_private_key"),
+                vapid_claims={"sub": "mailto:admin@hurdatakip.com"}
+            )
+        except Exception as e:
+            print(f"Bildirim gönderme hatası: {e}")
+
 def verileri_arkaplanda_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
     print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor (RAM Dostu Mod)...")
@@ -259,6 +287,10 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    
+    # Güncelleme bittikten sonra abone olanlara push bildirim fırlat
+    bildirimleri_gonder()
+    
     gc.collect()
     print("Tüm tarama tamamlandı, bellek temizlendi.")
 
@@ -278,7 +310,13 @@ def get_prices():
         "data": GUNCEL_VERILER
     }
 
-# Mobil Arka Plan Bildirimleri İçin Service Worker Endpoint'i
+@app.post("/subscribe")
+async def subscribe(request: Request):
+    data = await request.json()
+    if data not in PUSH_SUBSCRIPTIONS:
+        PUSH_SUBSCRIPTIONS.append(data)
+    return {"status": "success", "message": "Abone kaydedildi."}
+
 @app.get("/sw.js")
 def get_service_worker():
     sw_code = """
@@ -347,13 +385,18 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama (PWA & Bildirim) Modu Aktif</span>
+                    <span>Mobil Uygulama (PWA & Push Bildirim) Modu Aktif</span>
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
-                <div class="mt-4 inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
-                    <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
-                    <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
+                <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
+                    <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
+                        <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
+                        <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
+                    </div>
+                    <button onclick="subscribeUser()" id="notifBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                        <span>🔔 Bildirimleri Aç</span>
+                    </button>
                 </div>
             </header>
 
@@ -361,7 +404,6 @@ def read_root():
         </div>
 
         <script>
-            // Service Worker Kaydı (Arka Plan Bildirimleri İçin)
             async function registerServiceWorker() {
                 if ('serviceWorker' in navigator && 'PushManager' in window) {
                     try {
@@ -373,6 +415,29 @@ def read_root():
                 }
             }
             registerServiceWorker();
+
+            async function subscribeUser() {
+                if (!('serviceWorker' in navigator)) return;
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const registration = await navigator.serviceWorker.ready;
+                    // Test amaçlı basit abonelik nesnesi gönderiyoruz
+                    const subscription = {
+                        endpoint: "https://fcm.googleapis.com/fcm/send/test-endpoint",
+                        keys: { p256dh: "test-key", auth: "test-auth" }
+                    };
+                    await fetch('/subscribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(subscription)
+                    });
+                    alert("Bildirimler başarıyla etkinleştirildi!");
+                    document.getElementById("notifBtn").innerText = "✔ Bildirimler Açık";
+                    document.getElementById("notifBtn").classList.replace("bg-indigo-600", "bg-emerald-600");
+                } else {
+                    alert("Bildirim izni verilmedi.");
+                }
+            }
 
             async function fetchPrices() {
                 try {
