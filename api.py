@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from selenium import webdriver
@@ -8,11 +9,10 @@ from selenium.webdriver.common.by import By
 from concurrent.futures import ThreadPoolExecutor
 import time
 import re
-import uvicorn
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="45.0.0",
+    version="44.0.0",
 )
 
 FIRMALAR = [
@@ -31,7 +31,6 @@ GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
 
 def veri_cek(firma):
-    # Render 512MB RAM sınırını aşmamak için en optimize hafif Chrome ayarları
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -40,10 +39,7 @@ def veri_cek(firma):
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
-    options.add_argument("--disable-setuid-sandbox")
-    options.add_argument("--disable-web-security")
-    options.add_argument("--single-process")
-    options.add_argument("--disable-dev-tools")
+    options.add_argument("--window-size=1920,1080")
     options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
@@ -346,7 +342,3 @@ def read_root():
     </body>
     </html>
     """
-
-# --- RENDER İÇİN KRİTİK PORT BAĞLANTISI ---
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=10000)

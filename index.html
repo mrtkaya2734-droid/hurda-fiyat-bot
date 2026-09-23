@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Güncel Hurda Fiyatları</title>
+    <!-- Modern bir görünüm için Tailwind CSS ekleyelim -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Güncel Hurda Fiyatları</h1>
+            <p class="text-gray-600 mt-2">Firebase veritabanından anlık çekilen hurda demir ve fabrika fiyatları</p>
+        </header>
+
+        <!-- Arama / Filtreleme Kutusu -->
+        <div class="mb-6 flex justify-center">
+            <input type="text" id="searchInput" placeholder="Hurda cinsi veya fabrika ara..." 
+                class="w-full max-w-md px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Tablo Alanı -->
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Tarih</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Hurda Cinsi / Fabrika</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Fiyat</th>
+                    </tr>
+                </thead>
+                <tbody id="priceTableBody" class="divide-y divide-gray-200">
+                    <!-- Veriler JavaScript ile buraya doldurulacak -->
+                    <tr>
+                        <td colspan="3" class="px-6 py-4 text-center text-gray-500">Yükleniyor...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // API adresimiz (Codespaces kullanıyorsan kendi 8080 portlu linkini veya yerel linkini yazabilirsin)
+        const API_URL = "/prices";
+
+        async function fetchPrices() {
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                
+                if (result.status === "success") {
+                    displayPrices(result.data);
+                } else {
+                    document.getElementById("priceTableBody").innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-red-500">Veriler alınamadı.</td></tr>`;
+                }
+            } catch (error) {
+                console.error("Hata:", error);
+                document.getElementById("priceTableBody").innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-red-500">Sunucuya bağlanılamadı.</td></tr>`;
+            }
+        }
+
+        let allData = [];
+
+        function displayPrices(data) {
+            allData = data;
+            renderTable(allData);
+        }
+
+        function renderTable(dataToRender) {
+            const tbody = document.getElementById("priceTableBody");
+            tbody.innerHTML = "";
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Kayıt bulunamadı.</td></tr>`;
+                return;
+            }
+
+            dataToRender.forEach(item => {
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-gray-50";
+
+                // Cins veya fabrika bilgisini yakalayalım
+                const cinsVeyaFabrika = item.cins || item.fabrika || "Bilinmiyor";
+                const fiyat = item.fiyat || "-";
+                const tarih = item.tarih || "-";
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${tarih}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cinsVeyaFabrika}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">${fiyat}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Arama çubuğu filtreleme özelliği
+        document.getElementById("searchInput").addEventListener("input", (e) => {
+            const keyword = e.target.value.toLowerCase();
+            const filtered = allData.item ? allData : allData.filter(item => {
+                const text = (item.cins || item.fabrika || "").toLowerCase();
+                return text.includes(keyword);
+            });
+            renderTable(filtered);
+        });
+
+        // Sayfa açıldığında verileri çek
+        fetchPrices();
+    </script>
+</body>
+</html>
