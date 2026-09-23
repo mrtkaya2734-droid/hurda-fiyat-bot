@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.4.0",
+    version="46.5.0",
 )
 
 FIRMALAR = [
@@ -142,7 +142,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK (Güvenli Tablo ve Metin Okuma)
+        # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -171,7 +171,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
-        # 9. ASİL ÇELİK (Güvenli Tablo ve Metin Okuma)
+        # 9. ASİL ÇELİK
         elif firma["id"] == "asil":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -235,7 +235,7 @@ def verileri_arkaplanda_guncelle():
     print("Önbellek güncellendi.")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
+scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
 
 @app.on_event("startup")
