@@ -6,14 +6,14 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
-import re
 import os
 import uvicorn
 import gc
+import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.2.0",
+    version="46.3.0",
 )
 
 FIRMALAR = [
@@ -30,6 +30,7 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
+GUNCELLEME_YAPILIYOR = False
 
 def veri_cek(firma):
     options = Options()
@@ -37,11 +38,7 @@ def veri_cek(firma):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument("--disable-software-rasterizer")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-infobars")
     options.add_argument("--window-size=1024,768")
-    options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
     kalemler = []
@@ -54,7 +51,7 @@ def veri_cek(firma):
         driver.get(firma["url"])
         time.sleep(3)
         
-        # 1. ÇOLAKOĞLU METALURJİ
+        # 1. ÇOLAKOĞLU
         if firma["id"] == "colakoglu":
             try:
                 scrap_section = driver.find_element(By.ID, "scrap")
@@ -62,16 +59,12 @@ def veri_cek(firma):
                 temiz_satirlar = [m.strip() for m in metinler if m.strip()]
                 i = 0
                 while i < len(temiz_satirlar) - 1:
-                    birinci = temiz_satirlar[i]
-                    ikinci = temiz_satirlar[i+1]
+                    birinci, ikinci = temiz_satirlar[i], temiz_satirlar[i+1]
                     cins, fiyat = "", ""
                     if "TL" in birinci or "₺" in birinci:
-                        fiyat = birinci
-                        cins = ikinci
+                        fiyat, cins = birinci, ikinci
                     elif "TL" in ikinci or "₺" in ikinci:
-                        cins = birinci
-                        fiyat = ikinci
-                    
+                        cins, fiyat = birinci, ikinci
                     if cins and fiyat and len(cins) > 1:
                         if not any(k['cins'] == cins for k in kalemler):
                             kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+200 ₺"})
@@ -85,7 +78,6 @@ def veri_cek(firma):
                 elements = driver.find_elements(By.TAG_NAME, "tr")
                 if not elements:
                     elements = driver.find_elements(By.TAG_NAME, "li")
-                
                 for el in elements:
                     txt = el.text.strip()
                     if ("TL" in txt or "₺" in txt) and len(txt) > 5:
@@ -97,19 +89,9 @@ def veri_cek(firma):
                                 fiyat = p_clean
                             elif len(p_clean) > 2 and not "Kardemir" in p_clean:
                                 cins = p_clean
-                        
                         if cins and fiyat:
                             if not any(k['cins'] == cins for k in kalemler):
                                 kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
-                
-                if not kalemler:
-                    tum_metin = driver.find_element(By.TAG_NAME, "body").text
-                    satirlar = tum_metin.split("\n")
-                    for satir in satirlar:
-                        satir = satir.strip()
-                        if ("TL" in satir or "₺" in satir) and len(satir) > 5:
-                            if not any(k['cins'] == satir for k in kalemler):
-                                kalemler.append({"cins": "Kardemir Hurda Çeşitleri", "fiyat": satir, "degisim": "+250 ₺"})
             except Exception as e:
                 print(f"Kardemir hata: {e}")
 
@@ -152,7 +134,6 @@ def veri_cek(firma):
                                     break
                             if not fiyat:
                                 fiyat = cols[1].text.strip()
-
                             if cins and fiyat:
                                 if not any(k['cins'] == cins for k in kalemler):
                                     kalemler.append({
@@ -163,7 +144,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK
+        # 8. HASÇELİK (Geliştirilmiş Alternatif Tarama)
         elif firma["id"] == "hascelik":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -179,35 +160,21 @@ def veri_cek(firma):
                                 if not ("TL" in temiz_fiyat or "₺" in temiz_fiyat):
                                     temiz_fiyat += " TL"
                                 if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({
-                                        "cins": cins,
-                                        "fiyat": temiz_fiyat,
-                                        "degisim": "+180 ₺"
-                                    })
+                                    kalemler.append({"cins": cins, "fiyat": temiz_fiyat, "degisim": "+180 ₺"})
                 
                 if not kalemler:
-                    for tag in ["li", "div", "p"]:
-                        elements = driver.find_elements(By.TAG_NAME, tag)
-                        for el in elements:
-                            txt = el.text.strip()
-                            if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) < 120:
-                                satirlar = txt.split("\n")
-                                cins, fiyat = "", ""
-                                for satir in satirlar:
-                                    s = satir.strip()
-                                    if "TL" in s or "₺" in s or "£" in s:
-                                        fiyat = s.replace("£", "₺").replace("€", "₺")
-                                        if not ("TL" in fiyat or "₺" in fiyat):
-                                            fiyat += " TL"
-                                    elif len(s) > 2 and not "Hasçelik" in s:
-                                        cins = s
-                                if cins and fiyat:
-                                    if not any(k['cins'] == cins for k in kalemler):
-                                        kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+                    # Tüm metin bazlı satır analizi
+                    body_text = driver.find_element(By.TAG_NAME, "body").text
+                    satirlar = body_text.split("\n")
+                    for sat in satirlar:
+                        sat = sat.strip()
+                        if ("TL" in sat or "₺" in sat) and len(sat) < 80:
+                            if not any(k['fiyat'] == sat for k in kalemler):
+                                kalemler.append({"cins": "Hasçelik Hurda Çeşitleri", "fiyat": sat, "degisim": "+180 ₺"})
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
-        # 9. ASİL ÇELİK
+        # 9. ASİL ÇELİK (Geliştirilmiş Alternatif Tarama)
         elif firma["id"] == "asil":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -225,6 +192,14 @@ def veri_cek(firma):
                                         "fiyat": fiyat.replace("(TL/ton)", "TL").strip(),
                                         "degisim": "+200 ₺"
                                     })
+                if not kalemler:
+                    body_text = driver.find_element(By.TAG_NAME, "body").text
+                    satirlar = body_text.split("\n")
+                    for sat in satirlar:
+                        sat = sat.strip()
+                        if ("TL" in sat or "₺" in sat) and len(sat) < 80:
+                            if not any(k['fiyat'] == sat for k in kalemler):
+                                kalemler.append({"cins": "Asil Çelik Hurda Kalemi", "fiyat": sat, "degisim": "+200 ₺"})
             except Exception as e:
                 print(f"Asil Çelik hata: {e}")
 
@@ -232,22 +207,23 @@ def veri_cek(firma):
         print(f"{firma['baslik']} tarama hatası: {e}")
     finally:
         if driver:
-            try:
-                driver.quit()
-            except:
-                pass
+            try: driver.quit()
+            except: pass
         gc.collect()
 
     return {
         "baslik": firma["baslik"],
         "url": firma["url"],
         "tarih": bulunan_tarih,
-        "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
+        "kalemler": kalemler[:6] if kalemler else [{"cins": "Veri Alınamadı / Güncelleniyor", "fiyat": "---", "degisim": "0 ₺"}]
     }
 
 def verileri_arkaplanda_guncelle():
-    global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor (Önbellek yenileniyor)...")
+    global GUNCEL_VERILER, SON_GUNCELLEME, GUNCELLEME_YAPILIYOR
+    if GUNCELLEME_YAPILIYOR:
+        return
+    GUNCELLEME_YAPILIYOR = True
+    print(f"[{datetime.now()}] 9 fabrika taranıyor...")
     
     yeni_veriler = []
     for firma in FIRMALAR:
@@ -261,8 +237,9 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    GUNCELLEME_YAPILIYOR = False
     gc.collect()
-    print("Önbellek güncellendi ve bellek temizlendi.")
+    print("Güncelleme tamamlandı.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
@@ -270,22 +247,25 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    verileri_arkaplanda_guncelle()
+    threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
     return {
         "status": "success",
+        "guncelleniyor": GUNCELLEME_YAPILIYOR,
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
 
 @app.get("/refresh")
 def refresh_cache():
-    """Önbelleği manuel olarak temizler ve verileri yeniden çeker"""
-    verileri_arkaplanda_guncelle()
+    """Arka planda güncellemeyi tetikler ve hemen yanıt döner (Butonun takılmasını önler)"""
+    if not GUNCELLEME_YAPILIYOR:
+        threading.Thread(target=verileri_arkaplanda_guncelle).start()
     return {
         "status": "success",
+        "message": "Güncelleme arka planda başlatıldı.",
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
@@ -299,14 +279,11 @@ def get_manifest():
         "display": "standalone",
         "background_color": "#f1f5f9",
         "theme_color": "#0f172a",
-        "icons": [
-            {
-                "src": "https://cdn-icons-png.flaticon.com/512/2954/2954884.png",
-                "sizes": "512x512",
-                "type": "image/png",
-                "purpose": "any maskable"
-            }
-        ]
+        "icons": [{
+            "src": "https://cdn-icons-png.flaticon.com/512/2954/2954884.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }]
     }
 
 @app.get("/", response_class=HTMLResponse)
@@ -321,37 +298,25 @@ def read_root():
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="Hurda Takip">
-        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-100 text-slate-900 font-sans antialiased">
         <div class="max-w-7xl mx-auto px-4 py-10">
             <header class="text-center mb-12">
-                <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama (PWA) Modu Aktif</span>
-                </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
-                
                 <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
                     <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
                         <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
                         <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
                     </div>
-                    
-                    <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition duration-200 cursor-pointer active:scale-95">
-                        <svg class="w-3.5 h-3.5 animate-spin-slow" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
                         <span>Önbelleği Temizle & Yenile</span>
                     </button>
                 </div>
             </header>
-
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
-
         <script>
             async function fetchPrices() {
                 try {
@@ -360,29 +325,28 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
+                        if(result.guncelleniyor) {
+                            document.getElementById("refreshBtn").innerText = "Arka planda taranıyor...";
+                            document.getElementById("refreshBtn").disabled = true;
+                        } else {
+                            document.getElementById("refreshBtn").innerText = "Önbelleği Temizle & Yenile";
+                            document.getElementById("refreshBtn").disabled = false;
+                        }
                     }
                 } catch (error) { console.error("Hata:", error); }
             }
 
             async function triggerRefresh() {
                 const btn = document.getElementById("refreshBtn");
-                const originalText = btn.innerHTML;
                 btn.disabled = true;
-                btn.innerHTML = `<span>Veriler taranıyor, lütfen bekleyin...</span>`;
-                
+                btn.innerText = "Güncelleme başlatıldı...";
                 try {
-                    const response = await fetch('/refresh');
-                    const result = await response.json();
-                    if (result.status === "success") {
-                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        renderCards(result.data);
-                    }
+                    await fetch('/refresh');
+                    setTimeout(fetchPrices, 3000);
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
-                    alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
+                    setTimeout(() => { btn.disabled = false; btn.innerText = "Önbelleği Temizle & Yenile"; }, 5000);
                 }
             }
 
@@ -392,41 +356,34 @@ def read_root():
                 data.forEach(item => {
                     let kalemlerHtml = "";
                     item.kalemler.forEach(k => {
-                        const isPozitif = k.degisim.includes("+");
-                        const degisimClass = isPozitif ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-slate-600 bg-slate-50 border border-slate-200";
                         kalemlerHtml += `
                             <div class="flex justify-between items-center py-3.5 px-1 border-b border-slate-100 last:border-none">
                                 <span class="font-semibold text-slate-700 text-sm">${k.cins}</span>
                                 <div class="text-right flex items-center space-x-2.5">
                                     <span class="text-slate-900 font-extrabold text-sm">${k.fiyat}</span>
-                                    <span class="text-[11px] px-2 py-0.5 rounded-lg font-bold ${degisimClass}">${k.degisim}</span>
+                                    <span class="text-[11px] px-2 py-0.5 rounded-lg font-bold text-emerald-700 bg-emerald-50">${k.degisim}</span>
                                 </div>
                             </div>
                         `;
                     });
-
                     const card = document.createElement("div");
-                    card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden hover:shadow-md transition duration-300";
+                    card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden";
                     card.innerHTML = `
-                        <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white px-6 py-5 flex justify-between items-center">
+                        <div class="bg-slate-900 text-white px-6 py-5 flex justify-between items-center">
                             <div>
-                                <h3 class="font-bold text-base tracking-wide">${item.baslik}</h3>
-                                <a href="${item.url}" target="_blank" class="text-[11px] text-indigo-300 hover:text-white underline transition block mt-0.5 font-medium">Resmi Kaynağa Git ↗</a>
+                                <h3 class="font-bold text-base">${item.baslik}</h3>
+                                <a href="${item.url}" target="_blank" class="text-[11px] text-indigo-300 underline block mt-0.5">Resmi Kaynağa Git ↗</a>
                             </div>
-                            <span class="text-xs bg-white/10 text-slate-200 font-semibold px-3 py-1 rounded-xl backdrop-blur-md border border-white/10">${item.tarih}</span>
+                            <span class="text-xs bg-white/10 px-3 py-1 rounded-xl">${item.tarih}</span>
                         </div>
-                        <div class="p-6">
-                            <div class="divide-y divide-slate-100">
-                                ${kalemlerHtml}
-                            </div>
-                        </div>
+                        <div class="p-6"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
                     `;
                     container.appendChild(card);
                 });
             }
 
             fetchPrices();
-            setInterval(fetchPrices, 300000);
+            setInterval(fetchPrices, 10000);
         </script>
     </body>
     </html>
