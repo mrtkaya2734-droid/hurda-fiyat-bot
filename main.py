@@ -21,7 +21,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="52.0.0",
+    version="53.0.0",
 )
 
 FIRMALAR = [
@@ -41,22 +41,22 @@ SON_GUNCELLEME = "Henüz yapılmadı"
 PUSH_SUBSCRIPTIONS = []
 
 def veri_cek(firma):
-    """RAM ve Port optimizasyonlu, güvenli Selenium veri çekme fonksiyonu"""
+    """Render RAM ve Çökme korumalı Selenium veri çekme fonksiyonu"""
     
-    # Zombi süreçleri temizle
     os.system("pkill -f chromedriver")
     os.system("pkill -f chrome")
 
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")  # Render RAM çökmelerini önler
+    options.add_argument("--disable-dev-shm-usage")  # Render bellek paylaşım hatasını önler
     options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1280,800")
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
-    options.add_argument("--window-size=1280,800")
-    options.add_argument("--blink-settings=imagesEnabled=false")  # Görselleri kapatarak RAM tasarrufu sağlar
+    options.add_argument("--remote-debugging-port=9222")  # Chrome çökmesini (session exited) engellemek için kritik
+    options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -67,9 +67,8 @@ def veri_cek(firma):
     driver = None
     
     try:
-        # Render (Linux) apt.txt ile kurulduğu için ek servis istemez, doğrudan başlar
         driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(20)
+        driver.set_page_load_timeout(25)
         driver.get(firma["url"])
         time.sleep(3)
         
@@ -176,7 +175,7 @@ def veri_cek(firma):
         # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
-                time.sleep(4)
+                time.sleep(3)
                 elements = driver.find_elements(By.TAG_NAME, "tr")
                 if not elements:
                     elements = driver.find_elements(By.TAG_NAME, "li")
@@ -198,14 +197,6 @@ def veri_cek(firma):
                         if cins and fiyat:
                             if not any(k['cins'] == cins for k in kalemler):
                                 kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
-
-                if not kalemler:
-                    body_text = driver.find_element(By.TAG_NAME, "body").text
-                    for satir in body_text.split("\n"):
-                        satir = satir.strip()
-                        if ("TL" in satir or "₺" in satir) and len(satir) < 60:
-                            if not any(k['cins'] == satir for k in kalemler):
-                                kalemler.append({"cins": "Hasçelik Hurda Çeşitleri", "fiyat": satir, "degisim": "+180 ₺"})
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
@@ -282,7 +273,7 @@ def verileri_arkaplanda_guncelle():
         os.system("pkill -f chromedriver")
         os.system("pkill -f chrome")
         gc.collect()
-        time.sleep(3)
+        time.sleep(2)
     
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
