@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="67.0.0",
+    version="68.0.0",
 )
 
 FIRMALAR = [
@@ -42,6 +42,7 @@ def temizle_metin(text):
 
 def veri_cek(firma):
     kalemler = []
+    eklenen_cinsler = set() # Aynı kalemin mükerrer eklenmesini kesin olarak önler
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     
     try:
@@ -73,7 +74,8 @@ def veri_cek(firma):
                     if cins and fiyat and len(cins) > 1 and "TL" not in cins and "₺" not in cins:
                         cins_temiz = temizle_metin(cins)
                         fiyat_temiz = fiyat.replace("t/ton", "TL").replace("₺/ton", "TL")
-                        if not any(k['cins'] == cins_temiz for k in kalemler):
+                        if cins_temiz.lower() not in eklenen_cinsler:
+                            eklenen_cinsler.add(cins_temiz.lower())
                             kalemler.append({"cins": cins_temiz, "fiyat": fiyat_temiz, "degisim": "+200 ₺"})
                         i += 2
                     else:
@@ -101,7 +103,8 @@ def veri_cek(firma):
                         fiyat = cols[1].get_text(strip=True)
                         
                      if cins and fiyat and not cins.isdigit() and len(cins) > 1:
-                        if not any(k['cins'] == cins for k in kalemler):
+                        if cins.lower() not in eklenen_cinsler:
+                            eklenen_cinsler.add(cins.lower())
                             kalemler.append({
                                 "cins": cins,
                                 "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
@@ -280,7 +283,6 @@ def read_root():
             }
 
             fetchPrices();
-            setInterval(fetchPrices, 300000);
         </script>
     </body>
     </html>
