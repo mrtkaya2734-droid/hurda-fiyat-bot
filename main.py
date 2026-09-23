@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="60.0.0",
+    version="62.0.0",
 )
 
 FIRMALAR = [
@@ -32,6 +32,14 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
 
+def temizle_metin(text):
+    if not text:
+        return ""
+    temiz = text.replace("HurdaFiyat geçmişi", "").replace("Geçmişi", "").strip()
+    if len(temiz) > 30:
+        temiz = temiz[:28] + "..."
+    return temiz
+
 def veri_cek(firma):
     kalemler = []
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
@@ -43,45 +51,59 @@ def veri_cek(firma):
                 "baslik": firma["baslik"],
                 "url": firma["url"],
                 "tarih": bulunan_tarih,
-                "kalemler": [{"cins": "Erişim Hatası (HTTP " + str(response.status_code) + ")", "fiyat": "---", "degisim": "0 ₺"}]
+                "kalemler": [{"cins": f"Erişim Hatası ({response.status_code})", "fiyat": "---", "degisim": "0 ₺"}]
             }
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Ortak Tablo Tarama Mantığı
+        # 1. ÇOLAKOĞLU ÖZEL AYRIŞTIRMA (id="scrap")
+        if firma["id"] == "colakoglu":
+            scrap_section = soup.find(id="scrap")
+            if scrap_section:
+                metinler = scrap_section.get_text(separator="\n").split("\n")
+                temiz_satirlar = [m.strip() for m in metinler if m.strip()]
+                i = 0
+                while i < len(temiz_satirlar) - 1:
+                    birinci, ikinci = temiz_satirlar[i], temiz_satirlar[i+1]
+                    cins, fiyat = "", ""
+                    if "TL" in birinci or "₺" in birinci:
+                        fiyat, cins = birinci, ikinci
+                    elif "TL" in ikinci or "₺" in ikinci:
+                        cins, fiyat = birinci, ikinci
+                    if cins and fiyat and len(cins) > 1:
+                        cins_temiz = temizle_metin(cins)
+                        if not any(k['cins'] == cins_temiz for k in kalemler):
+                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat, "degisim": "+200 ₺"})
+                    i += 1
+        
+        # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI
         tables = soup.find_all('table')
         for table in tables:
             rows = table.find_all('tr')
             for row in rows:
                 cols = row.find_all(['td', 'th'])
                 if len(cols) >= 2:
-                    cins = cols[0].get_text(strip=True).split("\n")[0]
-                    fiyat = ""
-                    for col in cols:
+                     ham_cins = cols[0].get_text(strip=True).split("\n")[0]
+                     cins = temizle_metin(ham_cins)
+                     
+                     fiyat = ""
+                     for col in cols:
                         txt = col.get_text(strip=True)
                         if "₺" in txt or "TL" in txt or "t/ton" in txt:
                             fiyat = txt.replace("t/ton", "TL").replace("₺/ton", "TL").replace("€", "₺")
                             break
-                    if not fiyat and len(cols) >= 3:
+                     if not fiyat and len(cols) >= 3:
                         fiyat = cols[2].get_text(strip=True)
-                    elif not fiyat and len(cols) >= 2:
+                     elif not fiyat and len(cols) >= 2:
                         fiyat = cols[1].get_text(strip=True)
                         
-                    if cins and fiyat and not cins.isdigit() and len(cins) > 1:
+                     if cins and fiyat and not cins.isdigit() and len(cins) > 1:
                         if not any(k['cins'] == cins for k in kalemler):
                             kalemler.append({
                                 "cins": cins,
                                 "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
                                 "degisim": "+200 ₺"
                             })
-
-        # Eğer tablo bulunamazsa genel metin araması yap
-        if not kalemler:
-            for el in soup.find_all(['div', 'p', 'span', 'li']):
-                txt = el.get_text(strip=True)
-                if ("TL" in txt or "₺" in txt) and len(txt) < 60:
-                    if not any(k['fiyat'] == txt for k in kalemler):
-                        kalemler.append({"cins": "Hurda Kalemi", "fiyat": txt, "degisim": "+200 ₺"})
 
     except Exception as e:
         print(f"{firma['baslik']} hata: {e}")
@@ -113,10 +135,6 @@ def verileri_arkaplanda_guncelle():
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
-
-@app.on_event("startup")
-def startup_event():
-    pass
 
 @app.get("/prices")
 def get_prices():
@@ -229,11 +247,11 @@ def read_root():
                     let kalemlerHtml = "";
                     item.kalemler.forEach(k => {
                         kalemlerHtml += `
-                            <div class="flex justify-between items-center py-3.5 px-1 border-b border-slate-100 last:border-none">
-                                <span class="font-semibold text-slate-700 text-sm">${k.cins}</span>
-                                <div class="text-right flex items-center space-x-2.5">
-                                    <span class="text-slate-900 font-extrabold text-sm">${k.fiyat}</span>
-                                    <span class="text-[11px] px-2 py-0.5 rounded-lg font-bold text-emerald-700 bg-emerald-50">${k.degisim}</span>
+                            <div class="flex justify-between items-center py-3 px-1 border-b border-slate-100 last:border-none gap-2">
+                                <span class="font-semibold text-slate-700 text-xs truncate max-w-[150px]" title="${k.cins}">${k.cins}</span>
+                                <div class="text-right flex items-center space-x-2 shrink-0">
+                                    <span class="text-slate-900 font-extrabold text-xs">${k.fiyat}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50">${k.degisim}</span>
                                 </div>
                             </div>
                         `;
@@ -241,14 +259,14 @@ def read_root():
                     const card = document.createElement("div");
                     card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden";
                     card.innerHTML = `
-                        <div class="bg-slate-900 text-white px-6 py-5 flex justify-between items-center">
+                        <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
                             <div>
-                                <h3 class="font-bold text-base">${item.baslik}</h3>
-                                <a href="${item.url}" target="_blank" class="text-[11px] text-indigo-300 underline block mt-0.5">Resmi Kaynağa Git ↗</a>
+                                <h3 class="font-bold text-sm">${item.baslik}</h3>
+                                <a href="${item.url}" target="_blank" class="text-[10px] text-indigo-300 underline block mt-0.5">Resmi Kaynağa Git ↗</a>
                             </div>
-                            <span class="text-xs bg-white/10 px-3 py-1 rounded-xl">${item.tarih}</span>
+                            <span class="text-[11px] bg-white/10 px-2.5 py-1 rounded-xl shrink-0">${item.tarih}</span>
                         </div>
-                        <div class="p-6"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
+                        <div class="p-5"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
                     `;
                     container.appendChild(card);
                 });
