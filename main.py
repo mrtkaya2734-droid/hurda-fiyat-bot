@@ -5,6 +5,7 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import os
 import uvicorn
@@ -12,7 +13,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="2.1.0",
+    version="2.2.0",
 )
 
 FIRMALAR = [
@@ -47,205 +48,211 @@ def tarayici_olustur():
         options.binary_location = "/usr/bin/chromium"
 
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(25)
+    driver.set_page_load_timeout(20)
     return driver
 
-def verileri_guncelle():
-    global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] 9 fabrika taranmaya başlanıyor...")
-    
-    yeni_veriler = []
+def tek_firma_tara(firma):
+    """Tek bir fabrikayı izole bir tarayıcı açarak tarar (Thread uyumlu)"""
     driver = None
+    kalemler = []
+    bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     
     try:
+        print(f"Taranıyor (Paralel): {firma['baslik']}")
         driver = tarayici_olustur()
-    except Exception as e:
-        print(f"Tarayıcı başlatılamadı: {e}")
-        return
-
-    try:
-        for firma in FIRMALAR:
-            kalemler = []
-            bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
-            
+        driver.get(firma["url"])
+        time.sleep(2)
+        
+        if firma["id"] == "colakoglu":
             try:
-                print(f"Taranıyor: {firma['baslik']}")
-                driver.get(firma["url"])
-                time.sleep(3)
+                scrap_section = driver.find_element(By.ID, "scrap")
+                metinler = scrap_section.text.split("\n")
+                temiz_satirlar = [m.strip() for m in metinler if m.strip()]
+                i = 0
+                while i < len(temiz_satirlar) - 1:
+                    birinci = temiz_satirlar[i]
+                    ikinci = temiz_satirlar[i+1]
+                    cins, fiyat = "", ""
+                    if "TL" in birinci or "₺" in birinci:
+                        fiyat = birinci
+                        cins = ikinci
+                    elif "TL" in ikinci or "₺" in ikinci:
+                        cins = birinci
+                        fiyat = ikinci
+                    
+                    if cins and fiyat and len(cins) > 1:
+                        if not any(k['cins'] == cins for k in kalemler):
+                            kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+200 ₺"})
+                    i += 1
+            except Exception as e:
+                print(f"Çolakoğlu detay hata: {e}")
+
+        elif firma["id"] == "kardemir":
+            try:
+                elements = driver.find_elements(By.TAG_NAME, "tr")
+                if not elements:
+                    elements = driver.find_elements(By.TAG_NAME, "li")
                 
-                if firma["id"] == "colakoglu":
-                    try:
-                        scrap_section = driver.find_element(By.ID, "scrap")
-                        metinler = scrap_section.text.split("\n")
-                        temiz_satirlar = [m.strip() for m in metinler if m.strip()]
-                        i = 0
-                        while i < len(temiz_satirlar) - 1:
-                            birinci = temiz_satirlar[i]
-                            ikinci = temiz_satirlar[i+1]
-                            cins, fiyat = "", ""
-                            if "TL" in birinci or "₺" in birinci:
-                                fiyat = birinci
-                                cins = ikinci
-                            elif "TL" in ikinci or "₺" in ikinci:
-                                cins = birinci
-                                fiyat = ikinci
-                            
-                            if cins and fiyat and len(cins) > 1:
+                for el in elements:
+                    txt = el.text.strip()
+                    if ("TL" in txt or "₺" in txt) and len(txt) > 5:
+                        parcalar = txt.split("\n")
+                        cins, fiyat = "", ""
+                        for p in parcalar:
+                            p_clean = p.strip()
+                            if "TL" in p_clean or "₺" in p_clean:
+                                fiyat = p_clean
+                            elif len(p_clean) > 2 and not "Kardemir" in p_clean:
+                                cins = p_clean
+                        
+                        if cins and fiyat:
+                            if not any(k['cins'] == cins for k in kalemler):
+                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
+            except Exception as e:
+                print(f"Kardemir detay hata: {e}")
+
+        elif firma["id"] in ["erdemir", "isdemir"]:
+            try:
+                tables = driver.find_elements(By.TAG_NAME, "table")
+                for table in tables:
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    for row in rows:
+                        cols = row.find_elements(By.TAG_NAME, "td")
+                        if len(cols) >= 3:
+                            cins = cols[0].text.strip()
+                            yeni_fiyat = cols[2].text.strip()
+                            if cins and yeni_fiyat and not cins.isdigit():
                                 if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+200 ₺"})
-                            i += 1
-                    except Exception as e:
-                        print(f"Çolakoğlu detay hata: {e}")
+                                    kalemler.append({
+                                        "cins": cins,
+                                        "fiyat": yeni_fiyat if ("TL" in yeni_fiyat or "₺" in yeni_fiyat) else yeni_fiyat + " TL",
+                                        "degisim": "+200 ₺"
+                                    })
+            except Exception as e:
+                print(f"{firma['baslik']} detay hata: {e}")
 
-                elif firma["id"] == "kardemir":
-                    try:
-                        elements = driver.find_elements(By.TAG_NAME, "tr")
-                        if not elements:
-                            elements = driver.find_elements(By.TAG_NAME, "li")
+        elif firma["id"] in ["kroman", "diler", "ekinciler"]:
+            try:
+                tables = driver.find_elements(By.TAG_NAME, "table")
+                for table in tables:
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    for row in rows:
+                        cols = row.find_elements(By.TAG_NAME, "td")
+                        if len(cols) >= 2:
+                            cins = cols[0].text.split("\n")[0].strip()
+                            fiyat = ""
+                            for col in cols:
+                                txt = col.text.strip()
+                                if "₺" in txt or "TL" in txt or "t/ton" in txt:
+                                    fiyat = txt.replace("t/ton", "TL").replace("₺/ton", "TL").strip()
+                                    break
+                            if not fiyat:
+                                fiyat = cols[1].text.strip()
+
+                            if cins and fiyat:
+                                if not any(k['cins'] == cins for k in kalemler):
+                                    kalemler.append({
+                                        "cins": cins,
+                                        "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
+                                        "degisim": "+220 ₺"
+                                    })
+            except Exception as e:
+                print(f"{firma['baslik']} detay hata: {e}")
+
+        elif firma["id"] == "hascelik":
+            try:
+                elements = driver.find_elements(By.TAG_NAME, "tr")
+                if not elements:
+                    elements = driver.find_elements(By.TAG_NAME, "li")
+                
+                for el in elements:
+                    txt = el.text.strip()
+                    if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) > 3:
+                        satirlar = txt.split("\n")
+                        cins, fiyat = "", ""
+                        for s in satirlar:
+                            s_clean = s.strip()
+                            if "TL" in s_clean or "₺" in s_clean or "£" in s_clean:
+                                fiyat = s_clean.replace("£", "₺")
+                                if not ("TL" in fiyat or "₺" in fiyat):
+                                    fiyat += " TL"
+                            elif len(s_clean) > 2 and not "Hasçelik" in s_clean:
+                                cins = s_clean
                         
-                        for el in elements:
-                            txt = el.text.strip()
-                            if ("TL" in txt or "₺" in txt) and len(txt) > 5:
-                                parcalar = txt.split("\n")
-                                cins, fiyat = "", ""
-                                for p in parcalar:
-                                    p_clean = p.strip()
-                                    if "TL" in p_clean or "₺" in p_clean:
-                                        fiyat = p_clean
-                                    elif len(p_clean) > 2 and not "Kardemir" in p_clean:
-                                        cins = p_clean
-                                
-                                if cins and fiyat:
-                                    if not any(k['cins'] == cins for k in kalemler):
-                                        kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
-                    except Exception as e:
-                        print(f"Kardemir detay hata: {e}")
+                        if cins and fiyat:
+                            if not any(k['cins'] == cins for k in kalemler):
+                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+            except Exception as e:
+                print(f"Hasçelik detay hata: {e}")
 
-                elif firma["id"] in ["erdemir", "isdemir"]:
-                    try:
-                        tables = driver.find_elements(By.TAG_NAME, "table")
-                        for table in tables:
-                            rows = table.find_elements(By.TAG_NAME, "tr")
-                            for row in rows:
-                                cols = row.find_elements(By.TAG_NAME, "td")
-                                if len(cols) >= 3:
-                                    cins = cols[0].text.strip()
-                                    yeni_fiyat = cols[2].text.strip()
-                                    if cins and yeni_fiyat and not cins.isdigit():
-                                        if not any(k['cins'] == cins for k in kalemler):
-                                            kalemler.append({
-                                                "cins": cins,
-                                                "fiyat": yeni_fiyat if ("TL" in yeni_fiyat or "₺" in yeni_fiyat) else yeni_fiyat + " TL",
-                                                "degisim": "+200 ₺"
-                                            })
-                    except Exception as e:
-                        print(f"{firma['baslik']} detay hata: {e}")
+        elif firma["id"] == "asil":
+            try:
+                tables = driver.find_elements(By.TAG_NAME, "table")
+                for table in tables:
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    for row in rows:
+                        cols = row.find_elements(By.TAG_NAME, "td")
+                        if len(cols) >= 2:
+                            cins = cols[0].text.strip()
+                            fiyat = cols[1].text.strip()
+                            if cins and fiyat:
+                                if not any(k['cins'] == cins for k in kalemler):
+                                    kalemler.append({
+                                        "cins": cins,
+                                        "fiyat": fiyat.replace("(TL/ton)", "TL").strip(),
+                                        "degisim": "+200 ₺"
+                                    })
+            except Exception as e:
+                print(f"Asil Çelik detay hata: {e}")
 
-                elif firma["id"] in ["kroman", "diler", "ekinciler"]:
-                    try:
-                        tables = driver.find_elements(By.TAG_NAME, "table")
-                        for table in tables:
-                            rows = table.find_elements(By.TAG_NAME, "tr")
-                            for row in rows:
-                                cols = row.find_elements(By.TAG_NAME, "td")
-                                if len(cols) >= 2:
-                                    cins = cols[0].text.split("\n")[0].strip()
-                                    fiyat = ""
-                                    for col in cols:
-                                        txt = col.text.strip()
-                                        if "₺" in txt or "TL" in txt or "t/ton" in txt:
-                                            fiyat = txt.replace("t/ton", "TL").replace("₺/ton", "TL").strip()
-                                            break
-                                    if not fiyat:
-                                        fiyat = cols[1].text.strip()
-
-                                    if cins and fiyat:
-                                        if not any(k['cins'] == cins for k in kalemler):
-                                            kalemler.append({
-                                                "cins": cins,
-                                                "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
-                                                "degisim": "+220 ₺"
-                                            })
-                    except Exception as e:
-                        print(f"{firma['baslik']} detay hata: {e}")
-
-                elif firma["id"] == "hascelik":
-                    try:
-                        elements = driver.find_elements(By.TAG_NAME, "tr")
-                        if not elements:
-                            elements = driver.find_elements(By.TAG_NAME, "li")
-                        
-                        for el in elements:
-                            txt = el.text.strip()
-                            if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) > 3:
-                                satirlar = txt.split("\n")
-                                cins, fiyat = "", ""
-                                for s in satirlar:
-                                    s_clean = s.strip()
-                                    if "TL" in s_clean or "₺" in s_clean or "£" in s_clean:
-                                        fiyat = s_clean.replace("£", "₺")
-                                        if not ("TL" in fiyat or "₺" in fiyat):
-                                            fiyat += " TL"
-                                    elif len(s_clean) > 2 and not "Hasçelik" in s_clean:
-                                        cins = s_clean
-                                
-                                if cins and fiyat:
-                                    if not any(k['cins'] == cins for k in kalemler):
-                                        kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
-                    except Exception as e:
-                        print(f"Hasçelik detay hata: {e}")
-
-                elif firma["id"] == "asil":
-                    try:
-                        tables = driver.find_elements(By.TAG_NAME, "table")
-                        for table in tables:
-                            rows = table.find_elements(By.TAG_NAME, "tr")
-                            for row in rows:
-                                cols = row.find_elements(By.TAG_NAME, "td")
-                                if len(cols) >= 2:
-                                    cins = cols[0].text.strip()
-                                    fiyat = cols[1].text.strip()
-                                    if cins and fiyat:
-                                        if not any(k['cins'] == cins for k in kalemler):
-                                            kalemler.append({
-                                                "cins": cins,
-                                                "fiyat": fiyat.replace("(TL/ton)", "TL").strip(),
-                                                "degisim": "+200 ₺"
-                                            })
-                    except Exception as e:
-                        print(f"Asil Çelik detay hata: {e}")
-
-            except Exception as ex:
-                print(f"{firma['baslik']} taranamadı: {ex}")
-
-            yeni_veriler.append({
-                "baslik": firma["baslik"],
-                "tarih": bulunan_tarih,
-                "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
-            })
-            time.sleep(1)
-
-        GUNCEL_VERILER = yeni_veriler
-        SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    except Exception as ex:
+        print(f"{firma['baslik']} taranamadı: {ex}")
 
     finally:
-        # İster başarılı olsun ister hata alsın, tarayıcıyı kesinlikle kapat ve RAM'i tamamen serbest bırak
         if driver:
             try:
                 driver.quit()
             except:
                 pass
-        
-        # Python bellek temizleyicisini çalıştır
-        gc.collect()
-        print("Tarama tamamlandı, tarayıcı kapatıldı ve RAM temizlendi.")
 
-# Uygulama başlar başlamaz ilk taramayı hemen yap
-verileri_guncelle()
+    return {
+        "baslik": firma["baslik"],
+        "tarih": bulunan_tarih,
+        "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
+    }
 
+def verileri_guncelle():
+    global GUNCEL_VERILER, SON_GUNCELLEME
+    print(f"[{datetime.now()}] 9 fabrika paralel (eşzamanlı) taranmaya başlanıyor...")
+    
+    yeni_veriler = []
+    
+    # max_workers=5 diyerek aynı anda en fazla 5 tarayıcı açılmasını sınırlıyoruz. 
+    # (Render sunucusunun RAM/CPU'sunu boğmamak için ideal değer 4-5'tir)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(tek_firma_tara, firma): firma for firma in FIRMALAR}
+        for future in as_completed(futures):
+            try:
+                sonuc = future.result()
+                if sonuc:
+                    yeni_veriler.append(sonuc)
+            except Exception as e:
+                print(f"Paralel tarama hatası: {e}")
+
+    GUNCEL_VERILER = yeni_veriler
+    SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    
+    gc.collect()
+    print("Paralel tarama tamamlandı ve RAM temizlendi.")
+
+# Uygulama açılırken ilk tarama artık arka planda çalışır (Sunucu anında açılır)
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_guncelle, 'interval', minutes=30)
 scheduler.start()
+
+# İlk veriyi hemen arka planda tetikle (Uygulama açılışını geciktirmemesi için thread içine aldık)
+import threading
+threading.Thread(target=verileri_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
@@ -280,7 +287,7 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>30 Dakikada Bir Otomatik Takip Aktif</span>
+                    <span>Paralel Tarama & 30 Dakikada Bir Otomatik Takip Aktif</span>
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
@@ -332,6 +339,8 @@ def read_root():
                     text.innerText = "Verileri Yenile";
                 }
             }
+
+            class="bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden hover:shadow-md transition duration-300"
 
             function renderCards(data) {
                 const container = document.getElementById("cardsContainer");
