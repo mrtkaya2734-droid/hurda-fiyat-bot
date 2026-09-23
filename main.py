@@ -10,6 +10,7 @@ import json
 import os
 import uvicorn
 import gc
+import threading
 
 # Pywebpush kontrolü
 try:
@@ -20,7 +21,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="50.0.0",
+    version="51.0.0",
 )
 
 FIRMALAR = [
@@ -42,7 +43,7 @@ PUSH_SUBSCRIPTIONS = []
 def veri_cek(firma):
     """RAM ve Port optimizasyonlu, güvenli Selenium veri çekme fonksiyonu"""
     
-    # 1. Zombi süreçleri temizle (Önceki kalıntıları uçur)
+    # 1. Zombi süreçleri temizle
     os.system("pkill -f chromedriver")
     os.system("pkill -f chrome")
 
@@ -232,12 +233,13 @@ def veri_cek(firma):
         print(f"{firma['baslik']} tarama hatası: {e}")
     
     finally:
-        # ÖNEMLİ: RAM sızıntılarını önlemek için sürücüyü güvenle kapat ve belleği boşalt
         if driver:
             try:
                 driver.quit()
             except:
                 pass
+        os.system("pkill -f chromedriver")
+        os.system("pkill -f chrome")
         gc.collect()
 
     return {
@@ -275,14 +277,19 @@ def verileri_arkaplanda_guncelle():
             yeni_veriler.append(res)
         except Exception as ex:
             print(f"{firma['baslik']} taranamadı: {ex}")
-        time.sleep(1)
+        
+        # Her fabrika arası RAM ve süreçleri temizleyip nefes aldırıyoruz
+        os.system("pkill -f chromedriver")
+        os.system("pkill -f chrome")
+        gc.collect()
+        time.sleep(3)
     
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     bildirimleri_gonder()
     gc.collect()
-    print("Tarama tamamlandı ve RAM temizlendi.")
+    print("Tarama tamamlandı ve RAM tamamen temizlendi.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
@@ -290,7 +297,8 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    verileri_arkaplanda_guncelle()
+    # RENDER PORT TIMEOUT ÇÖZÜMÜ: Taramayı arka plan thread'ine atarak sunucunun anında port açmasını sağlıyoruz
+    threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
@@ -512,6 +520,5 @@ def read_root():
     """
 
 if __name__ == "__main__":
-    # Render port dinamik bağlama ayarı (Port hatasını kesin olarak çözer)
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
