@@ -11,8 +11,8 @@ import uvicorn
 import gc
 
 app = FastAPI(
-    title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="49.0.0",
+    title="Hurda Fiyat Takibi",
+    version="51.0.0",
 )
 
 FIRMALAR = [
@@ -40,7 +40,7 @@ def veri_cek(firma):
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
     kalemler = []
-    bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
+    bulunan_tarih = datetime.now().strftime("%d.%m.%Y %H:%M")
     driver = None
     
     try:
@@ -191,8 +191,6 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    # Render port timeout yememesi için başlangıçta tarama yapmıyoruz.
-    # Arka plan planlayıcısı (scheduler) ilk 30 dakikada bir veya manuel yenileme ile dolacak.
     pass
 
 @app.get("/prices")
@@ -236,7 +234,7 @@ def read_root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>9 Fabrika Canlı Hurda Fiyat Takibi</title>
+        <title>Hurda Fiyatları</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -245,7 +243,7 @@ def read_root():
     <body class="bg-slate-100 text-slate-900 font-sans antialiased">
         <div class="max-w-7xl mx-auto px-4 py-10">
             <header class="text-center mb-12">
-                <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
                 <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
                     <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
@@ -255,62 +253,11 @@ def read_root():
                     <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
                         <span>Önbelleği Temizle & Yenile</span>
                     </button>
-                    <button onclick="requestNotificationPermission()" class="inline-flex items-center text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
-                        🔔 Bildirimleri Aç
-                    </button>
                 </div>
             </header>
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
         <script>
-            let eskiVerilerKarsilastirma = null;
-
-            function requestNotificationPermission() {
-                if (!("Notification" in window)) {
-                    alert("Tarayıcınız bildirimleri desteklemiyor.");
-                    return;
-                }
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
-                        new Notification("Hurda Takip Sistemi", { body: "Fiyat değişim bildirimleri başarıyla aktif edildi!" });
-                    } else {
-                        alert("Bildirim izni reddedildi.");
-                    }
-                });
-            }
-
-            function fiyatlariKarsilastirVeBildir(yeniVeriListesi) {
-                if (!eskiVerilerKarsilastirma) {
-                    eskiVerilerKarsilastirma = JSON.stringify(yeniVeriListesi);
-                    return;
-                }
-                
-                const eskiListe = JSON.parse(eskiVerilerKarsilastirma);
-                let degisiklikVarMi = false;
-
-                yeniVeriListesi.forEach(yeniFirma => {
-                    const eskiFirma = eskiListe.find(f => f.baslik === yeniFirma.baslik);
-                    if (eskiFirma) {
-                        yeniFirma.kalemler.forEach(yeniKalem => {
-                            const eskiKalem = eskiFirma.kalemler.find(k => k.cins === yeniKalem.cins);
-                            if (eskiKalem && eskiKalem.fiyat !== yeniKalem.fiyat) {
-                                degisiklikVarMi = true;
-                                if (Notification.permission === "granted") {
-                                    new Notification(`⚠️ Hurda Fiyatı Değişti: ${yeniFirma.baslik}`, {
-                                        body: `${yeniKalem.cins} fiyatı güncellendi!\nEski: ${eskiKalem.fiyat} ➔ Yeni: ${yeniKalem.fiyat}`,
-                                        icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
-                                    });
-                                }
-                            }
-                        });
-                    }
-                });
-
-                if (degisiklikVarMi) {
-                    eskiVerilerKarsilastirma = JSON.stringify(yeniVeriListesi);
-                }
-            }
-
             async function fetchPrices() {
                 try {
                     const response = await fetch('/prices');
@@ -318,7 +265,6 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         if(result.data.length > 0) {
-                            fiyatlariKarsilastirVeBildir(result.data);
                             renderCards(result.data);
                         }
                     }
@@ -335,7 +281,6 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         if(result.data.length > 0) {
-                            fiyatlariKarsilastirVeBildir(result.data);
                             renderCards(result.data);
                         }
                     }
