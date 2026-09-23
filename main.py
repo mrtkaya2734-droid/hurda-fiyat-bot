@@ -9,10 +9,11 @@ import time
 import os
 import uvicorn
 import gc
+import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.5.0",
+    version="47.0.0",
 )
 
 FIRMALAR = [
@@ -29,6 +30,7 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
+GUNCELLEME_YAPILIYOR = False
 
 def veri_cek(firma):
     options = Options()
@@ -70,30 +72,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Çolakoğlu hata: {e}")
 
-        # 2. KARDEMİR
-        elif firma["id"] == "kardemir":
-            try:
-                elements = driver.find_elements(By.TAG_NAME, "tr")
-                if not elements:
-                    elements = driver.find_elements(By.TAG_NAME, "li")
-                for el in elements:
-                    txt = el.text.strip()
-                    if ("TL" in txt or "₺" in txt) and len(txt) > 5:
-                        parcalar = txt.split("\n")
-                        cins, fiyat = "", ""
-                        for p in parcalar:
-                            p_clean = p.strip()
-                            if "TL" in p_clean or "₺" in p_clean:
-                                fiyat = p_clean
-                            elif len(p_clean) > 2 and not "Kardemir" in p_clean:
-                                cins = p_clean
-                        if cins and fiyat:
-                            if not any(k['cins'] == cins for k in kalemler):
-                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
-            except Exception as e:
-                print(f"Kardemir hata: {e}")
-
-        # 3. ERDEMİR & 4. İSDEMİR
+        # 2. ERDEMİR & 3. İSDEMİR
         elif firma["id"] in ["erdemir", "isdemir"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -114,8 +93,8 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 5. KROMAN, 6. DİLER, 7. EKİNCİLER
-        elif firma["id"] in ["kroman", "diler", "ekinciler"]:
+        # 4. KROMAN, 5. KARDEMİR, 6. DİLER, 7. EKİNCİLER, 8. HASÇELİK (Ortak Tablo Yapısı)
+        elif firma["id"] in ["kroman", "kardemir", "diler", "ekinciler", "hascelik"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
                 for table in tables:
@@ -128,48 +107,21 @@ def veri_cek(firma):
                             for col in cols:
                                 txt = col.text.strip()
                                 if "₺" in txt or "TL" in txt or "t/ton" in txt:
-                                    fiyat = txt.replace("t/ton", "TL").replace("₺/ton", "TL").strip()
+                                    fiyat = txt.replace("t/ton", "TL").replace("₺/ton", "TL").replace("€", "₺").strip()
                                     break
                             if not fiyat:
-                                fiyat = cols[1].text.strip()
+                                fiyat = cols[1].text.strip().replace("€", "₺")
                             if cins and fiyat:
+                                if not ("TL" in fiyat or "₺" in fiyat):
+                                    fiyat += " TL"
                                 if not any(k['cins'] == cins for k in kalemler):
                                     kalemler.append({
                                         "cins": cins,
-                                        "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
+                                        "fiyat": fiyat,
                                         "degisim": "+220 ₺"
                                     })
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
-
-        # 8. HASÇELİK
-        elif firma["id"] == "hascelik":
-            try:
-                tables = driver.find_elements(By.TAG_NAME, "table")
-                for table in tables:
-                    rows = table.find_elements(By.TAG_NAME, "tr")
-                    for row in rows:
-                        cols = row.find_elements(By.TAG_NAME, "td")
-                        if len(cols) >= 2:
-                            cins = cols[0].text.strip()
-                            fiyat = cols[1].text.strip()
-                            if cins and fiyat:
-                                temiz_fiyat = fiyat.replace("â‚¬", "₺").replace("€", "₺").replace("£", "₺").strip()
-                                if not ("TL" in temiz_fiyat or "₺" in temiz_fiyat):
-                                    temiz_fiyat += " TL"
-                                if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({"cins": cins, "fiyat": temiz_fiyat, "degisim": "+180 ₺"})
-                
-                if not kalemler:
-                    for tag in ["div", "li", "span", "p"]:
-                        elements = driver.find_elements(By.TAG_NAME, tag)
-                        for el in elements:
-                            txt = el.text.strip()
-                            if ("TL" in txt or "₺" in txt) and len(txt) < 80:
-                                if not any(k['fiyat'] == txt for k in kalemler):
-                                    kalemler.append({"cins": "Hasçelik Hurda Kalemi", "fiyat": txt, "degisim": "+180 ₺"})
-            except Exception as e:
-                print(f"Hasçelik hata: {e}")
 
         # 9. ASİL ÇELİK
         elif firma["id"] == "asil":
@@ -216,8 +168,11 @@ def veri_cek(firma):
     }
 
 def verileri_arkaplanda_guncelle():
-    global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor...")
+    global GUNCEL_VERILER, SON_GUNCELLEME, GUNCELLEME_YAPILIYOR
+    if GUNCELLEME_YAPILIYOR:
+        return
+    GUNCELLEME_YAPILIYOR = True
+    print(f"[{datetime.now()}] 9 fabrika arka planda taranıyor...")
     
     yeni_veriler = []
     for firma in FIRMALAR:
@@ -231,6 +186,7 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    GUNCELLEME_YAPILIYOR = False
     gc.collect()
     print("Önbellek güncellendi.")
 
@@ -240,21 +196,26 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    verileri_arkaplanda_guncelle()
+    threading.Thread(target=verileri_arkaplanda_guncelle).start()
 
 @app.get("/prices")
 def get_prices():
     return {
         "status": "success",
+        "guncelleniyor": GUNCELLEME_YAPILIYOR,
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
 
 @app.get("/refresh")
 def refresh_cache():
-    verileri_arkaplanda_guncelle()
+    # İşlemi arka planda tetikler ve arayüze anında cevap döner (Butonun takılmasını önler)
+    if not GUNCELLEME_YAPILIYOR:
+        threading.Thread(target=verileri_arkaplanda_guncelle).start()
     return {
         "status": "success",
+        "message": "Güncelleme arka planda başlatıldı.",
+        "guncelleniyor": GUNCELLEME_YAPILIYOR,
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
@@ -314,6 +275,14 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
+                        const btn = document.getElementById("refreshBtn");
+                        if(result.guncelleniyor) {
+                            btn.innerText = "Arka planda taranıyor...";
+                            btn.disabled = true;
+                        } else {
+                            btn.innerText = "Önbelleği Temizle & Yenile";
+                            btn.disabled = false;
+                        }
                     }
                 } catch (error) { console.error("Hata:", error); }
             }
@@ -321,20 +290,17 @@ def read_root():
             async function triggerRefresh() {
                 const btn = document.getElementById("refreshBtn");
                 btn.disabled = true;
-                btn.innerText = "Veriler taranıyor, lütfen bekleyin...";
+                btn.innerText = "Güncelleme başlatıldı...";
                 try {
-                    const response = await fetch('/refresh');
-                    const result = await response.json();
-                    if (result.status === "success") {
-                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        renderCards(result.data);
-                    }
+                    await fetch('/refresh');
+                    setTimeout(fetchPrices, 3000);
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
-                    alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
-                    btn.disabled = false;
-                    btn.innerText = "Önbelleği Temizle & Yenile";
+                    setTimeout(() => { 
+                        btn.disabled = false; 
+                        btn.innerText = "Önbelleği Temizle & Yenile"; 
+                    }, 4000);
                 }
             }
 
@@ -371,7 +337,7 @@ def read_root():
             }
 
             fetchPrices();
-            setInterval(fetchPrices, 300000);
+            setInterval(fetchPrices, 10000);
         </script>
     </body>
     </html>
