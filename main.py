@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="53.0.0",
+    version="54.0.0",
 )
 
 FIRMALAR = [
@@ -28,7 +28,7 @@ FIRMALAR = [
 ]
 
 GUNCEL_VERILER = []
-SON_GUNCELLEME = "Henüz yapılmadı"
+SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
 def veri_cek(firma):
     options = Options()
@@ -181,7 +181,8 @@ def verileri_arkaplanda_guncelle():
     if yeni_veriler:
         GUNCEL_VERILER.clear()
         GUNCEL_VERILER = yeni_veriler
-        SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    
+    SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
     print(f"Önbellek güncellendi. Yeni saat: {SON_GUNCELLEME}")
 
@@ -191,7 +192,6 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    # Uygulama ayağa kalkar kalkmaz ilk veri taramasını hemen başlatıyoruz
     verileri_arkaplanda_guncelle()
 
 @app.get("/prices")
@@ -264,8 +264,10 @@ def read_root():
                     const response = await fetch('/prices');
                     const result = await response.json();
                     if (result.status === "success") {
-                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        if(result.data.length > 0) {
+                        if(result.son_guncelleme) {
+                            document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        }
+                        if(result.data && result.data.length > 0) {
                             renderCards(result.data);
                         }
                     }
@@ -280,8 +282,10 @@ def read_root():
                     const response = await fetch('/refresh');
                     const result = await response.json();
                     if (result.status === "success") {
-                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
-                        if(result.data.length > 0) {
+                        if(result.son_guncelleme) {
+                            document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        }
+                        if(result.data && result.data.length > 0) {
                             renderCards(result.data);
                         }
                     }
