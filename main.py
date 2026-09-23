@@ -20,7 +20,7 @@ except ImportError:
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.3.0",
+    version="49.0.0",
 )
 
 FIRMALAR = [
@@ -51,7 +51,6 @@ def veri_cek(firma):
     options.add_argument("--window-size=1280,800")
     options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-    # Bot algılamasını önlemek için ek parametreler
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
@@ -166,11 +165,10 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK (Gelişmiş Bot Koruması ve Esnek Seçici)
+        # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
-                time.sleep(4) # Render için güvenli bekleme
-                # Tüm tablo ve listeleri tara
+                time.sleep(4)
                 elements = driver.find_elements(By.TAG_NAME, "tr")
                 if not elements:
                     elements = driver.find_elements(By.TAG_NAME, "li")
@@ -193,7 +191,6 @@ def veri_cek(firma):
                             if not any(k['cins'] == cins for k in kalemler):
                                 kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
 
-                # Eğer tabloda bulunamadıysa tüm metin bloklarını tara
                 if not kalemler:
                     body_text = driver.find_element(By.TAG_NAME, "body").text
                     for satir in body_text.split("\n"):
@@ -237,7 +234,6 @@ def veri_cek(firma):
 
     return {
         "baslik": firma["baslik"],
-        "url": firma["url"],
         "tarih": bulunan_tarih,
         "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
     }
@@ -290,6 +286,15 @@ def startup_event():
 
 @app.get("/prices")
 def get_prices():
+    return {
+        "status": "success",
+        "son_guncelleme": SON_GUNCELLEME,
+        "data": GUNCEL_VERILER
+    }
+
+@app.post("/refresh")
+def manual_refresh():
+    verileri_arkaplanda_guncelle()
     return {
         "status": "success",
         "son_guncelleme": SON_GUNCELLEME,
@@ -371,7 +376,7 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama (PWA & Push Bildirim) Modu Aktif</span>
+                    <span>Mobil Uygulama & Canlı Takip Aktif</span>
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
@@ -380,6 +385,11 @@ def read_root():
                         <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
                         <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
                     </div>
+                    <!-- YENİLEME BUTONU -->
+                    <button onclick="triggerRefresh()" id="refreshBtn" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                        <svg id="refreshIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        <span id="refreshText">Verileri Yenile</span>
+                    </button>
                     <button onclick="subscribeUser()" id="notifBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-1.5">
                         <span>🔔 Bildirimleri Aç</span>
                     </button>
@@ -435,6 +445,33 @@ def read_root():
                 } catch (error) { console.error("Hata:", error); }
             }
 
+            async function triggerRefresh() {
+                const btn = document.getElementById("refreshBtn");
+                const icon = document.getElementById("refreshIcon");
+                const text = document.getElementById("refreshText");
+                
+                btn.disabled = true;
+                icon.classList.add("animate-spin");
+                text.innerText = "Yenileniyor...";
+
+                try {
+                    const response = await fetch('/refresh', { method: 'POST' });
+                    const result = await response.json();
+                    if (result.status === "success") {
+                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        renderCards(result.data);
+                        alert("Tüm fabrika verileri güncellendi!");
+                    }
+                } catch (error) {
+                    console.error("Yenileme hatası:", error);
+                    alert("Yenileme sırasında bir hata oluştu.");
+                } finally {
+                    btn.disabled = false;
+                    icon.classList.remove("animate-spin");
+                    text.innerText = "Verileri Yenile";
+                }
+            }
+
             function renderCards(data) {
                 const container = document.getElementById("cardsContainer");
                 container.innerHTML = "";
@@ -458,10 +495,7 @@ def read_root():
                     card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden hover:shadow-md transition duration-300";
                     card.innerHTML = `
                         <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white px-6 py-5 flex justify-between items-center">
-                            <div>
-                                <h3 class="font-bold text-base tracking-wide">${item.baslik}</h3>
-                                <a href="${item.url}" target="_blank" class="text-[11px] text-indigo-300 hover:text-white underline transition block mt-0.5 font-medium">Resmi Kaynağa Git ↗</a>
-                            </div>
+                            <h3 class="font-bold text-base tracking-wide">${item.baslik}</h3>
                             <span class="text-xs bg-white/10 text-slate-200 font-semibold px-3 py-1 rounded-xl backdrop-blur-md border border-white/10">${item.tarih}</span>
                         </div>
                         <div class="p-6">
