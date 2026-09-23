@@ -1,1 +1,5 @@
-
+[build.apt]
+packages = [
+  "chromium",
+  "chromium-driver"
+]
