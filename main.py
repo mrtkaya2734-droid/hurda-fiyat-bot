@@ -18,12 +18,12 @@ app = FastAPI(
 FIRMALAR = [
     {"id": "colakoglu", "baslik": "Çolakoğlu Metalurji", "url": "https://www.colakoglu.com.tr/hurda"},
     {"id": "kroman", "baslik": "Kroman Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/kroman"},
-    {"id": "kardemir", "baslik": "Kardemir", "url": "https://www.kardemir.com/hurda_alim_fiyatlari"},
+    {"id": "kardemir", "baslik": "Kardemir", "url": "https://www.hammaddepiyasasi.com/fabrika/kardemir"},
     {"id": "erdemir", "baslik": "Erdemir Çelik", "url": "https://www.erdemir.com.tr/tedarikci-iliskileri/hurda-alim"},
     {"id": "isdemir", "baslik": "İsdemir Demir Çelik", "url": "https://www.isdemir.com.tr/tedarikci-iliskileri/hurda-alim"},
     {"id": "diler", "baslik": "Diler Demir Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/diler"},
     {"id": "ekinciler", "baslik": "Ekinciler Demir Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler"},
-    {"id": "hascelik", "baslik": "Hasçelik", "url": "https://hascelik.com/hurda"},
+    {"id": "hascelik", "baslik": "Hasçelik", "url": "https://www.hammaddepiyasasi.com/fabrika/hascelik"},
     {"id": "asil", "baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
 ]
 
