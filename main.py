@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="54.0.0",
+    version="55.0.0",
 )
 
 FIRMALAR = [
@@ -28,7 +28,7 @@ FIRMALAR = [
 ]
 
 GUNCEL_VERILER = []
-SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+SON_GUNCELLEME = "Henüz taranmadı, lütfen butona basın"
 
 def veri_cek(firma):
     options = Options()
@@ -49,7 +49,6 @@ def veri_cek(firma):
         driver.get(firma["url"])
         time.sleep(3)
         
-        # 1. ÇOLAKOĞLU
         if firma["id"] == "colakoglu":
             try:
                 scrap_section = driver.find_element(By.ID, "scrap")
@@ -70,7 +69,6 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Çolakoğlu hata: {e}")
 
-        # 2. ERDEMİR & 3. İSDEMİR
         elif firma["id"] in ["erdemir", "isdemir"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -91,7 +89,6 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 4. KROMAN, 5. KARDEMİR, 6. DİLER, 7. EKİNCİLER, 8. HASÇELİK (Ortak Tablo Yapısı)
         elif firma["id"] in ["kroman", "kardemir", "diler", "ekinciler", "hascelik"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -121,7 +118,6 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 9. ASİL ÇELİK
         elif firma["id"] == "asil":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -192,7 +188,8 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    verileri_arkaplanda_guncelle()
+    # Render'ın çökmemesi ve port hatası vermemesi için ilk açılışta ağır tarama bloklanmıyor.
+    pass
 
 @app.get("/prices")
 def get_prices():
@@ -252,7 +249,7 @@ def read_root():
                         <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
                     </div>
                     <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
-                        <span>Önbelleği Temizle & Yenile</span>
+                        <span>Verileri Şimdi Tara & Yenile</span>
                     </button>
                 </div>
             </header>
@@ -277,7 +274,7 @@ def read_root():
             async function triggerRefresh() {
                 const btn = document.getElementById("refreshBtn");
                 btn.disabled = true;
-                btn.innerText = "Veriler taranıyor, lütfen bekleyin...";
+                btn.innerText = "9 fabrika taranıyor, lütfen bekleyin...";
                 try {
                     const response = await fetch('/refresh');
                     const result = await response.json();
@@ -294,7 +291,7 @@ def read_root():
                     alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
                     btn.disabled = false;
-                    btn.innerText = "Önbelleği Temizle & Yenile";
+                    btn.innerText = "Verileri Şimdi Tara & Yenile";
                 }
             }
 
