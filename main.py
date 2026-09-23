@@ -14,7 +14,7 @@ import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="2.3.0",
+    version="2.4.0",
 )
 
 FIRMALAR = [
@@ -59,7 +59,6 @@ def tek_firma_tara(firma):
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     
     try:
-        print(f"Taranıyor: {firma['baslik']}")
         driver = tarayici_olustur()
         driver.get(firma["url"])
         time.sleep(1)
@@ -153,7 +152,7 @@ def tek_firma_tara(firma):
             except: pass
 
     except Exception as ex:
-        print(f"{firma['baslik']} hata: {ex}")
+        pass
     finally:
         if driver:
             try: driver.quit()
@@ -162,36 +161,31 @@ def tek_firma_tara(firma):
     return {
         "baslik": firma["baslik"],
         "tarih": bulunan_tarih,
-        "kalemler": kalemler[:5] if kalemler else [{"cins": "Veri Bulunamadı / Statik", "fiyat": "---", "degisim": "0 ₺"}]
+        "kalemler": kalemler[:5] if kalemler else [{"cins": "Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
     }
 
 def verileri_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME, TARAMA_DURUMU
     TARAMA_DURUMU = "Taranıyor..."
-    print(f"[{datetime.now()}] Tarama başladı...")
     
     yeni_veriler = []
-    # Render RAM'ini boğmamak için max_workers 2 olarak sınırlandırıldı
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(tek_firma_tara, firma): firma for firma in FIRMALAR}
         for future in as_completed(futures):
             try:
                 sonuc = future.result()
                 if sonuc: yeni_veriler.append(sonuc)
-            except Exception as e:
-                print(f"Hata: {e}")
+            except: pass
 
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     TARAMA_DURUMU = "Tamamlandı"
     gc.collect()
-    print("Tarama bitti.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_guncelle, 'interval', minutes=30)
 scheduler.start()
 
-# İlk tarama arka planda başlatılıyor
 threading.Thread(target=verileri_guncelle).start()
 
 @app.get("/prices")
@@ -263,10 +257,10 @@ def read_root():
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
                     } else {
-                        setTimeout(fetchPrices, 3000); // Veri henüz gelmediyse 3 saniye sonra tekrar dene
+                        setTimeout(fetchPrices, 3000);
                     }
                 } catch (error) { 
-                    console.error("Hata:", error); 
+                    setTimeout(fetchPrices, 3000);
                 }
             }
 
@@ -283,7 +277,6 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
-                        alert("Tüm fabrika verileri güncellendi!");
                     }
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
@@ -299,19 +292,23 @@ def read_root():
                 container.innerHTML = "";
                 data.forEach(item => {
                     let kalemlerHtml = "";
-                    item.kalemler.forEach(k => {
-                        const isPozitif = k.degisim.includes("+");
-                        const degisimClass = isPozitif ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-slate-600 bg-slate-50 border border-slate-200";
-                        kalemlerHtml += `
-                            <div class="flex justify-between items-center py-3.5 px-1 border-b border-slate-100 last:border-none">
-                                <span class="font-semibold text-slate-700 text-sm">${k.cins}</span>
-                                <div class="text-right flex items-center space-x-2.5">
-                                    <span class="text-slate-900 font-extrabold text-sm">${k.fiyat}</span>
-                                    <span class="text-[11px] px-2 py-0.5 rounded-lg font-bold ${degisimClass}">${k.degisim}</span>
-                                }
-                            </div>
-                        `;
-                    });
+                    if (item.kalemler && item.kalemler.length > 0) {
+                        item.kalemler.forEach(k => {
+                            const isPozitif = k.degisim && k.degisim.includes("+");
+                            const degisimClass = isPozitif ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-slate-600 bg-slate-50 border border-slate-200";
+                            kalemlerHtml += `
+                                <div class="flex justify-between items-center py-3.5 px-1 border-b border-slate-100 last:border-none">
+                                    <span class="font-semibold text-slate-700 text-sm">${k.cins}</span>
+                                    <div class="text-right flex items-center space-x-2.5">
+                                        <span class="text-slate-900 font-extrabold text-sm">${k.fiyat}</span>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-lg font-bold ${degisimClass}">${k.degisim}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        kalemlerHtml = `<div class="py-3 text-slate-400 text-sm text-center">Bu fabrikaya ait veri bulunamadı.</div>`;
+                    }
 
                     const card = document.createElement("div");
                     card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden hover:shadow-md transition duration-300";
