@@ -4,6 +4,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 import time
 import json
@@ -12,16 +14,9 @@ import uvicorn
 import gc
 import threading
 
-# Pywebpush kontrolü
-try:
-    from pywebpush import webpush, WebPushException
-    PYWEBPUSH_AVAILABLE = True
-except ImportError:
-    PYWEBPUSH_AVAILABLE = False
-
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="53.0.0",
+    version="54.0.0",
 )
 
 FIRMALAR = [
@@ -38,36 +33,24 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
-PUSH_SUBSCRIPTIONS = []
 
 def veri_cek(firma):
-    """Render RAM ve Çökme korumalı Selenium veri çekme fonksiyonu"""
-    
-    os.system("pkill -f chromedriver")
-    os.system("pkill -f chrome")
-
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")  # Render bellek paylaşım hatasını önler
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1280,800")
-    options.add_argument("--disable-software-rasterizer")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-infobars")
-    options.add_argument("--remote-debugging-port=9222")  # Chrome çökmesini (session exited) engellemek için kritik
-    options.add_argument("--blink-settings=imagesEnabled=false")
+    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
 
     kalemler = []
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     driver = None
     
     try:
-        driver = webdriver.Chrome(options=options)
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(25)
         driver.get(firma["url"])
         time.sleep(3)
@@ -230,8 +213,6 @@ def veri_cek(firma):
                 driver.quit()
             except:
                 pass
-        os.system("pkill -f chromedriver")
-        os.system("pkill -f chrome")
         gc.collect()
 
     return {
@@ -239,24 +220,6 @@ def veri_cek(firma):
         "tarih": bulunan_tarih,
         "kalemler": kalemler[:6] if kalemler else [{"cins": "Güncel Veri Bekleniyor", "fiyat": "---", "degisim": "0 ₺"}]
     }
-
-def bildirimleri_gonder():
-    if not PUSH_SUBSCRIPTIONS or not PYWEBPUSH_AVAILABLE:
-        return
-    mesaj = json.dumps({
-        "title": "Hurda Fiyatları Güncellendi!",
-        "body": "9 fabrikaya ait güncel hurda fiyatları yenilendi."
-    })
-    for sub in PUSH_SUBSCRIPTIONS:
-        try:
-            webpush(
-                subscription_info=sub,
-                data=mesaj,
-                vapid_private_key=os.environ.get("VAPID_PRIVATE_KEY", "deneme_private_key"),
-                vapid_claims={"sub": "mailto:admin@hurdatakip.com"}
-            )
-        except Exception as e:
-            print(f"Bildirim gönderme hatası: {e}")
 
 def verileri_arkaplanda_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
@@ -269,16 +232,12 @@ def verileri_arkaplanda_guncelle():
             yeni_veriler.append(res)
         except Exception as ex:
             print(f"{firma['baslik']} taranamadı: {ex}")
-        
-        os.system("pkill -f chromedriver")
-        os.system("pkill -f chrome")
         gc.collect()
         time.sleep(2)
     
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    bildirimleri_gonder()
     gc.collect()
     print("Tarama tamamlandı ve RAM tamamen temizlendi.")
 
@@ -307,59 +266,6 @@ def manual_refresh():
         "data": GUNCEL_VERILER
     }
 
-@app.post("/subscribe")
-async def subscribe(request: Request):
-    data = await request.json()
-    if data not in PUSH_SUBSCRIPTIONS:
-        PUSH_SUBSCRIPTIONS.append(data)
-    return {"status": "success", "message": "Abone kaydedildi."}
-
-@app.get("/sw.js")
-def get_service_worker():
-    sw_code = """
-    self.addEventListener('push', function(event) {
-        let data = { title: 'Hurda Fiyatları Güncellendi', body: 'Yeni fiyatlar için tıklayın!' };
-        if (event.data) {
-            data = event.data.json();
-        }
-        const options = {
-            body: data.body,
-            icon: 'https://cdn-icons-png.flaticon.com/512/2954/2954884.png',
-            badge: 'https://cdn-icons-png.flaticon.com/512/2954/2954884.png'
-        };
-        event.waitUntil(
-            self.registration.showNotification(data.title, options)
-        );
-    });
-
-    self.addEventListener('notificationclick', function(event) {
-        event.notification.close();
-        event.waitUntil(
-            clients.openWindow('/')
-        );
-    });
-    """
-    return HTMLResponse(content=sw_code, media_type="application/javascript")
-
-@app.get("/manifest.json")
-def get_manifest():
-    return {
-        "name": "Hurda Fiyat Takip",
-        "short_name": "HurdaTakip",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#f1f5f9",
-        "theme_color": "#0f172a",
-        "icons": [
-            {
-                "src": "https://cdn-icons-png.flaticon.com/512/2954/2954884.png",
-                "sizes": "512x512",
-                "type": "image/png",
-                "purpose": "any maskable"
-            }
-        ]
-    }
-
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     return """
@@ -369,12 +275,6 @@ def read_root():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>9 Fabrika Canlı Hurda Fiyat Takibi</title>
-        <link rel="manifest" href="/manifest.json">
-        <meta name="theme-color" content="#0f172a">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="Hurda Takip">
-        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-100 text-slate-900 font-sans antialiased">
@@ -395,42 +295,11 @@ def read_root():
                         <svg id="refreshIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         <span id="refreshText">Verileri Yenile</span>
                     </button>
-                    <button onclick="subscribeUser()" id="notifBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-1.5">
-                        <span>🔔 Bildirimleri Aç</span>
-                    </button>
                 </div>
             </header>
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
         <script>
-            async function registerServiceWorker() {
-                if ('serviceWorker' in navigator && 'PushManager' in window) {
-                    try {
-                        const registration = await navigator.serviceWorker.register('/sw.js');
-                    } catch (error) { console.error('SW hatası:', error); }
-                }
-            }
-            registerServiceWorker();
-
-            async function subscribeUser() {
-                if (!('serviceWorker' in navigator)) return;
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    const subscription = {
-                        endpoint: "https://fcm.googleapis.com/fcm/send/test-endpoint",
-                        keys: { p256dh: "test-key", auth: "test-auth" }
-                    };
-                    await fetch('/subscribe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(subscription)
-                    });
-                    alert("Bildirimler başarıyla etkinleştirildi!");
-                    document.getElementById("notifBtn").innerText = "✔ Bildirimler Açık";
-                    document.getElementById("notifBtn").classList.replace("bg-indigo-600", "bg-emerald-600");
-                }
-            }
-
             async function fetchPrices() {
                 try {
                     const response = await fetch('/prices');
@@ -469,6 +338,7 @@ def read_root():
             function renderCards(data) {
                 const container = document.getElementById("cardsContainer");
                 container.innerHTML = "";
+                data.export = data.forEach ? data : [];
                 data.forEach(item => {
                     let kalemlerHtml = "";
                     item.kalemler.forEach(k => {
