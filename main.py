@@ -12,8 +12,8 @@ import uvicorn
 import gc
 
 app = FastAPI(
-    title="Güncel Hurda Fiyatları",
-    version="46.3.0",
+    title="Hurda Fiyatları",
+    version="46.5.0",
 )
 
 FIRMALAR = [
@@ -163,47 +163,40 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK
+        # 8. HASÇELİK (Güncellenmiş Kararlı Seçiciler)
         elif firma["id"] == "hascelik":
             try:
-                tables = driver.find_elements(By.TAG_NAME, "table")
-                for table in tables:
-                    rows = table.find_elements(By.TAG_NAME, "tr")
-                    for row in rows:
-                        cols = row.find_elements(By.TAG_NAME, "td")
-                        if len(cols) >= 2:
-                            cins = cols[0].text.strip()
-                            fiyat = cols[1].text.strip()
-                            if cins and fiyat:
-                                temiz_fiyat = fiyat.replace("â‚¬", "₺").replace("€", "₺").replace("£", "₺").strip()
-                                if not ("TL" in temiz_fiyat or "₺" in temiz_fiyat):
-                                    temiz_fiyat += " TL"
-                                if not any(k['cins'] == cins for k in kalemler):
-                                    kalemler.append({
-                                        "cins": cins,
-                                        "fiyat": temiz_fiyat,
-                                        "degisim": "+180 ₺"
-                                    })
-                
+                # Tabloları, satırları ve listeleri hedefleyerek esnek arama
+                hedef_elementler = driver.find_elements(By.TAG_NAME, "tr")
+                if not hedef_elementler:
+                    hedef_elementler = driver.find_elements(By.TAG_NAME, "li")
+                if not hedef_elementler:
+                    hedef_elementler = driver.find_elements(By.TAG_NAME, "p")
+
+                for el in hedef_elementler:
+                    txt = el.text.strip()
+                    if ("TL" in txt or "₺" in txt or "€" in txt or "$" in txt) and len(txt) < 160:
+                        parcalar = txt.split("\n")
+                        cins, fiyat = "", ""
+                        for p in parcalar:
+                            p_clean = p.strip()
+                            if any(sembol in p_clean for sembol in ["TL", "₺", "€", "$"]):
+                                fiyat = p_clean.replace("â‚¬", "₺").replace("€", "₺")
+                            elif len(p_clean) > 2 and not "Hasçelik" in p_clean:
+                                cins = p_clean
+                        if cins and fiyat:
+                            if not any(k['cins'] == cins for k in kalemler):
+                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+
+                # Eğer standart elemanlar yakalanamazsa sayfadaki tüm metin bloklarını tara
                 if not kalemler:
-                    for tag in ["li", "div", "p"]:
-                        elements = driver.find_elements(By.TAG_NAME, tag)
-                        for el in elements:
-                            txt = el.text.strip()
-                            if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) < 120:
-                                satirlar = txt.split("\n")
-                                cins, fiyat = "", ""
-                                for satir in satirlar:
-                                    s = satir.strip()
-                                    if "TL" in s or "₺" in s or "£" in s:
-                                        fiyat = s.replace("£", "₺").replace("€", "₺")
-                                        if not ("TL" in fiyat or "₺" in fiyat):
-                                            fiyat += " TL"
-                                    elif len(s) > 2 and not "Hasçelik" in s:
-                                        cins = s
-                                if cins and fiyat:
-                                    if not any(k['cins'] == cins for k in kalemler):
-                                        kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+                    body_text = driver.find_element(By.TAG_NAME, "body").text
+                    satirlar = body_text.split("\n")
+                    for satir in satirlar:
+                        s = satir.strip()
+                        if ("TL" in s or "₺" in s) and len(s) < 80:
+                            if not any(k['cins'] == s for k in kalemler):
+                                kalemler.append({"cins": "Hasçelik Hurda Kalemi", "fiyat": s, "degisim": "+180 ₺"})
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
@@ -247,7 +240,7 @@ def veri_cek(firma):
 
 def verileri_arkaplanda_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor (RAM Dostu Mod)...")
+    print(f"[{datetime.now()}] Fabrikalar taranıyor...")
     
     yeni_veriler = []
     for firma in FIRMALAR:
@@ -262,7 +255,7 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
-    print("Tüm tarama tamamlandı, bellek temizlendi.")
+    print("Tarama tamamlandı, saat güncellendi.")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
@@ -283,7 +276,7 @@ def get_prices():
 @app.get("/manifest.json")
 def get_manifest():
     return {
-        "name": "9 Fabrika Güncel Hurda Fiyatları",
+        "name": "Hurda Fiyatları",
         "short_name": "HurdaFiyat",
         "start_url": "/",
         "display": "standalone",
@@ -307,7 +300,7 @@ def read_root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>9 Fabrika Güncel Hurda Fiyatları</title>
+        <title>Hurda Fiyatları</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -321,9 +314,9 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama (PWA) Modu Aktif</span>
+                    <span>Mobil Uygulama (PWA) Aktif</span>
                 </div>
-                <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
                 <div class="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
                     <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
@@ -344,19 +337,17 @@ def read_root():
 
             function istekBildirimIzni() {
                 if (!("Notification" in window)) {
-                    alert("Tarayıcınız masaüstü/web bildirimlerini desteklemiyor.");
+                    alert("Tarayıcınız bildirimleri desteklemiyor.");
                     return;
                 }
                 Notification.requestPermission().then(permission => {
                     if (permission === "granted") {
                         document.getElementById("notifBtn").innerText = "🔔 Bildirimler Aktif";
                         document.getElementById("notifBtn").classList.replace("bg-indigo-600", "bg-emerald-600");
-                        new Notification("9 Fabrika Güncel Hurda Fiyatları", {
-                            body: "Fiyat bildirimleri başarıyla etkinleştirildi. Güncellemelerden haberdar olacaksınız.",
+                        new Notification("Hurda Fiyatları", {
+                            body: "Fiyat bildirimleri başarıyla etkinleştirildi.",
                             icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
                         });
-                    } else {
-                        alert("Bildirim izni verilmedi.");
                     }
                 });
             }
@@ -372,7 +363,7 @@ def read_root():
                         if (eskiVeriHash && eskiVeriHash !== yeniHash) {
                             if (Notification.permission === "granted") {
                                 new Notification("Hurda Fiyatları Güncellendi!", {
-                                    body: "9 fabrikanın güncel hurda fiyatlarında yeni veriler tespit edildi.",
+                                    body: "Fabrikaların güncel hurda fiyatlarında yeni veriler tespit edildi.",
                                     icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
                                 });
                             }
@@ -423,7 +414,7 @@ def read_root():
             }
 
             fetchPrices();
-            setInterval(fetchPrices, 300000);
+            setInterval(fetchPrices, 60000);
         </script>
     </body>
     </html>
