@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="62.0.0",
+    version="64.0.0",
 )
 
 FIRMALAR = [
@@ -26,7 +26,7 @@ FIRMALAR = [
 ]
 
 GUNCEL_VERILER = []
-SON_GUNCELLEME = "Henüz taranmadı, lütfen butona basın"
+SON_GUNCELLEME = "Veriler yükleniyor..."
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -36,8 +36,8 @@ def temizle_metin(text):
     if not text:
         return ""
     temiz = text.replace("HurdaFiyat geçmişi", "").replace("Geçmişi", "").strip()
-    if len(temiz) > 30:
-        temiz = temiz[:28] + "..."
+    if len(temiz) > 35:
+        temiz = temiz[:33] + "..."
     return temiz
 
 def veri_cek(firma):
@@ -66,14 +66,17 @@ def veri_cek(firma):
                 while i < len(temiz_satirlar) - 1:
                     birinci, ikinci = temiz_satirlar[i], temiz_satirlar[i+1]
                     cins, fiyat = "", ""
+                    # Fiyat genellikle "TL" veya "₺" içerir
                     if "TL" in birinci or "₺" in birinci:
                         fiyat, cins = birinci, ikinci
                     elif "TL" in ikinci or "₺" in ikinci:
                         cins, fiyat = birinci, ikinci
+                    
                     if cins and fiyat and len(cins) > 1:
                         cins_temiz = temizle_metin(cins)
+                        fiyat_temiz = fiyat.replace("t/ton", "TL").replace("₺/ton", "TL")
                         if not any(k['cins'] == cins_temiz for k in kalemler):
-                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat, "degisim": "+200 ₺"})
+                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat_temiz, "degisim": "+200 ₺"})
                     i += 1
         
         # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI
@@ -135,6 +138,10 @@ def verileri_arkaplanda_guncelle():
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
+
+@app.on_event("startup")
+def startup_event():
+    verileri_arkaplanda_guncelle()
 
 @app.get("/prices")
 def get_prices():
@@ -247,11 +254,11 @@ def read_root():
                     let kalemlerHtml = "";
                     item.kalemler.forEach(k => {
                         kalemlerHtml += `
-                            <div class="flex justify-between items-center py-3 px-1 border-b border-slate-100 last:border-none gap-2">
-                                <span class="font-semibold text-slate-700 text-xs truncate max-w-[150px]" title="${k.cins}">${k.cins}</span>
-                                <div class="text-right flex items-center space-x-2 shrink-0">
+                            <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
+                                <span class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</span>
+                                <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
                                     <span class="text-slate-900 font-extrabold text-xs">${k.fiyat}</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50">${k.degisim}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
                                 </div>
                             </div>
                         `;
