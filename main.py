@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="66.0.0",
+    version="67.0.0",
 )
 
 FIRMALAR = [
@@ -36,8 +36,8 @@ def temizle_metin(text):
     if not text:
         return ""
     temiz = text.replace("HurdaFiyat geçmişi", "").replace("Geçmişi", "").strip()
-    if len(temiz) > 30:
-        temiz = temiz[:28] + "..."
+    if len(temiz) > 28:
+        temiz = temiz[:26] + "..."
     return temiz
 
 def veri_cek(firma):
@@ -60,23 +60,26 @@ def veri_cek(firma):
         if firma["id"] == "colakoglu":
             scrap_section = soup.find(id="scrap")
             if scrap_section:
-                metinler = scrap_section.get_text(separator="\n").split("\n")
-                temiz_satirlar = [m.strip() for m in metinler if m.strip()]
+                lines = [line.strip() for line in scrap_section.get_text(separator="\n").split("\n") if line.strip()]
                 i = 0
-                while i < len(temiz_satirlar) - 1:
-                    birinci, ikinci = temiz_satirlar[i], temiz_satirlar[i+1]
+                while i < len(lines) - 1:
+                    l1, l2 = lines[i], lines[i+1]
                     cins, fiyat = "", ""
-                    if "TL" in birinci or "₺" in birinci:
-                        fiyat, cins = birinci, ikinci
-                    elif "TL" in ikinci or "₺" in ikinci:
-                        cins, fiyat = birinci, ikinci
-                    if cins and fiyat and len(cins) > 1:
+                    if "TL" in l1 or "₺" in l1 or "TON" in l1:
+                        fiyat, cins = l1, l2
+                    elif "TL" in l2 or "₺" in l2 or "TON" in l2:
+                        cins, fiyat = l1, l2
+                    
+                    if cins and fiyat and len(cins) > 1 and "TL" not in cins and "₺" not in cins:
                         cins_temiz = temizle_metin(cins)
+                        fiyat_temiz = fiyat.replace("t/ton", "TL").replace("₺/ton", "TL")
                         if not any(k['cins'] == cins_temiz for k in kalemler):
-                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat, "degisim": "+200 ₺"})
-                    i += 1
+                            kalemler.append({"cins": cins_temiz, "fiyat": fiyat_temiz, "degisim": "+200 ₺"})
+                        i += 2
+                    else:
+                        i += 1
         
-        # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI (Kroman, Kardemir, Diler vb.)
+        # 2. DİĞER FABRİKALAR İÇİN TABLO YAPISI
         tables = soup.find_all('table')
         for table in tables:
             rows = table.find_all('tr')
@@ -252,9 +255,9 @@ def read_root():
                     item.kalemler.forEach(k => {
                         kalemlerHtml += `
                             <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
-                                <span class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</span>
+                                <div class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</div>
                                 <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
-                                    <span class="text-slate-900 font-extrabold text-xs">${k.fiyat}</span>
+                                    <span class="text-slate-900 font-extrabold text-xs shrink-0">${k.fiyat}</span>
                                     <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
                                 </div>
                             </div>
