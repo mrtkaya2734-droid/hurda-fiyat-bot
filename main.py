@@ -12,7 +12,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="52.0.0",
+    version="53.0.0",
 )
 
 FIRMALAR = [
@@ -191,7 +191,8 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    pass
+    # Uygulama ayağa kalkar kalkmaz ilk veri taramasını hemen başlatıyoruz
+    verileri_arkaplanda_guncelle()
 
 @app.get("/prices")
 def get_prices():
