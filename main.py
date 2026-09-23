@@ -167,8 +167,10 @@ def veri_cek(firma):
                 print(f"{firma['baslik']} hata: {e}")
 
         # 8. HASÇELİK
+       # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
+                # Önce standart tablolara bakalım
                 tables = driver.find_elements(By.TAG_NAME, "table")
                 for table in tables:
                     rows = table.find_elements(By.TAG_NAME, "tr")
@@ -178,12 +180,33 @@ def veri_cek(firma):
                             cins = cols[0].text.strip()
                             fiyat = cols[1].text.strip()
                             if cins and fiyat:
+                                temiz_fiyat = fiyat.replace("£", "₺").strip()
+                                if not ("TL" in temiz_fiyat or "₺" in temiz_fiyat):
+                                    temiz_fiyat += " TL"
                                 if not any(k['cins'] == cins for k in kalemler):
                                     kalemler.append({
                                         "cins": cins,
-                                        "fiyat": fiyat.replace("£", "₺").strip() if "₺" in fiyat or "£" in fiyat else fiyat + " TL",
+                                        "fiyat": temiz_fiyat,
                                         "degisim": "+180 ₺"
                                     })
+                
+                # Eğer tablolardan veri gelmediyse div, p veya listeleme etiketlerinden esnek arama yapalım
+                if not kalemler:
+                    elementler = driver.find_elements(By.TAG_NAME, "div")
+                    for el in elementler:
+                        txt = el.text.strip()
+                        if ("TL" in txt or "₺" in txt or "£" in txt) and len(txt) < 100:
+                            satirlar = txt.split("\n")
+                            cins, fiyat = "", ""
+                            for satir in satirlar:
+                                s = satir.strip()
+                                if "TL" in s or "₺" in s or "£" in s:
+                                    fiyat = s.replace("£", "₺")
+                                elif len(s) > 2 and not "Hasçelik" in s:
+                                    cins = s
+                            if cins and fiyat:
+                                if not any(k['cins'] == cins for k in kalemler):
+                                    kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
