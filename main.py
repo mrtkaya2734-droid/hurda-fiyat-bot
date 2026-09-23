@@ -10,7 +10,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="68.0.0",
+    version="69.0.0",
 )
 
 FIRMALAR = [
@@ -42,7 +42,7 @@ def temizle_metin(text):
 
 def veri_cek(firma):
     kalemler = []
-    eklenen_cinsler = set() # Aynı kalemin mükerrer eklenmesini kesin olarak önler
+    eklenen_cinsler = set()
     bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
     
     try:
@@ -74,8 +74,9 @@ def veri_cek(firma):
                     if cins and fiyat and len(cins) > 1 and "TL" not in cins and "₺" not in cins:
                         cins_temiz = temizle_metin(cins)
                         fiyat_temiz = fiyat.replace("t/ton", "TL").replace("₺/ton", "TL")
-                        if cins_temiz.lower() not in eklenen_cinsler:
-                            eklenen_cinsler.add(cins_temiz.lower())
+                        cins_key = cins_temiz.lower()
+                        if cins_key not in eklenen_cinsler:
+                            eklenen_cinsler.add(cins_key)
                             kalemler.append({"cins": cins_temiz, "fiyat": fiyat_temiz, "degisim": "+200 ₺"})
                         i += 2
                     else:
@@ -103,8 +104,9 @@ def veri_cek(firma):
                         fiyat = cols[1].get_text(strip=True)
                         
                      if cins and fiyat and not cins.isdigit() and len(cins) > 1:
-                        if cins.lower() not in eklenen_cinsler:
-                            eklenen_cinsler.add(cins.lower())
+                        cins_key = cins.lower()
+                        if cins_key not in eklenen_cinsler:
+                            eklenen_cinsler.add(cins_key)
                             kalemler.append({
                                 "cins": cins,
                                 "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
@@ -229,7 +231,7 @@ def read_root():
             async function triggerRefresh() {
                 const btn = document.getElementById("refreshBtn");
                 btn.disabled = true;
-                btn.innerText = "Veriler hızlıca çekiliyor, lütfen bekleyin...";
+                btn.innerText = "Veriler çekiliyor...";
                 try {
                     const response = await fetch('/refresh');
                     const result = await response.json();
@@ -243,7 +245,6 @@ def read_root():
                     }
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
-                    alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "Verileri Şimdi Tara & Yenile";
