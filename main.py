@@ -1,123 +1,126 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import os
 import uvicorn
-from datetime import datetime
+import gc
 
 app = FastAPI(
-    title="Hurda Fiyat Takibi - Canlı Kazıma",
-    version="72.0.0",
+    title="Hurda Fiyat Takibi",
+    version="1.0.0",
 )
 
-# Fabrika kaynakları ve kazıma (scraping) fonksiyonları
-def hurda_verilerini_cek():
-    fabrikalar = [
-        {
-            "baslik": "Çolakoğlu Metalurji",
-            "url": "https://www.colakoglu.com.tr/hurda",
-            "kalemler": []
-        },
-        {
-            "baslik": "Kroman Çelik",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/kroman",
-            "kalemler": []
-        },
-        {
-            "baslik": "Kardemir",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/kardemir",
-            "kalemler": []
-        },
-        {
-            "baslik": "Erdemir Çelik",
-            "url": "https://www.erdemir.com.tr/tedarikci-iliskileri/hurda-alim",
-            "kalemler": []
-        },
-        {
-            "baslik": "İsdemir Demir Çelik",
-            "url": "https://www.isdemir.com.tr/tedarikci-iliskileri/hurda-alim",
-            "kalemler": []
-        },
-        {
-            "baslik": "Diler Demir Çelik",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/diler",
-            "kalemler": []
-        },
-        {
-            "baslik": "Ekinciler Demir Çelik",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler",
-            "kalemler": []
-        },
-        {
-            "baslik": "Hasçelik",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/hascelik",
-            "kalemler": []
-        },
-        {
-            "baslik": "Asil Çelik",
-            "url": "https://asilcelik.com.tr/tedarikci-iliskileri",
-            "kalemler": []
-        }
-    ]
+FIRMALAR = [
+    {"baslik": "Çolakoğlu Metalurji", "url": "https://www.colakoglu.com.tr/hurda"},
+    {"baslik": "Kroman Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/kroman"},
+    {"baslik": "Kardemir", "url": "https://www.hammaddepiyasasi.com/fabrika/kardemir"},
+    {"baslik": "Erdemir Çelik", "url": "https://www.erdemir.com.tr/tedarikci-iliskileri/hurda-alim"},
+    {"baslik": "İsdemir Demir Çelik", "url": "https://www.isdemir.com.tr/tedarikci-iliskileri/hurda-alim"},
+    {"baslik": "Diler Demir Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/diler"},
+    {"baslik": "Ekinciler Demir Çelik", "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler"},
+    {"baslik": "Hasçelik", "url": "https://www.hammaddepiyasasi.com/fabrika/hascelik"},
+    {"baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
+]
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+GUNCEL_VERILER = []
+SON_GUNCELLEME = "Veriler yükleniyor..."
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
+def veri_cek(firma):
+    kalemler = []
+    bulunan_tarih = datetime.now().strftime("%d.%m.%Y")
+    
+    try:
+        response = requests.get(firma["url"], headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Orijinal tablodan veri çekme mantığı
+            tables = soup.find_all('table')
+            for table in tables:
+                rows = table.find_all('tr')
+                for row in rows:
+                    cols = row.find_all(['td', 'th'])
+                    if len(cols) >= 2:
+                        cins = cols[0].get_text(strip=True)
+                        fiyat = ""
+                        for col in cols[1:]:
+                            txt = col.get_text(strip=True)
+                            if "₺" in txt or "TL" in txt or "t/ton" in txt or len(txt) > 3:
+                                fiyat = txt
+                                break
+                        if not fiyat and len(cols) >= 2:
+                            fiyat = cols[1].get_text(strip=True)
+                            
+                        if cins and fiyat and not cins.isdigit():
+                            kalemler.append({
+                                "cins": cins,
+                                "fiyat": fiyat,
+                                "degisim": "Güncel"
+                            })
+                            
+            # Eğer tablodan bulunamadıysa genel metin taraması
+            if not kalemler:
+                for p in soup.find_all(['p', 'span', 'div', 'li']):
+                    text = p.get_text(strip=True)
+                    if ("TL" in text or "₺" in text) and len(text) < 50:
+                        kalemler.append({
+                            "cins": "Hurda Çeşidi",
+                            "fiyat": text,
+                            "degisim": "Güncel"
+                        })
+    except Exception as e:
+        print(f"Hata ({firma['baslik']}): {e}")
+
+    return {
+        "baslik": firma["baslik"],
+        "url": firma["url"],
+        "tarih": bulunan_tarih,
+        "kalemler": kalemler if kalemler else [{"cins": "Veri Alınamadı", "fiyat": "---", "degisim": "Bekliyor"}]
     }
 
-    for fab in fabrikalar:
-        try:
-            response = requests.get(fab["url"], headers=headers, timeout=5)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Tabloları, satırları veya liste öğelerini bulmaya çalışalım
-                tablolar = soup.find_all(['table', 'ul', 'div'], class_=lambda x: x and ('price' in x or 'hurda' in x or 'table' in x or 'list' in x))
-                
-                bulunanlar = []
-                # Genel bir yaklaşım: Sayfadaki tüm satırları veya tablo hücrelerini tarayalım
-                rows = soup.find_all(['tr', 'li'])
-                for r in rows:
-                    text = r.get_text(strip=True)
-                    # İçinde fiyat ibaresi geçen veya hurda kalemi olabilecek yapıları yakala
-                    if len(text) > 3 and len(text) < 150:
-                        bulunanlar.append(text)
+def verileri_arkaplanda_guncelle():
+    global GUNCEL_VERILER, SON_GUNCELLEME
+    yeni_veriler = []
+    for firma in FIRMALAR:
+        res = veri_cek(firma)
+        yeni_veriler.append(res)
+    
+    if yeni_veriler:
+        GUNCEL_VERILER = yeni_veriler
+    SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    gc.collect()
 
-                # Eğer BeautifulSoup ile dinamik tablolardan yeterli veri çekilemediyse veya site yapısı korumalıysa, 
-                # gerçek HTML etiketlerinden (td, th) verileri topluyoruz:
-                tds = soup.find_all(['td', 'th', 'span', 'p'])
-                gecici_liste = []
-                for td in tds:
-                    val = td.get_text(strip=True)
-                    if val and len(val) < 50:
-                        gecici_liste.append(val)
+scheduler = BackgroundScheduler()
+scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
+scheduler.start()
 
-                # Çekilen hammaddeleri anlamlı ikililere (Cins - Fiyat) dönüştürme mantığı
-                # Siteden gelen ham verileri filtreleyip kalemlere ekliyoruz
-                i = 0
-                while i < len(gecici_liste) - 1:
-                    cins = gecici_liste[i]
-                    fiyat = gecici_liste[i+1]
-                    # Basit bir fiyat formatı veya metin uzunluğu kontrolü
-                    if any(char.isdigit() for char in fiyat) and len(cins) > 2:
-                        fab["kalemler"].append({
-                            "cins": cins,
-                            "fiyat": fiyat if "TL" in fiyat or "₺" in fiyat else fiyat + " ₺",
-                            "degisim": "Canlı"
-                        })
-                        i += 2
-                    else:
-                        i += 1
+@app.on_event("startup")
+def startup_event():
+    verileri_arkaplanda_guncelle()
 
-                # Eğer otomatik parse sırasında yetersiz kalırsa veya site boş döndürürse yedek güvenli canlı veri
-                if not fab["kalemler"]:
-                    fab["kalemler"].append({"cins": "Anlık Piyasa Verisi", "fiyat": "Canlı Bağlantı Kuruldu", "degisim": "Aktif"})
-            else:
-                fab["kalemler"].append({"cins": "Erişim Bekleniyor", "fiyat": f"HTTP {response.status_code}", "degisim": "Beklemede"})
-        except Exception as e:
-            fab["kalemler"].append({"cins": "Bağlantı Durumu", "fiyat": "Güncel Veri Çekiliyor", "degisim": "Canlı"})
+@app.get("/prices")
+def get_prices():
+    return {
+        "status": "success",
+        "son_guncelleme": SON_GUNCELLEME,
+        "data": GUNCEL_VERILER
+    }
 
-    return fabrikalar
+@app.get("/refresh")
+def refresh_cache():
+    verileri_arkaplanda_guncelle()
+    return {
+        "status": "success",
+        "son_guncelleme": SON_GUNCELLEME,
+        "data": GUNCEL_VERILER
+    }
 
 @app.get("/manifest.json")
 def get_manifest():
@@ -137,45 +140,13 @@ def get_manifest():
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    fabrika_verileri = hurda_verilerini_cek()
-    
-    # HTML şablonunu dinamik olarak Python verileriyle dolduruyoruz
-    cards_html = ""
-    simdi_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
-    for fab in fabrika_verileri:
-        kalemler_html = ""
-        for k in fab["kalemler"]:
-            kalemler_html += f"""
-                <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
-                    <div class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="{k['cins']}">{k['cins']}</div>
-                    <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
-                        <span class="text-slate-900 font-extrabold text-xs shrink-0">{k['fiyat']}</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">{k['degisim']}</span>
-                    </div>
-                </div>
-            """
-
-        cards_html += f"""
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden">
-                <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
-                    <div>
-                        <h3 class="font-bold text-sm">{fab['baslik']}</h3>
-                        <a href="{fab['url']}" target="_blank" class="text-[10px] text-indigo-300 underline block mt-0.5">Resmi Kaynağa Git ↗</a>
-                    </div>
-                    <span class="text-[11px] bg-white/10 px-2.5 py-1 rounded-xl shrink-0">Canlı</span>
-                </div>
-                <div class="p-5"><div class="divide-y divide-slate-100">{kalemler_html}</div></div>
-            </div>
-        """
-
-    return f"""
+    return """
     <!DOCTYPE html>
     <html lang="tr">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Hurda Fiyatları - Canlı Web Kazıma</title>
+        <title>Hurda Fiyatları</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -185,21 +156,92 @@ def read_root():
         <div class="max-w-7xl mx-auto px-4 py-10">
             <header class="text-center mb-12">
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">Hurda Fiyatları</h1>
-                <p class="text-slate-500 text-sm mt-1.5">Kaynak Sitelerden Anlık Çekilen Canlı Takip Paneli</p>
+                <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
                 <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
                     <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
-                        <span class="font-medium text-slate-500 mr-1.5">Sunucu Güncelleme Saati:</span>
-                        <span class="font-bold text-slate-800">{simdi_str}</span>
+                        <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
+                        <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
                     </div>
-                    <button onclick="window.location.reload();" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
-                        <span>Sitelerden Verileri Yeniden Kazı & Güncelle</span>
+                    <button id="refreshBtn" onclick="triggerRefresh()" class="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow-sm transition cursor-pointer">
+                        <span>Verileri Şimdi Tara & Yenile</span>
                     </button>
                 </div>
             </header>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cards_html}
-            </div>
+            <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
+        <script>
+            async function fetchPrices() {
+                try {
+                    const response = await fetch('/prices');
+                    const result = await response.json();
+                    if (result.status === "success") {
+                        if(result.son_guncelleme) {
+                            document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        }
+                        if(result.data && result.data.length > 0) {
+                            renderCards(result.data);
+                        }
+                    }
+                } catch (error) { console.error("Hata:", error); }
+            }
+
+            async function triggerRefresh() {
+                const btn = document.getElementById("refreshBtn");
+                btn.disabled = true;
+                btn.innerText = "Taranıyor...";
+                try {
+                    const response = await fetch('/refresh');
+                    const result = await response.json();
+                    if (result.status === "success") {
+                        if(result.son_guncelleme) {
+                            document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        }
+                        if(result.data && result.data.length > 0) {
+                            renderCards(result.data);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Yenileme hatası:", error);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "Verileri Şimdi Tara & Yenile";
+                }
+            }
+
+            function renderCards(data) {
+                const container = document.getElementById("cardsContainer");
+                container.innerHTML = "";
+                data.forEach(item => {
+                    let kalemlerHtml = "";
+                    item.kalemler.forEach(k => {
+                        kalemlerHtml += `
+                            <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
+                                <div class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</div>
+                                <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
+                                    <span class="text-slate-900 font-extrabold text-xs shrink-0">${k.fiyat}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    const card = document.createElement("div");
+                    card.className = "bg-white rounded-3xl shadow-sm border border-slate-200/70 overflow-hidden";
+                    card.innerHTML = `
+                        <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-sm">${item.baslik}</h3>
+                                <a href="${item.url}" target="_blank" class="text-[10px] text-indigo-300 underline block mt-0.5">Resmi Kaynağa Git ↗</a>
+                            </div>
+                            <span class="text-[11px] bg-white/10 px-2.5 py-1 rounded-xl shrink-0">${item.tarih}</span>
+                        </div>
+                        <div class="p-5"><div class="divide-y divide-slate-100">${kalemlerHtml}</div></div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            fetchPrices();
+        </script>
     </body>
     </html>
     """
