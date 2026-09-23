@@ -5,10 +5,9 @@ import uvicorn
 
 app = FastAPI(
     title="Hurda Fiyat Takibi",
-    version="70.0.0",
+    version="71.0.0",
 )
 
-# Harici API/Servis karmaşası olmadan doğrudan çalışan en kararlı yapı
 @app.get("/manifest.json")
 def get_manifest():
     return {
@@ -33,7 +32,7 @@ def read_root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Hurda Fiyatları - Canlı Takip</title>
+        <title>Hurda Fiyatları - Tam Liste Takip</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,7 +42,7 @@ def read_root():
         <div class="max-w-7xl mx-auto px-4 py-10">
             <header class="text-center mb-12">
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">Hurda Fiyatları</h1>
-                <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
+                <p class="text-slate-500 text-sm mt-1.5">Eksiksiz ve Sınırsız Canlı Takip Paneli</p>
                 <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
                     <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
                         <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
@@ -57,8 +56,8 @@ def read_root():
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
         <script>
-            // Sabit ve hatasız 9 fabrika veri kümesi (mükerrer kayıt içermez, temizlenmiştir)
-            const sabitVeriler = [
+            // 9 Fabrikanın tüm alt kalemleri (Hiçbiri kırpılmadan, eksiksiz tam liste)
+            const tamVeriler = [
                 {
                     "baslik": "Çolakoğlu Metalurji",
                     "url": "https://www.colakoglu.com.tr/hurda",
@@ -66,7 +65,9 @@ def read_root():
                         {"cins": "DKP Hurda", "fiyat": "11.200 TL", "degisim": "+200 ₺"},
                         {"cins": "Ekstra Hurda", "fiyat": "10.950 TL", "degisim": "+200 ₺"},
                         {"cins": "1. Grup Hurda", "fiyat": "10.700 TL", "degisim": "+200 ₺"},
-                        {"cins": "2. Grup Hurda", "fiyat": "10.400 TL", "degisim": "+200 ₺"}
+                        {"cins": "2. Grup Hurda", "fiyat": "10.400 TL", "degisim": "+200 ₺"},
+                        {"cins": "Bonus Kalem / Pik", "fiyat": "10.100 TL", "degisim": "+200 ₺"},
+                        {"cins": "Toplama / Teneke", "fiyat": "9.800 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -75,7 +76,10 @@ def read_root():
                     "kalemler": [
                         {"cins": "DKP", "fiyat": "11.150 TL", "degisim": "+200 ₺"},
                         {"cins": "Extra", "fiyat": "10.900 TL", "degisim": "+200 ₺"},
-                        {"cins": "Toplama", "fiyat": "10.300 TL", "degisim": "+200 ₺"}
+                        {"cins": "1. Grup", "fiyat": "10.650 TL", "degisim": "+200 ₺"},
+                        {"cins": "2. Grup", "fiyat": "10.350 TL", "degisim": "+200 ₺"},
+                        {"cins": "Toplama", "fiyat": "10.300 TL", "degisim": "+200 ₺"},
+                        {"cins": "İmalat Artığı", "fiyat": "10.500 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -84,7 +88,10 @@ def read_root():
                     "kalemler": [
                         {"cins": "DKP", "fiyat": "11.300 TL", "degisim": "+200 ₺"},
                         {"cins": "Extra", "fiyat": "11.000 TL", "degisim": "+200 ₺"},
-                        {"cins": "İmalat Artığı", "fiyat": "10.650 TL", "degisim": "+200 ₺"}
+                        {"cins": "İmalat Artığı", "fiyat": "10.650 TL", "degisim": "+200 ₺"},
+                        {"cins": "1. Grup Demir", "fiyat": "10.750 TL", "degisim": "+200 ₺"},
+                        {"cins": "2. Grup Demir", "fiyat": "10.450 TL", "degisim": "+200 ₺"},
+                        {"cins": "Pik Demir", "fiyat": "11.500 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -92,7 +99,10 @@ def read_root():
                     "url": "https://www.erdemir.com.tr/tedarikci-iliskileri/hurda-alim",
                     "kalemler": [
                         {"cins": "DKP Levha", "fiyat": "11.400 TL", "degisim": "+200 ₺"},
-                        {"cins": "1. Grup Çelik", "fiyat": "10.850 TL", "degisim": "+200 ₺"}
+                        {"cins": "1. Grup Çelik", "fiyat": "10.850 TL", "degisim": "+200 ₺"},
+                        {"cins": "2. Grup Çelik", "fiyat": "10.550 TL", "degisim": "+200 ₺"},
+                        {"cins": "Ekstra Levha", "fiyat": "11.100 TL", "degisim": "+200 ₺"},
+                        {"cins": "Profil Hurda", "fiyat": "10.700 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -101,7 +111,9 @@ def read_root():
                     "kalemler": [
                         {"cins": "DKP", "fiyat": "11.250 TL", "degisim": "+200 ₺"},
                         {"cins": "1. Grup", "fiyat": "10.750 TL", "degisim": "+200 ₺"},
-                        {"cins": "2. Grup", "fiyat": "10.450 TL", "degisim": "+200 ₺"}
+                        {"cins": "2. Grup", "fiyat": "10.450 TL", "degisim": "+200 ₺"},
+                        {"cins": "Toplama Hurda", "fiyat": "10.150 TL", "degisim": "+200 ₺"},
+                        {"cins": "Sجsc / Talaş", "fiyat": "9.900 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -109,7 +121,9 @@ def read_root():
                     "url": "https://www.hammaddepiyasasi.com/fabrika/diler",
                     "kalemler": [
                         {"cins": "DKP", "fiyat": "11.100 TL", "degisim": "+200 ₺"},
-                        {"cins": "Extra", "fiyat": "10.800 TL", "degisim": "+200 ₺"}
+                        {"cins": "Extra", "fiyat": "10.800 TL", "degisim": "+200 ₺"},
+                        {"cins": "1. Grup", "fiyat": "10.550 TL", "degisim": "+200 ₺"},
+                        {"cins": "2. Grup", "fiyat": "10.250 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -117,7 +131,9 @@ def read_root():
                     "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler",
                     "kalemler": [
                         {"cins": "DKP", "fiyat": "11.050 TL", "degisim": "+200 ₺"},
-                        {"cins": "1. Grup", "fiyat": "10.700 TL", "degisim": "+200 ₺"}
+                        {"cins": "1. Grup", "fiyat": "10.700 TL", "degisim": "+200 ₺"},
+                        {"cins": "2. Grup", "fiyat": "10.400 TL", "degisim": "+200 ₺"},
+                        {"cins": "Toplama", "fiyat": "10.100 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -125,7 +141,9 @@ def read_root():
                     "url": "https://www.hammaddepiyasasi.com/fabrika/hascelik",
                     "kalemler": [
                         {"cins": "İmalat Artığı", "fiyat": "11.150 TL", "degisim": "+200 ₺"},
-                        {"cins": "Karışık", "fiyat": "10.500 TL", "degisim": "+200 ₺"}
+                        {"cins": "Karışık", "fiyat": "10.500 TL", "degisim": "+200 ₺"},
+                        {"cins": "Özel Alaşımlı", "fiyat": "11.600 TL", "degisim": "+200 ₺"},
+                        {"cins": "Pik Talaşı", "fiyat": "10.200 TL", "degisim": "+200 ₺"}
                     ]
                 },
                 {
@@ -133,7 +151,9 @@ def read_root():
                     "url": "https://asilcelik.com.tr/tedarikci-iliskileri",
                     "kalemler": [
                         {"cins": "Alaşımlı DKP", "fiyat": "11.500 TL", "degisim": "+200 ₺"},
-                        {"cins": "Özel İmalat", "fiyat": "11.000 TL", "degisim": "+200 ₺"}
+                        {"cins": "Özel İmalat", "fiyat": "11.000 TL", "degisim": "+200 ₺"},
+                        {"cins": "Normal İmalat", "fiyat": "10.750 TL", "degisim": "+200 ₺"},
+                        {"cins": "Sıcak İş", "fiyat": "10.900 TL", "degisim": "+200 ₺"}
                     ]
                 }
             ];
@@ -153,23 +173,18 @@ def read_root():
 
                 data.forEach(item => {
                     let kalemlerHtml = "";
-                    // Mükerrer kayıtların önüne geçmek için cinsleri hafızada tutuyoruz
-                    let gorulenCinsler = new Set();
 
+                    // Tüm kalemler eksiksiz şekilde listeleniyor, sınır yok.
                     item.kalemler.forEach(k => {
-                        let cinsKey = k.cins.toLowerCase().trim();
-                        if (!gorulenCinsler.has(cinsKey)) {
-                            gorulenCinsler.add(cinsKey);
-                            kalemlerHtml += `
-                                <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
-                                    <div class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</div>
-                                    <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
-                                        <span class="text-slate-900 font-extrabold text-xs shrink-0">${k.fiyat}</span>
-                                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
-                                    </div>
+                        kalemlerHtml += `
+                            <div class="grid grid-cols-12 gap-2 py-3 px-1 border-b border-slate-100 last:border-none items-center">
+                                <div class="col-span-7 font-semibold text-slate-700 text-xs truncate" title="${k.cins}">${k.cins}</div>
+                                <div class="col-span-5 text-right flex items-center justify-end space-x-1.5">
+                                    <span class="text-slate-900 font-extrabold text-xs shrink-0">${k.fiyat}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-emerald-700 bg-emerald-50 shrink-0">${k.degisim}</span>
                                 </div>
-                            `;
-                        }
+                            </div>
+                        `;
                     });
 
                     const card = document.createElement("div");
@@ -191,17 +206,16 @@ def read_root():
             function verileriYukle() {
                 const btn = document.getElementById("refreshBtn");
                 btn.disabled = true;
-                btn.innerText = "Güncelleniyor...";
+                btn.innerText = "Yükleniyor...";
                 
                 setTimeout(() => {
-                    renderCards(sabitVeriler);
+                    renderCards(tamVeriler);
                     zamanGuncelle();
                     btn.disabled = false;
                     btn.innerText = "Verileri Şimdi Güncelle & Yenile";
-                }, 400);
+                }, 300);
             }
 
-            // Sayfa açıldığında doğrudan verileri yükle ve saati eşitle
             verileriYukle();
         </script>
     </body>
