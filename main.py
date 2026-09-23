@@ -12,7 +12,7 @@ import uvicorn
 import gc
 
 app = FastAPI(
-    title="9 Fabrika Canlı Hurda Fiyat Takibi",
+    title="Canlı Hurda Fiyat Takibi",
     version="46.2.0",
 )
 
