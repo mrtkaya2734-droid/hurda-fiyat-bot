@@ -54,6 +54,7 @@ def veri_cek(firma):
         driver.get(firma["url"])
         time.sleep(3)
         
+        # 1. ÇOLAKOĞLU METALURJİ
         if firma["id"] == "colakoglu":
             try:
                 scrap_section = driver.find_element(By.ID, "scrap")
@@ -78,6 +79,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Çolakoğlu hata: {e}")
 
+        # 2. KARDEMİR
         elif firma["id"] == "kardemir":
             try:
                 elements = driver.find_elements(By.TAG_NAME, "tr")
@@ -111,6 +113,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Kardemir hata: {e}")
 
+        # 3. ERDEMİR & 4. İSDEMİR
         elif firma["id"] in ["erdemir", "isdemir"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -131,6 +134,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
+        # 5. KROMAN, 6. DİLER, 7. EKİNCİLER
         elif firma["id"] in ["kroman", "diler", "ekinciler"]:
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -159,6 +163,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
+        # 8. HASÇELİK
         elif firma["id"] == "hascelik":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -202,6 +207,7 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
+        # 9. ASİL ÇELİK
         elif firma["id"] == "asil":
             try:
                 tables = driver.find_elements(By.TAG_NAME, "table")
@@ -225,7 +231,6 @@ def veri_cek(firma):
     except Exception as e:
         print(f"{firma['baslik']} tarama hatası: {e}")
     finally:
-        # RAM Dostu Kapatma ve Bellek Temizliği (Garbage Collection)
         if driver:
             try:
                 driver.quit()
@@ -257,11 +262,10 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
-    print("Tüm tarama tamamlandı, bellek tamamen temizlendi.")
+    print("Tüm tarama tamamlandı, bellek temizlendi.")
 
 scheduler = BackgroundScheduler()
-# GÜNCELLEME ARALIĞI: İstediğin gibi burayı örneğin hours=4, hours=2 veya minutes=30 olarak ayarlayabilirsin.
-scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
+scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', minutes=30)
 scheduler.start()
 
 @app.on_event("startup")
@@ -303,7 +307,7 @@ def read_root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>9 Fabrika Canlı Hurda Fiyat Takibi</title>
+        <title>9 Fabrika Güncel Hurda Fiyatları</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -333,8 +337,8 @@ def read_root():
         <script>
             async function fetchPrices() {
                 try {
-                    const response = applyFetch('/prices');
-                    const result = await (await fetch('/prices')).json();
+                    const response = await fetch('/prices');
+                    const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
