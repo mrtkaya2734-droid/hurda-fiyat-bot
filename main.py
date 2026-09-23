@@ -9,11 +9,10 @@ import time
 import os
 import uvicorn
 import gc
-import threading
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="47.0.0",
+    version="46.6.0",
 )
 
 FIRMALAR = [
@@ -30,7 +29,6 @@ FIRMALAR = [
 
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
-GUNCELLEME_YAPILIYOR = False
 
 def veri_cek(firma):
     options = Options()
@@ -168,11 +166,8 @@ def veri_cek(firma):
     }
 
 def verileri_arkaplanda_guncelle():
-    global GUNCEL_VERILER, SON_GUNCELLEME, GUNCELLEME_YAPILIYOR
-    if GUNCELLEME_YAPILIYOR:
-        return
-    GUNCELLEME_YAPILIYOR = True
-    print(f"[{datetime.now()}] 9 fabrika arka planda taranıyor...")
+    global GUNCEL_VERILER, SON_GUNCELLEME
+    print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor...")
     
     yeni_veriler = []
     for firma in FIRMALAR:
@@ -186,7 +181,6 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    GUNCELLEME_YAPILIYOR = False
     gc.collect()
     print("Önbellek güncellendi.")
 
@@ -196,26 +190,21 @@ scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    threading.Thread(target=verileri_arkaplanda_guncelle).start()
+    verileri_arkaplanda_guncelle()
 
 @app.get("/prices")
 def get_prices():
     return {
         "status": "success",
-        "guncelleniyor": GUNCELLEME_YAPILIYOR,
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
 
 @app.get("/refresh")
 def refresh_cache():
-    # İşlemi arka planda tetikler ve arayüze anında cevap döner (Butonun takılmasını önler)
-    if not GUNCELLEME_YAPILIYOR:
-        threading.Thread(target=verileri_arkaplanda_guncelle).start()
+    verileri_arkaplanda_guncelle()
     return {
         "status": "success",
-        "message": "Güncelleme arka planda başlatıldı.",
-        "guncelleniyor": GUNCELLEME_YAPILIYOR,
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
@@ -275,14 +264,6 @@ def read_root():
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
-                        const btn = document.getElementById("refreshBtn");
-                        if(result.guncelleniyor) {
-                            btn.innerText = "Arka planda taranıyor...";
-                            btn.disabled = true;
-                        } else {
-                            btn.innerText = "Önbelleği Temizle & Yenile";
-                            btn.disabled = false;
-                        }
                     }
                 } catch (error) { console.error("Hata:", error); }
             }
@@ -290,17 +271,20 @@ def read_root():
             async function triggerRefresh() {
                 const btn = document.getElementById("refreshBtn");
                 btn.disabled = true;
-                btn.innerText = "Güncelleme başlatıldı...";
+                btn.innerText = "Veriler taranıyor, lütfen bekleyin...";
                 try {
-                    await fetch('/refresh');
-                    setTimeout(fetchPrices, 3000);
+                    const response = await fetch('/refresh');
+                    const result = await response.json();
+                    if (result.status === "success") {
+                        document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        renderCards(result.data);
+                    }
                 } catch (error) {
                     console.error("Yenileme hatası:", error);
+                    alert("Yenileme sırasında bir hata oluştu.");
                 } finally {
-                    setTimeout(() => { 
-                        btn.disabled = false; 
-                        btn.innerText = "Önbelleği Temizle & Yenile"; 
-                    }, 4000);
+                    btn.disabled = false;
+                    btn.innerText = "Önbelleği Temizle & Yenile";
                 }
             }
 
@@ -337,7 +321,7 @@ def read_root():
             }
 
             fetchPrices();
-            setInterval(fetchPrices, 10000);
+            setInterval(fetchPrices, 300000);
         </script>
     </body>
     </html>
