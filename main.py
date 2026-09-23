@@ -12,8 +12,8 @@ import uvicorn
 import gc
 
 app = FastAPI(
-    title="Canlı Hurda Fiyat Takibi",
-    version="46.2.0",
+    title="Güncel Hurda Fiyatları",
+    version="46.3.0",
 )
 
 FIRMALAR = [
@@ -283,8 +283,8 @@ def get_prices():
 @app.get("/manifest.json")
 def get_manifest():
     return {
-        "name": "Hurda Fiyat Takip",
-        "short_name": "HurdaTakip",
+        "name": "9 Fabrika Güncel Hurda Fiyatları",
+        "short_name": "HurdaFiyat",
         "start_url": "/",
         "display": "standalone",
         "background_color": "#f1f5f9",
@@ -312,7 +312,7 @@ def read_root():
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="Hurda Takip">
+        <meta name="apple-mobile-web-app-title" content="Hurda Fiyatları">
         <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
@@ -325,9 +325,14 @@ def read_root():
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
-                <div class="mt-4 inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
-                    <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
-                    <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
+                <div class="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <div class="inline-flex items-center text-xs text-slate-600 bg-white border border-slate-200/80 px-4 py-2 rounded-xl shadow-sm">
+                        <span class="font-medium text-slate-500 mr-1.5">Son Güncelleme:</span>
+                        <span id="sonGuncelleme" class="font-bold text-slate-800">Yükleniyor...</span>
+                    </div>
+                    <button onclick="istekBildirimIzni()" id="notifBtn" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl shadow-sm transition">
+                        🔔 Fiyat Bildirimlerini Aç
+                    </button>
                 </div>
             </header>
 
@@ -335,12 +340,44 @@ def read_root():
         </div>
 
         <script>
+            let eskiVeriHash = "";
+
+            function istekBildirimIzni() {
+                if (!("Notification" in window)) {
+                    alert("Tarayıcınız masaüstü/web bildirimlerini desteklemiyor.");
+                    return;
+                }
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        document.getElementById("notifBtn").innerText = "🔔 Bildirimler Aktif";
+                        document.getElementById("notifBtn").classList.replace("bg-indigo-600", "bg-emerald-600");
+                        new Notification("9 Fabrika Güncel Hurda Fiyatları", {
+                            body: "Fiyat bildirimleri başarıyla etkinleştirildi. Güncellemelerden haberdar olacaksınız.",
+                            icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
+                        });
+                    } else {
+                        alert("Bildirim izni verilmedi.");
+                    }
+                });
+            }
+
             async function fetchPrices() {
                 try {
                     const response = await fetch('/prices');
                     const result = await response.json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
+                        
+                        const yeniHash = JSON.stringify(result.data);
+                        if (eskiVeriHash && eskiVeriHash !== yeniHash) {
+                            if (Notification.permission === "granted") {
+                                new Notification("Hurda Fiyatları Güncellendi!", {
+                                    body: "9 fabrikanın güncel hurda fiyatlarında yeni veriler tespit edildi.",
+                                    icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png"
+                                });
+                            }
+                        }
+                        eskiVeriHash = yeniHash;
                         renderCards(result.data);
                     }
                 } catch (error) { console.error("Hata:", error); }
