@@ -13,7 +13,7 @@ import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="46.0.0",
+    version="46.1.0",
 )
 
 FIRMALAR = [
@@ -80,10 +80,8 @@ def veri_cek(firma):
                 print(f"Çolakoğlu hata: {e}")
 
         # 2. KARDEMİR
-       # 2. KARDEMİR
         elif firma["id"] == "kardemir":
             try:
-                # Sayfadaki tüm satırları ve tablo elemanlarını daha esnek tarayalım
                 elements = driver.find_elements(By.TAG_NAME, "tr")
                 if not elements:
                     elements = driver.find_elements(By.TAG_NAME, "li")
@@ -104,7 +102,6 @@ def veri_cek(firma):
                             if not any(k['cins'] == cins for k in kalemler):
                                 kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+250 ₺"})
                 
-                # Eğer tablolardan bulunamadıysa body metninden esnek arama yapalım
                 if not kalemler:
                     tum_metin = driver.find_element(By.TAG_NAME, "body").text
                     satirlar = tum_metin.split("\n")
@@ -166,12 +163,10 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK
-      # 8. HASÇELİK
+        # 8. HASÇELİK (Render Gecikme Korumalı)
         elif firma["id"] == "hascelik":
             try:
-                time.sleep(3) # Render ortamı için ekstra bekleme süresi
-                # Önce standart tablolara bakalım
+                time.sleep(3) # Render ortamı bot koruması ve yüklenme gecikmesi için
                 tables = driver.find_elements(By.TAG_NAME, "table")
                 for table in tables:
                     rows = table.find_elements(By.TAG_NAME, "tr")
@@ -191,7 +186,6 @@ def veri_cek(firma):
                                         "degisim": "+180 ₺"
                                     })
                 
-                # Eğer tablolardan veri gelmediyse div, p veya listeleme etiketlerinden esnek arama yapalım
                 if not kalemler:
                     elementler = driver.find_elements(By.TAG_NAME, "div")
                     for el in elementler:
@@ -254,14 +248,13 @@ def verileri_arkaplanda_guncelle():
     print(f"[{datetime.now()}] 9 fabrika sırayla taranıyor (RAM Dostu Mod)...")
     
     yeni_veriler = []
-    # RAM'i patlatmamak için paralel işlem yerine döngüyle tek tek sırayla çekiyoruz
     for firma in FIRMALAR:
         try:
             res = veri_cek(firma)
             yeni_veriler.append(res)
         except Exception as ex:
             print(f"{firma['baslik']} taranamadı: {ex}")
-        time.sleep(1) # Tarayıcılar arası kısa dinlenme
+        time.sleep(1)
     
     GUNCEL_VERILER.clear()
     GUNCEL_VERILER = yeni_veriler
@@ -269,14 +262,12 @@ def verileri_arkaplanda_guncelle():
     gc.collect()
     print("Tüm tarama tamamlandı, bellek temizlendi.")
 
-# Güncelleme aralığını 4 saate çıkararak RAM tüketim sınırlarında güvenle çalışmasını sağlıyoruz
 scheduler = BackgroundScheduler()
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
 scheduler.start()
 
 @app.on_event("startup")
 def startup_event():
-    # Uygulama açılışında ilk taramayı tetikle
     verileri_arkaplanda_guncelle()
 
 @app.get("/prices")
@@ -286,6 +277,34 @@ def get_prices():
         "son_guncelleme": SON_GUNCELLEME,
         "data": GUNCEL_VERILER
     }
+
+# Mobil Arka Plan Bildirimleri İçin Service Worker Endpoint'i
+@app.get("/sw.js")
+def get_service_worker():
+    sw_code = """
+    self.addEventListener('push', function(event) {
+        let data = { title: 'Hurda Fiyatları Güncellendi', body: 'Yeni fiyatlar için tıklayın!' };
+        if (event.data) {
+            data = event.data.json();
+        }
+        const options = {
+            body: data.body,
+            icon: 'https://cdn-icons-png.flaticon.com/512/2954/2954884.png',
+            badge: 'https://cdn-icons-png.flaticon.com/512/2954/2954884.png'
+        };
+        event.waitUntil(
+            self.registration.showNotification(data.title, options)
+        );
+    });
+
+    self.addEventListener('notificationclick', function(event) {
+        event.notification.close();
+        event.waitUntil(
+            clients.openWindow('/')
+        );
+    });
+    """
+    return HTMLResponse(content=sw_code, media_type="application/javascript")
 
 @app.get("/manifest.json")
 def get_manifest():
@@ -328,7 +347,7 @@ def read_root():
             <header class="text-center mb-12">
                 <div class="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Mobil Uygulama (PWA) Modu Aktif</span>
+                    <span>Mobil Uygulama (PWA & Bildirim) Modu Aktif</span>
                 </div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">9 Fabrika Güncel Hurda Fiyatları</h1>
                 <p class="text-slate-500 text-sm mt-1.5">Canlı Takip Paneli</p>
@@ -342,6 +361,19 @@ def read_root():
         </div>
 
         <script>
+            // Service Worker Kaydı (Arka Plan Bildirimleri İçin)
+            async function registerServiceWorker() {
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    try {
+                        const registration = await navigator.serviceWorker.register('/sw.js');
+                        console.log('Service Worker aktif:', registration);
+                    } catch (error) {
+                        console.error('Service Worker hatası:', error);
+                    }
+                }
+            }
+            registerServiceWorker();
+
             async function fetchPrices() {
                 try {
                     const response = await fetch('/prices');
