@@ -1,6 +1,5 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from selenium import webdriver
@@ -11,10 +10,11 @@ import time
 import re
 import os
 import uvicorn
+import gc
 
 app = FastAPI(
     title="9 Fabrika Canlı Hurda Fiyat Takibi",
-    version="44.0.0",
+    version="45.0.0",
 )
 
 FIRMALAR = [
@@ -29,6 +29,7 @@ FIRMALAR = [
     {"id": "asil", "baslik": "Asil Çelik", "url": "https://asilcelik.com.tr/tedarikci-iliskileri"}
 ]
 
+# Hafızayı şişirmemek için global listeyi her seferinde sıfırlayıp güncel tutacağız
 GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
 
@@ -41,7 +42,7 @@ def veri_cek(firma):
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
-    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--window-size=1280,720")
     options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
@@ -51,9 +52,9 @@ def veri_cek(firma):
     
     try:
         driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(25)
+        driver.set_page_load_timeout(20)
         driver.get(firma["url"])
-        time.sleep(3)
+        time.sleep(2)
         
         # 1. ÇOLAKOĞLU METALURJİ
         if firma["id"] == "colakoglu":
@@ -202,6 +203,8 @@ def veri_cek(firma):
                 driver.quit()
             except:
                 pass
+        # Bellek sızıntılarını önlemek için çöp toplayıcıyı tetikle
+        gc.collect()
 
     return {
         "baslik": firma["baslik"],
@@ -212,13 +215,22 @@ def veri_cek(firma):
 
 def verileri_arkaplanda_guncelle():
     global GUNCEL_VERILER, SON_GUNCELLEME
-    print(f"[{datetime.now()}] Tüm 9 fabrika güncelleniyor...")
+    print(f"[{datetime.now()}] Tüm 9 fabrika güncelleniyor (RAM optimizasyonlu)...")
+    
+    yeni_veriler = []
+    # Kaynakları aşmamak için tekli iş parçacığı kullanıyoruz (RAM patlamasını önler)
     with ThreadPoolExecutor(max_workers=1) as executor:
-        GUNCEL_VERILER = list(executor.map(veri_cek, FIRMALAR))
+        yeni_veriler = list(executor.map(veri_cek, FIRMALAR))
+    
+    # Eski verileri tamamen silip sadece en güncel halini belleğe yazıyoruz
+    GUNCEL_VERILER.clear()
+    GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    gc.collect()
 
+# Güncelleme sıklığını 3 saate çıkararak Render RAM limitlerinin aşılmasını engelliyoruz
 scheduler = BackgroundScheduler()
-scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=1)
+scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=3)
 scheduler.start()
 
 @app.on_event("startup")
@@ -345,9 +357,6 @@ def read_root():
     </html>
     """
 
-# ==========================================================
-# RENDER İÇİN ZORUNLU DİNAMİK PORT BAŞLATMA BLOĞU
-# ==========================================================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
