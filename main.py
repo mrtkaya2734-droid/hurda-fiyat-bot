@@ -225,6 +225,7 @@ def veri_cek(firma):
     except Exception as e:
         print(f"{firma['baslik']} tarama hatası: {e}")
     finally:
+        # RAM Dostu Kapatma ve Bellek Temizliği (Garbage Collection)
         if driver:
             try:
                 driver.quit()
@@ -256,10 +257,10 @@ def verileri_arkaplanda_guncelle():
     GUNCEL_VERILER = yeni_veriler
     SON_GUNCELLEME = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     gc.collect()
-    print("Tüm tarama tamamlandı, bellek temizlendi.")
+    print("Tüm tarama tamamlandı, bellek tamamen temizlendi.")
 
 scheduler = BackgroundScheduler()
-# GÜNCELLEME SAAT/ARALIK AYARI: Dilersen buradaki süreyi değiştirebilirsin (Örn: hours=4, minutes=30 vb.)
+# GÜNCELLEME ARALIĞI: İstediğin gibi burayı örneğin hours=4, hours=2 veya minutes=30 olarak ayarlayabilirsin.
 scheduler.add_job(verileri_arkaplanda_guncelle, 'interval', hours=4)
 scheduler.start()
 
@@ -332,8 +333,8 @@ def read_root():
         <script>
             async function fetchPrices() {
                 try {
-                    const response = await fetch('/prices');
-                    const result = await response.json();
+                    const response = applyFetch('/prices');
+                    const result = await (await fetch('/prices')).json();
                     if (result.status === "success") {
                         document.getElementById("sonGuncelleme").innerText = result.son_guncelleme;
                         renderCards(result.data);
