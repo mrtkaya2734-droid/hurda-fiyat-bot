@@ -13,7 +13,7 @@ import gc
 
 app = FastAPI(
     title="Hurda Fiyatları",
-    version="46.5.0",
+    version="46.6.0",
 )
 
 FIRMALAR = [
@@ -35,11 +35,12 @@ def veri_cek(firma):
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-dev-shm-usage") # Render RAM patlamasını önler
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")
+    options.add_argument("--single-process") # Bellek tasarrufu sağlar
     options.add_argument("--window-size=1024,768")
     options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -163,40 +164,56 @@ def veri_cek(firma):
             except Exception as e:
                 print(f"{firma['baslik']} hata: {e}")
 
-        # 8. HASÇELİK (Güncellenmiş Kararlı Seçiciler)
+        # 8. HASÇELİK (Klasik HTML/Metin Yapısına Özel Güçlendirilmiş Çözüm)
         elif firma["id"] == "hascelik":
             try:
-                # Tabloları, satırları ve listeleri hedefleyerek esnek arama
-                hedef_elementler = driver.find_elements(By.TAG_NAME, "tr")
-                if not hedef_elementler:
-                    hedef_elementler = driver.find_elements(By.TAG_NAME, "li")
-                if not hedef_elementler:
-                    hedef_elementler = driver.find_elements(By.TAG_NAME, "p")
+                # 1. Önce tablo yapılarını kontrol et
+                tables = driver.find_elements(By.TAG_NAME, "table")
+                for table in tables:
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    for row in rows:
+                        cols = row.find_elements(By.TAG_NAME, "td")
+                        if len(cols) >= 2:
+                            cins = cols[0].text.strip()
+                            fiyat = cols[1].text.strip()
+                            if cins and fiyat and ("TL" in fiyat or "₺" in fiyat or len(fiyat) > 2):
+                                if not any(k['cins'] == cins for k in kalemler):
+                                    kalemler.append({
+                                        "cins": cins,
+                                        "fiyat": fiyat if ("TL" in fiyat or "₺" in fiyat) else fiyat + " TL",
+                                        "degisim": "+180 ₺"
+                                    })
 
-                for el in hedef_elementler:
-                    txt = el.text.strip()
-                    if ("TL" in txt or "₺" in txt or "€" in txt or "$" in txt) and len(txt) < 160:
-                        parcalar = txt.split("\n")
-                        cins, fiyat = "", ""
-                        for p in parcalar:
-                            p_clean = p.strip()
-                            if any(sembol in p_clean for sembol in ["TL", "₺", "€", "$"]):
-                                fiyat = p_clean.replace("â‚¬", "₺").replace("€", "₺")
-                            elif len(p_clean) > 2 and not "Hasçelik" in p_clean:
-                                cins = p_clean
-                        if cins and fiyat:
-                            if not any(k['cins'] == cins for k in kalemler):
-                                kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
+                # 2. Eğer tabloda bulunamazsa tüm metin bloklarını (div, p, span) tarayıp eşleştir
+                if not kalemler:
+                    tum_elementler = driver.find_elements(By.XPATH, "//*[self::p or self::span or self::div or self::li]")
+                    for el in tum_elementler:
+                        txt = el.text.strip()
+                        if ("TL" in txt or "₺" in txt) and len(txt) < 120 and "\n" in txt:
+                            parcalar = txt.split("\n")
+                            cins, fiyat = "", ""
+                            for p in parcalar:
+                                p_clean = p.strip()
+                                if "TL" in p_clean or "₺" in p_clean:
+                                    fiyat = p_clean
+                                elif len(p_clean) > 2:
+                                    cins = p_clean
+                            if cins and fiyat:
+                                if not any(k['cins'] == cins for k in kalemler):
+                                    kalemler.append({"cins": cins, "fiyat": fiyat, "degisim": "+180 ₺"})
 
-                # Eğer standart elemanlar yakalanamazsa sayfadaki tüm metin bloklarını tara
+                # 3. Son çare olarak sayfadaki tüm metni satır satır akıllıca eşleştir
                 if not kalemler:
                     body_text = driver.find_element(By.TAG_NAME, "body").text
-                    satirlar = body_text.split("\n")
-                    for satir in satirlar:
-                        s = satir.strip()
-                        if ("TL" in s or "₺" in s) and len(s) < 80:
-                            if not any(k['cins'] == s for k in kalemler):
-                                kalemler.append({"cins": "Hasçelik Hurda Kalemi", "fiyat": s, "degisim": "+180 ₺"})
+                    satirlar = [s.strip() for s in body_text.split("\n") if s.strip()]
+                    i = 0
+                    while i < len(satirlar) - 1:
+                        s1 = satirlar[i]
+                        s2 = satirlar[i+1]
+                        if "TL" in s2 or "₺" in s2:
+                            if not any(k['cins'] == s1 for k in kalemler):
+                                kalemler.append({"cins": s1, "fiyat": s2, "degisim": "+180 ₺"})
+                        i += 1
             except Exception as e:
                 print(f"Hasçelik hata: {e}")
 
