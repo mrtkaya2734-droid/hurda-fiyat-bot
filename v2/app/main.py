@@ -6130,7 +6130,7 @@ async function lmeFiyatlariniGetir() {
             + " · Gün gecikmeli"
             + (
                 result.usd_tl
-                ? " · TCMB USD alış: "
+                ? " · USD/TRY alış: "
                 + Number(
                     result.usd_tl
                   ).toLocaleString(
