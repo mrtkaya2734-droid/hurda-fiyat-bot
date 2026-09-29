@@ -5491,7 +5491,7 @@ LME verileri alınıyor...
 </div>
 
 <div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı TCMB USD alış kuru ile
+Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı USD/TRY alış kuru ile
 </div>
 
 </section>
@@ -6100,7 +6100,7 @@ async function lmeFiyatlariniGetir() {
                             : "TL karşılığı alınamadı"
                         ) +
                     "</div>" +
-                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × TCMB USD alış</div>' +
+                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × USD/TRY alış</div>' +
                     '<div class="grid grid-cols-2 gap-2 mt-3">' +
                         '<div class="bg-white rounded-lg p-2">' +
                             '<div class="text-[10px] text-slate-400">Bid</div>' +
