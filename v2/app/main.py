@@ -246,31 +246,13 @@ def firma_stale_mi(firma):
     if not firma:
         return True
 
-    if firma.get(
-        "durum"
-    ) != "basarili":
-
-        return True
-
-    son_cekim = parse_datetime(
+    # Scraper başarıyla çalıştıysa veri güncel kabul edilir.
+    # Kaynağın yayınladığı fiyat tarihi ayrı bir bilgidir.
+    return (
         firma.get(
-            "son_basarili_cekme"
-        )
+            "durum"
+        ) != "basarili"
     )
-
-    if not son_cekim:
-        return True
-
-    simdi = now_istanbul().replace(
-        tzinfo=None
-    )
-
-    dakika = (
-        simdi - son_cekim
-    ).total_seconds() / 60
-
-    return dakika > STALE_MINUTES
-
 
 def fiyat_tarih_yaz(value):
 
@@ -2561,32 +2543,87 @@ async def admin_manual_delete(
 
     data = load_data()
 
-    if firma_id not in data.get(
+    firms = data.get(
         "firms",
         {},
-    ):
+    )
+
+    if firma_id not in firms:
 
         raise HTTPException(
             status_code=404,
             detail="Firma bulunamadı.",
         )
 
-    silindi = manuel_fiyat_sil(
-        firma_id,
-        manuel_sil,
+    kalem = str(
+        manuel_sil
+        or ""
+    ).strip()
+
+    if not kalem:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Silinecek fiyat kalemi belirtilmedi.",
+        )
+
+    firma_fiyatlari = data.get(
+        "prices",
+        {},
+    ).get(
+        firma_id
     )
 
-    if not silindi:
+    if not isinstance(
+        firma_fiyatlari,
+        dict
+    ) or kalem not in firma_fiyatlari:
+
         raise HTTPException(
             status_code=404,
-            detail="Manuel fiyat bulunamadı.",
+            detail="Manuel fiyat kalemi bulunamadı.",
         )
+
+    kayit = firma_fiyatlari[
+        kalem
+    ]
+
+    if not isinstance(
+        kayit,
+        dict
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Fiyat kaydı geçersiz.",
+        )
+
+    kayit[
+        "manuel_fiyat"
+    ] = None
+
+    kayit[
+        "guncelleme"
+    ] = now_istanbul_string()
+
+    if kayit.get(
+        "otomatik_fiyat"
+    ) is None:
+
+        firma_fiyatlari.pop(
+            kalem,
+            None
+        )
+
+    save_data(
+        data
+    )
 
     bildirim_ekle(
         firma_id,
         "manuel_fiyat",
         (
-            f"{manuel_sil} için manuel fiyat kaldırıldı."
+            f"{kalem} için manuel fiyat kaldırıldı."
         ),
     )
 
@@ -2594,7 +2631,6 @@ async def admin_manual_delete(
         url=f"/admin/source/{firma_id}",
         status_code=303,
     )
-
 
 # =========================================================
 # FİRMA SİL
