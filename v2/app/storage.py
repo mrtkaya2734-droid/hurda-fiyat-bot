@@ -425,6 +425,16 @@ def manuel_fiyat_sil(
         "guncelleme"
     ] = now_string()
 
+    # Eğer bu kalemde otomatik fiyat da yoksa,
+    # sadece elle eklenmiş fiyat kaydını tamamen kaldır.
+    if firma_fiyatlari[kalem].get(
+        "otomatik_fiyat"
+    ) is None:
+        firma_fiyatlari.pop(
+            kalem,
+            None,
+        )
+
     save_data(data)
 
     return True
