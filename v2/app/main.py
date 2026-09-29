@@ -2484,21 +2484,30 @@ async def admin_source_delete(
 
     data = load_data()
 
-    if firma_id not in data.get(
+    firms = data.get(
         "firms",
-        {},
-    ):
+        {}
+    )
+
+    if firma_id not in firms:
 
         raise HTTPException(
             status_code=404,
             detail="Firma bulunamadı.",
         )
 
-    firma_sil(
-        firma_id
+    # =====================================================
+    # FİRMAYI ADMİN LİSTESİNDEN SİL
+    # =====================================================
+
+    firms.pop(
+        firma_id,
+        None,
     )
 
-    data = load_data()
+    # =====================================================
+    # FİRMAYA AİT FİYAT KAYITLARINI SİL
+    # =====================================================
 
     data.get(
         "prices",
@@ -2508,10 +2517,11 @@ async def admin_source_delete(
         None,
     )
 
-    data.get(
-        "price_history",
-        [],
-    )[:] = [
+    # =====================================================
+    # FİRMAYA AİT GEÇMİŞ FİYATLARI SİL
+    # =====================================================
+
+    data["price_history"] = [
         item
         for item in data.get(
             "price_history",
@@ -2522,13 +2532,25 @@ async def admin_source_delete(
         ) != firma_id
     ]
 
+    # =====================================================
+    # KALAN FİRMALARIN SIRASINI DÜZELT
+    # =====================================================
+
     firma_siralarini_duzelt(
         data
     )
 
+    # =====================================================
+    # VERİYİ KAYDET
+    # =====================================================
+
     save_data(
         data
     )
+
+    # =====================================================
+    # ADMİN PANELİNE GERİ DÖN
+    # =====================================================
 
     return RedirectResponse(
         url="/admin",
