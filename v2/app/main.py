@@ -1885,140 +1885,81 @@ app.mount(
 
 DOVIZ_CACHE = {}
 DOVIZ_SON_CEKME = None
-DOVIZ_CACHE_SANIYE = 60
+DOVIZ_CACHE_SANIYE = 3600
 
-FRANKFURTER_RATES_URL = (
-    "https://api.frankfurter.dev/v2/rates"
+EXCHANGE_RATE_OPEN_URL = (
+    "https://open.er-api.com/v6/latest"
+)
+
+FRANKFURTER_RATE_URL = (
+    "https://api.frankfurter.dev/v2/rate"
 )
 
 
-def _frankfurter_pair_getir(
-    base,
-    quote="TRY",
-):
+def _er_acik_kur_getir(kod):
     response = requests.get(
-        FRANKFURTER_RATES_URL,
-        params={
-            "base": base,
-            "quotes": quote,
-        },
+        f"{EXCHANGE_RATE_OPEN_URL}/{kod}",
         headers={
             "Accept": "application/json",
             "User-Agent": "HurdaFiyatBot/2.0",
         },
-        timeout=10,
+        timeout=15,
     )
     response.raise_for_status()
 
-    rows = response.json()
+    veri = response.json()
 
-    if not isinstance(rows, list):
+    if veri.get("result") != "success":
         raise RuntimeError(
-            "Frankfurter geçersiz veri döndürdü."
+            "Exchange Rate API açık uç noktası başarısız döndü."
         )
 
-    rows = [
-        row
-        for row in rows
-        if row.get("quote") == quote
-        and row.get("rate") is not None
-    ]
+    rate = veri.get("rates", {}).get("TRY")
 
-    if not rows:
+    if rate is None:
         raise RuntimeError(
-            f"{base}/{quote} kuru bulunamadı."
+            f"{kod}/TRY kuru bulunamadı."
         )
 
-    row = rows[-1]
+    tarih = (
+        veri.get("time_last_update_utc")
+        or ""
+    )
+
+    return float(rate), tarih
+
+
+def _frankfurter_kur_getir(kod):
+    response = requests.get(
+        f"{FRANKFURTER_RATE_URL}/{kod.lower()}/try",
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "HurdaFiyatBot/2.0",
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+
+    veri = response.json()
+
+    rate = veri.get("rate")
+
+    if rate is None:
+        raise RuntimeError(
+            f"Frankfurter {kod}/TRY kuru boş döndü."
+        )
 
     return (
-        float(row["rate"]),
-        str(row.get("date") or ""),
+        float(rate),
+        str(veri.get("date") or ""),
     )
 
 
-def _frankfurter_onceki_pair_getir(
-    base,
-    quote,
-    son_tarih,
-):
-    try:
-        son_dt = datetime.strptime(
-            son_tarih,
-            "%Y-%m-%d",
-        )
-    except Exception:
-        return None
-
-    # Hafta sonu / tatil gibi boş günleri atlamak için
-    # son yayın tarihinden geriye doğru birkaç gün tara.
-    for gun in range(1, 8):
-        tarih = (
-            son_dt
-            - timedelta(days=gun)
-        ).strftime("%Y-%m-%d")
-
-        try:
-            response = requests.get(
-                FRANKFURTER_RATES_URL,
-                params={
-                    "base": base,
-                    "quotes": quote,
-                    "date": tarih,
-                },
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "HurdaFiyatBot/2.0",
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
-
-            rows = response.json()
-
-            if not isinstance(rows, list):
-                continue
-
-            for row in rows:
-                if (
-                    row.get("quote") == quote
-                    and row.get("rate") is not None
-                ):
-                    return float(row["rate"])
-        except Exception:
-            continue
-
-    return None
-
-
-def _frankfurter_piyasa_verilerini_cek():
+def _doviz_verilerini_hazirla(kurlar, kaynak, kur_turu):
     bulunan = {}
 
-    for kod in (
-        "USD",
-        "EUR",
-    ):
-        rate, tarih = _frankfurter_pair_getir(
-            kod,
-            "TRY",
-        )
-
-        onceki = _frankfurter_onceki_pair_getir(
-            kod,
-            "TRY",
-            tarih,
-        )
-
-        fark = None
-        fark_yuzde = None
-
-        if onceki is not None:
-            fark = rate - onceki
-
-            if onceki != 0:
-                fark_yuzde = (
-                    fark / onceki
-                ) * 100
+    for kod, veri in kurlar.items():
+        rate = veri["rate"]
 
         bulunan[kod] = {
             "kod": kod,
@@ -2028,30 +1969,24 @@ def _frankfurter_piyasa_verilerini_cek():
             "kur": rate,
             "bid": rate,
             "ask": rate,
-            "onceki_kapanis": onceki,
-            "degisim": fark,
-            "degisim_yuzde": fark_yuzde,
-            "kur_turu": (
-                "Frankfurter günlük referans kuru"
-            ),
-            "tarih": tarih,
+            "onceki_kapanis": None,
+            "degisim": None,
+            "degisim_yuzde": None,
+            "kur_turu": kur_turu,
+            "tarih": veri.get("tarih", ""),
         }
 
-    tarihler = [
-        item["tarih"]
-        for item in bulunan.values()
-        if item.get("tarih")
+    tarih_listesi = [
+        x.get("tarih", "")
+        for x in bulunan.values()
+        if x.get("tarih")
     ]
 
     return {
         "status": "success",
-        "kaynak": "Frankfurter",
-        "kur_turu": (
-            "Günlük referans kuru · piyasa saatleri dışında değişmeyebilir"
-        ),
-        "tarih": min(tarihler)
-        if tarihler
-        else "",
+        "kaynak": kaynak,
+        "kur_turu": kur_turu,
+        "tarih": " · ".join(tarih_listesi),
         "veriler": bulunan,
     }
 
@@ -2072,33 +2007,79 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
-    try:
-        sonuc = _frankfurter_piyasa_verilerini_cek()
+    hatalar = []
 
-        DOVIZ_CACHE = sonuc
+    # Birincil kaynak: API anahtarı istemeyen
+    # ExchangeRate-API açık erişim uç noktası.
+    try:
+        kurlar = {}
+
+        for kod in ("USD", "EUR"):
+            rate, tarih = _er_acik_kur_getir(kod)
+            kurlar[kod] = {
+                "rate": rate,
+                "tarih": tarih,
+            }
+
+        DOVIZ_CACHE = _doviz_verilerini_hazirla(
+            kurlar,
+            "Exchange Rate API",
+            "Günlük referans kuru · açık erişim",
+        )
+
         DOVIZ_SON_CEKME = simdi
 
         return DOVIZ_CACHE
 
     except Exception as exc:
-        print(
-            "DÖVİZ KUR HATASI: "
-            f"{type(exc).__name__}: {exc}"
+        hatalar.append(
+            f"Exchange Rate API: {exc}"
         )
 
-        if DOVIZ_CACHE:
-            return DOVIZ_CACHE
+    # Yedek kaynak: Frankfurter.
+    try:
+        kurlar = {}
 
-        return {
-            "status": "error",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Veri alınamadı",
-            "tarih": "",
-            "veriler": {},
-            "hata": (
-                "USD/EUR kurları şu anda alınamadı."
-            ),
-        }
+        for kod in ("USD", "EUR"):
+            rate, tarih = _frankfurter_kur_getir(kod)
+            kurlar[kod] = {
+                "rate": rate,
+                "tarih": tarih,
+            }
+
+        DOVIZ_CACHE = _doviz_verilerini_hazirla(
+            kurlar,
+            "Frankfurter",
+            "Günlük referans kuru",
+        )
+
+        DOVIZ_SON_CEKME = simdi
+
+        return DOVIZ_CACHE
+
+    except Exception as exc:
+        hatalar.append(
+            f"Frankfurter: {exc}"
+        )
+
+    print(
+        "DÖVİZ KUR HATASI: "
+        + " | ".join(hatalar)
+    )
+
+    if DOVIZ_CACHE:
+        return DOVIZ_CACHE
+
+    return {
+        "status": "error",
+        "kaynak": "Exchange Rate API / Frankfurter",
+        "kur_turu": "Veri alınamadı",
+        "tarih": "",
+        "veriler": {},
+        "hata": (
+            "USD/EUR kurları şu anda alınamadı."
+        ),
+    }
 
 
 # =========================================================
@@ -5232,7 +5213,7 @@ class="font-bold text-slate-500"
 id="currencyInfo"
 class="text-[10px] sm:text-[11px] text-slate-500 text-center mt-4 pt-3 border-t border-slate-100"
 >
-Kur bilgisi yükleniyor...
+Kur kaynağı yükleniyor...
 </div>
 
 </div>
