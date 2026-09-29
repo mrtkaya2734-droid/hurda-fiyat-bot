@@ -5045,7 +5045,7 @@ body {
 
 <body class="min-h-screen">
 
-<div class="w-full max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+<div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
 <header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
@@ -5445,7 +5445,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[190px_minmax(0,1fr)_190px] gap-3 sm:gap-4 items-stretch">
+<div class="grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
@@ -5469,7 +5469,7 @@ id="leftBottomAd"
 
 </aside>
 
-<main class="min-w-0 w-full">
+<main class="min-w-0 w-full max-w-[760px] mx-auto">
 
 <div class="text-center mb-3 sm:mb-4 px-1">
 <div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
