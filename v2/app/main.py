@@ -407,7 +407,7 @@ def _westmetall_lme_verilerini_cek():
         r"\|?\s*"
         r"(\d{1,2})\.\s*"
         r"([A-Za-z]+)\s+"
-        r"(\\d{4})",
+        r"(\d{4})",
         page_text,
         re.IGNORECASE,
     )
@@ -452,8 +452,8 @@ def _westmetall_lme_verilerini_cek():
             re.search(
                 r"Official LME-Prices.*?"
                 r"(\d{1,2})\.\s*"
-                r"([A-Za-z]+)\\s+"
-                r"(\\d{4})",
+                r"([A-Za-z]+)\s+"
+                r"(\d{4})",
                 page_text,
                 re.IGNORECASE,
             )
