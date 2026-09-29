@@ -646,19 +646,28 @@ def firma_verisini_cek(
         else None
     )
 
-    gizlenen_kalemler = set(
-        data.get(
+    gizlenen_kalemler = {
+        " ".join(
+            str(x or "").strip().split()
+        ).casefold()
+        for x in data.get(
             "gizlenen_kalemler",
             {}
         ).get(
             sonuc.firma_id,
             []
         )
-    )
+    }
 
     for kalem in sonuc.kalemler:
 
-        if kalem.cins in gizlenen_kalemler:
+        kalem_anahtari = (
+            " ".join(
+                str(kalem.cins or "").strip().split()
+            ).casefold()
+        )
+
+        if kalem_anahtari in gizlenen_kalemler:
             continue
 
         degisim = ""
@@ -1712,11 +1721,13 @@ placeholder="Boş = otomatik"
 >
 
 <button
-type="button"
+type="submit"
+name="manuel_sil"
+value="{esc(kalem)}"
+formaction="/admin/source/{esc(firma_id)}/manual-delete"
+formmethod="post"
+formnovalidate
 class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
-data-delete-url="/admin/source/{esc(firma_id)}/manual-delete"
-data-kalem="{esc(kalem)}"
-onclick="manuelFiyatSil(this)"
 >
 Kalemi Tamamen Sil
 </button>
