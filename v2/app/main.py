@@ -5389,17 +5389,14 @@ id="leftBottomAd"
 
 <main class="min-w-0 w-full">
 
-<div class="flex items-end justify-between gap-3 mb-3 px-1">
-<div>
+<div class="text-center mb-3 sm:mb-4 px-1">
 <div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
 Güncel Hurda Fiyatları
 </div>
 <div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
 Fabrika Fiyatları
 </div>
-</div>
-
-<div class="hidden sm:flex items-center gap-2 text-[10px] font-bold text-slate-400">
+<div class="flex items-center justify-center gap-2 mt-1.5 text-[10px] font-bold text-slate-400">
 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
 Canlı takip
 </div>
