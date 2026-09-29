@@ -28,6 +28,7 @@ DEFAULT_DATA = {
     "prices": {},
     "history": [],
     "notifications": [],
+    "gizlenen_kalemler": {},
 }
 
 
@@ -92,6 +93,12 @@ def load_data():
             list
         ):
             data["notifications"] = []
+
+        if not isinstance(
+            data.get("gizlenen_kalemler"),
+            dict
+        ):
+            data["gizlenen_kalemler"] = {}
 
         return data
 
@@ -303,6 +310,22 @@ def fiyat_kaydet(
             "manuel_fiyat"
         )
 
+    # Yeniden manuel olarak kaydedilen kalemi
+    # gizli listesinden çıkar.
+    gizlenen = data.get(
+        "gizlenen_kalemler",
+        {}
+    ).get(
+        firma_id,
+        []
+    )
+
+    if kalem in gizlenen:
+        data["gizlenen_kalemler"][firma_id] = [
+            x for x in gizlenen
+            if x != kalem
+        ]
+
     if fiyat_tarihi is None:
 
         fiyat_tarihi = mevcut.get(
@@ -385,6 +408,20 @@ def manuel_fiyat_kaydet(
 
     mevcut["guncelleme"] = now_string()
 
+    gizlenen = data.get(
+        "gizlenen_kalemler",
+        {}
+    ).get(
+        firma_id,
+        []
+    )
+
+    if kalem in gizlenen:
+        data["gizlenen_kalemler"][firma_id] = [
+            x for x in gizlenen
+            if x != kalem
+        ]
+
     data["prices"][firma_id][kalem] = mevcut
 
     save_data(data)
@@ -417,25 +454,40 @@ def manuel_fiyat_sil(
     if kalem not in firma_fiyatlari:
         return False
 
-    firma_fiyatlari[kalem][
-        "manuel_fiyat"
-    ] = None
+    # Kalemi tamamen kaldır.
+    firma_fiyatlari.pop(
+        kalem,
+        None,
+    )
 
-    firma_fiyatlari[kalem][
-        "guncelleme"
-    ] = now_string()
+    # Otomatik scraper aynı kalemi tekrar gönderse bile
+    # bir sonraki güncellemede geri gelmesini engelle.
+    gizlenen = data.get(
+        "gizlenen_kalemler",
+        {}
+    )
 
-    # Eğer bu kalemde otomatik fiyat da yoksa,
-    # sadece elle eklenmiş fiyat kaydını tamamen kaldır.
-    if firma_fiyatlari[kalem].get(
-        "otomatik_fiyat"
-    ) is None:
-        firma_fiyatlari.pop(
-            kalem,
-            None,
+    mevcut_gizli = gizlenen.get(
+        firma_id,
+        []
+    )
+
+    if kalem not in mevcut_gizli:
+        mevcut_gizli.append(
+            kalem
         )
 
-    save_data(data)
+    gizlenen[
+        firma_id
+    ] = mevcut_gizli
+
+    data[
+        "gizlenen_kalemler"
+    ] = gizlenen
+
+    save_data(
+        data
+    )
 
     return True
 
