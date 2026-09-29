@@ -153,6 +153,52 @@ def load_data():
         ):
             data["gizlenen_kalemler"] = {}
 
+        # Eski kayıtlarda firma ID büyük/küçük harf nedeniyle
+        # aynı firma iki ayrı anahtar altında oluşabiliyordu.
+        # Örn: "Ekinciler" ve "ekinciler".
+        # Bunları tek kanonik ID altında birleştir.
+        def _canonicalize_map(mapping):
+            normalized = {}
+
+            for key, value in mapping.items():
+                canonical = str(
+                    key or ""
+                ).strip().lower()
+
+                if not canonical:
+                    continue
+
+                if canonical not in normalized:
+                    normalized[canonical] = value
+                    continue
+
+                existing = normalized[canonical]
+
+                if isinstance(existing, dict) and isinstance(value, dict):
+                    merged = dict(existing)
+                    merged.update(value)
+                    normalized[canonical] = merged
+                elif not existing:
+                    normalized[canonical] = value
+
+            return normalized
+
+        data["firms"] = _canonicalize_map(
+            data["firms"]
+        )
+
+        data["prices"] = _canonicalize_map(
+            data["prices"]
+        )
+
+        data["gizlenen_kalemler"] = _canonicalize_map(
+            data["gizlenen_kalemler"]
+        )
+
+        for firma_id, firma in data["firms"].items():
+            if isinstance(firma, dict):
+                firma["firma_id"] = firma_id
+
         return data
 
     except Exception:
@@ -162,8 +208,8 @@ def load_data():
             "prices": {},
             "history": [],
             "notifications": [],
+            "gizlenen_kalemler": {},
         }
-
 
 # =========================================================
 # VERİ KAYDETME
