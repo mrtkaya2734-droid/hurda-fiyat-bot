@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import uvicorn
@@ -1885,113 +1885,11 @@ app.mount(
 
 DOVIZ_CACHE = {}
 DOVIZ_SON_CEKME = None
-DOVIZ_CACHE_SANIYE = 3600
-
-EXCHANGE_RATE_OPEN_URL = (
-    "https://open.er-api.com/v6/latest"
-)
-
-FRANKFURTER_RATE_URL = (
-    "https://api.frankfurter.dev/v2/rate"
-)
-
-
-def _er_acik_kur_getir(kod):
-    response = requests.get(
-        f"{EXCHANGE_RATE_OPEN_URL}/{kod}",
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "HurdaFiyatBot/2.0",
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-
-    veri = response.json()
-
-    if veri.get("result") != "success":
-        raise RuntimeError(
-            "Exchange Rate API açık uç noktası başarısız döndü."
-        )
-
-    rate = veri.get("rates", {}).get("TRY")
-
-    if rate is None:
-        raise RuntimeError(
-            f"{kod}/TRY kuru bulunamadı."
-        )
-
-    tarih = (
-        veri.get("time_last_update_utc")
-        or ""
-    )
-
-    return float(rate), tarih
-
-
-def _frankfurter_kur_getir(kod):
-    response = requests.get(
-        f"{FRANKFURTER_RATE_URL}/{kod.lower()}/try",
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "HurdaFiyatBot/2.0",
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-
-    veri = response.json()
-
-    rate = veri.get("rate")
-
-    if rate is None:
-        raise RuntimeError(
-            f"Frankfurter {kod}/TRY kuru boş döndü."
-        )
-
-    return (
-        float(rate),
-        str(veri.get("date") or ""),
-    )
-
-
-def _doviz_verilerini_hazirla(kurlar, kaynak, kur_turu):
-    bulunan = {}
-
-    for kod, veri in kurlar.items():
-        rate = veri["rate"]
-
-        bulunan[kod] = {
-            "kod": kod,
-            "birim": "1",
-            "alis": rate,
-            "satis": rate,
-            "kur": rate,
-            "bid": rate,
-            "ask": rate,
-            "onceki_kapanis": None,
-            "degisim": None,
-            "degisim_yuzde": None,
-            "kur_turu": kur_turu,
-            "tarih": veri.get("tarih", ""),
-        }
-
-    tarih_listesi = [
-        x.get("tarih", "")
-        for x in bulunan.values()
-        if x.get("tarih")
-    ]
-
-    return {
-        "status": "success",
-        "kaynak": kaynak,
-        "kur_turu": kur_turu,
-        "tarih": " · ".join(tarih_listesi),
-        "veriler": bulunan,
-    }
+DOVIZ_CACHE_SANIYE = 600
 
 
 def doviz_kurlarini_getir(force=False):
+
     global DOVIZ_CACHE
     global DOVIZ_SON_CEKME
 
@@ -2007,79 +1905,107 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
-    hatalar = []
-
-    # Birincil kaynak: API anahtarı istemeyen
-    # ExchangeRate-API açık erişim uç noktası.
-    try:
-        kurlar = {}
-
-        for kod in ("USD", "EUR"):
-            rate, tarih = _er_acik_kur_getir(kod)
-            kurlar[kod] = {
-                "rate": rate,
-                "tarih": tarih,
-            }
-
-        DOVIZ_CACHE = _doviz_verilerini_hazirla(
-            kurlar,
-            "Exchange Rate API",
-            "Günlük referans kuru · açık erişim",
-        )
-
-        DOVIZ_SON_CEKME = simdi
-
-        return DOVIZ_CACHE
-
-    except Exception as exc:
-        hatalar.append(
-            f"Exchange Rate API: {exc}"
-        )
-
-    # Yedek kaynak: Frankfurter.
-    try:
-        kurlar = {}
-
-        for kod in ("USD", "EUR"):
-            rate, tarih = _frankfurter_kur_getir(kod)
-            kurlar[kod] = {
-                "rate": rate,
-                "tarih": tarih,
-            }
-
-        DOVIZ_CACHE = _doviz_verilerini_hazirla(
-            kurlar,
-            "Frankfurter",
-            "Günlük referans kuru",
-        )
-
-        DOVIZ_SON_CEKME = simdi
-
-        return DOVIZ_CACHE
-
-    except Exception as exc:
-        hatalar.append(
-            f"Frankfurter: {exc}"
-        )
-
-    print(
-        "DÖVİZ KUR HATASI: "
-        + " | ".join(hatalar)
+    API_URL = (
+        "https://api.frankfurter.dev/v2/rate"
     )
 
-    if DOVIZ_CACHE:
+    bulunan = {}
+
+    try:
+
+        for kod in (
+            "USD",
+            "EUR",
+        ):
+
+            response = requests.get(
+                f"{API_URL}/{kod.lower()}/try",
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "HurdaFiyatBot/2.0",
+                },
+                timeout=10,
+            )
+
+            response.raise_for_status()
+
+            veri = response.json()
+
+            rate = veri.get(
+                "rate"
+            )
+
+            tarih = veri.get(
+                "date",
+                "",
+            )
+
+            if rate is None:
+
+                raise ValueError(
+                    f"Frankfurter {kod}/TRY kuru boş döndü."
+                )
+
+            bulunan[kod] = {
+                "kod": kod,
+                "birim": "1",
+                "alis": float(rate),
+                "satis": float(rate),
+                "kur": float(rate),
+                "kur_turu": "Referans kur",
+                "tarih": tarih,
+            }
+
+        tarihler = [
+            x.get(
+                "tarih",
+                "",
+            )
+            for x in bulunan.values()
+            if x.get(
+                "tarih",
+                "",
+            )
+        ]
+
+        kaynak_tarihi = (
+            min(tarihler)
+            if tarihler
+            else ""
+        )
+
+        DOVIZ_CACHE = {
+            "status": "success",
+            "kaynak": "Frankfurter",
+            "kur_turu": "Günlük referans kuru",
+            "tarih": kaynak_tarihi,
+            "veriler": bulunan,
+        }
+
+        DOVIZ_SON_CEKME = simdi
+
         return DOVIZ_CACHE
 
-    return {
-        "status": "error",
-        "kaynak": "Exchange Rate API / Frankfurter",
-        "kur_turu": "Veri alınamadı",
-        "tarih": "",
-        "veriler": {},
-        "hata": (
-            "USD/EUR kurları şu anda alınamadı."
-        ),
-    }
+    except Exception as e:
+
+        print(
+            "DÖVİZ KUR HATASI: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        if DOVIZ_CACHE:
+            return DOVIZ_CACHE
+
+        return {
+            "status": "error",
+            "kaynak": "Frankfurter",
+            "kur_turu": "Günlük referans kuru",
+            "tarih": "",
+            "veriler": {},
+            "hata": (
+                "USD/EUR kurları şu anda alınamadı."
+            ),
+        }
 
 
 # =========================================================
@@ -4997,226 +4923,90 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
      ===================================================== -->
 
 <section
-id="currencySection"
-class="mb-4 sm:mb-5"
+    id="currencySection"
+    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-5"
 >
 
-<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+        <div class="flex items-center justify-between gap-3">
 
-<div>
-<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-Döviz Piyasası
-</div>
-<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
-USD / TL · EUR / TL
-</div>
-</div>
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Amerikan Doları
+                </div>
+                <div class="text-lg font-black text-slate-900 mt-1">
+                    USD / TL
+                </div>
+            </div>
 
-<div class="text-[11px] text-slate-500 font-semibold">
-Piyasa görünümü
-</div>
+            <div class="text-2xl">🇺🇸</div>
 
-</div>
+        </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        <div class="grid grid-cols-2 gap-3 mt-4">
 
-<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Referans</div>
+                <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
 
-<div class="flex items-start justify-between gap-3">
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">TRY</div>
+                <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
 
-<div class="flex items-center gap-3 min-w-0">
+        </div>
 
-<div class="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-2xl shrink-0">
-🇺🇸
-</div>
+    </div>
 
-<div class="min-w-0">
-<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-Amerikan Doları
-</div>
-<div class="text-lg font-black text-slate-900">
-USD / TRY
-</div>
-</div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
 
-</div>
+        <div class="flex items-center justify-between gap-3">
 
-<div
-id="usdTrend"
-class="shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500"
->
-— Bekliyor
-</div>
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Euro
+                </div>
+                <div class="text-lg font-black text-slate-900 mt-1">
+                    EUR / TL
+                </div>
+            </div>
 
-</div>
+            <div class="text-2xl">🇪🇺</div>
 
-<div class="mt-4">
+        </div>
 
-<div class="text-[11px] text-slate-500 font-semibold">
-Son
-</div>
+        <div class="grid grid-cols-2 gap-3 mt-4">
 
-<div
-id="usdSon"
-class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tracking-tight"
->
-Yükleniyor...
-</div>
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
+                <div id="eurAlis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
 
-<div
-id="usdDegisim"
-class="text-sm font-bold text-slate-500 mt-1"
->
-—
-</div>
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
+                <div id="eurSatis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
 
-</div>
+        </div>
 
-<div class="grid grid-cols-2 gap-2 mt-4">
+    </div>
 
-<div class="bg-white rounded-xl p-3 border border-slate-200">
-<div class="text-[10px] text-slate-500 font-bold uppercase">
-Alış / Bid
-</div>
-<div
-id="usdBid"
-class="text-sm sm:text-base font-black text-slate-900 mt-1"
->
-—
-</div>
-</div>
-
-<div class="bg-white rounded-xl p-3 border border-slate-200">
-<div class="text-[10px] text-slate-500 font-bold uppercase">
-Satış / Ask
-</div>
-<div
-id="usdAsk"
-class="text-sm sm:text-base font-black text-slate-900 mt-1"
->
-—
-</div>
-</div>
-
-</div>
-
-<div class="flex items-center justify-between gap-3 mt-3 text-[10px] text-slate-400">
-<span>Önceki kapanış</span>
-<span
-id="usdOnceki"
-class="font-bold text-slate-500"
->
-—
-</span>
-</div>
-
-</div>
-
-
-<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-
-<div class="flex items-start justify-between gap-3">
-
-<div class="flex items-center gap-3 min-w-0">
-
-<div class="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-2xl shrink-0">
-🇪🇺
-</div>
-
-<div class="min-w-0">
-<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-Euro
-</div>
-<div class="text-lg font-black text-slate-900">
-EUR / TRY
-</div>
-</div>
-
-</div>
-
-<div
-id="eurTrend"
-class="shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500"
->
-— Bekliyor
-</div>
-
-</div>
-
-<div class="mt-4">
-
-<div class="text-[11px] text-slate-500 font-semibold">
-Son
-</div>
-
-<div
-id="eurSon"
-class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tracking-tight"
->
-Yükleniyor...
-</div>
-
-<div
-id="eurDegisim"
-class="text-sm font-bold text-slate-500 mt-1"
->
-—
-</div>
-
-</div>
-
-<div class="grid grid-cols-2 gap-2 mt-4">
-
-<div class="bg-white rounded-xl p-3 border border-slate-200">
-<div class="text-[10px] text-slate-500 font-bold uppercase">
-Alış / Bid
-</div>
-<div
-id="eurBid"
-class="text-sm sm:text-base font-black text-slate-900 mt-1"
->
-—
-</div>
-</div>
-
-<div class="bg-white rounded-xl p-3 border border-slate-200">
-<div class="text-[10px] text-slate-500 font-bold uppercase">
-Satış / Ask
-</div>
-<div
-id="eurAsk"
-class="text-sm sm:text-base font-black text-slate-900 mt-1"
->
-—
-</div>
-</div>
-
-</div>
-
-<div class="flex items-center justify-between gap-3 mt-3 text-[10px] text-slate-400">
-<span>Önceki kapanış</span>
-<span
-id="eurOnceki"
-class="font-bold text-slate-500"
->
-—
-</span>
-</div>
-
-</div>
-
-</div>
-
-<div
-id="currencyInfo"
-class="text-[10px] sm:text-[11px] text-slate-500 text-center mt-4 pt-3 border-t border-slate-100"
->
-Kur kaynağı yükleniyor...
-</div>
-
-</div>
+    <div
+        id="currencyInfo"
+        class="sm:col-span-2 text-[11px] text-slate-500 text-center"
+    >
+        Kur kaynağı: TCMB · Güncelleniyor...
+    </div>
 
 </section>
 
@@ -5265,7 +5055,7 @@ LME verileri alınıyor...
 </div>
 
 <div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı USD/TRY alış kuru ile
+Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı TCMB USD alış kuru ile
 </div>
 
 </section>
@@ -5425,14 +5215,6 @@ function durumEtiketi(durum) {
 
 function dovizGoster(deger) {
 
-    if (
-        deger === null
-        || deger === undefined
-        || deger === ""
-    ) {
-        return "—";
-    }
-
     return Number(
         deger
     ).toLocaleString(
@@ -5441,326 +5223,7 @@ function dovizGoster(deger) {
             minimumFractionDigits: 4,
             maximumFractionDigits: 4,
         }
-    );
-}
-
-
-function dovizDegisimGoster(deger, yuzde) {
-
-    if (
-        deger === null
-        || deger === undefined
-    ) {
-        return "Değişim bilgisi yok";
-    }
-
-    const isUp = Number(deger) > 0;
-    const isDown = Number(deger) < 0;
-
-    const ok = isUp
-        ? "▲"
-        : isDown
-            ? "▼"
-            : "•";
-
-    const sign = isUp
-        ? "+"
-        : "";
-
-    const fark = Number(
-        deger
-    ).toLocaleString(
-        "tr-TR",
-        {
-            minimumFractionDigits: 4,
-            maximumFractionDigits: 4,
-        }
-    );
-
-    const pct = (
-        yuzde !== null
-        && yuzde !== undefined
-        && !Number.isNaN(
-            Number(yuzde)
-        )
-    )
-        ? Number(
-            yuzde
-          ).toLocaleString(
-            "tr-TR",
-            {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            }
-          )
-          + "%"
-        : "";
-
-    return ok
-        + " "
-        + sign
-        + fark
-        + " TL"
-        + (
-            pct
-                ? " (" + sign + pct + ")"
-                : ""
-        );
-}
-
-
-function dovizTrendUygula(
-    elementId,
-    degisim,
-) {
-
-    const element =
-        document.getElementById(
-            elementId
-        );
-
-    if (!element) {
-        return;
-    }
-
-    if (degisim === null || degisim === undefined) {
-
-        element.className =
-            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500";
-
-        element.textContent =
-            "— Bekliyor";
-
-        return;
-    }
-
-    const number =
-        Number(degisim);
-
-    if (number > 0) {
-
-        element.className =
-            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-emerald-100 border border-emerald-200 text-emerald-700";
-
-        element.textContent =
-            "▲ Yükseliyor";
-
-        return;
-    }
-
-    if (number < 0) {
-
-        element.className =
-            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-red-100 border border-red-200 text-red-700";
-
-        element.textContent =
-            "▼ Düşüyor";
-
-        return;
-    }
-
-    element.className =
-        "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-slate-100 border border-slate-200 text-slate-600";
-
-    element.textContent =
-        "• Sabit";
-}
-
-
-function dovizKartiniDoldur(
-    prefix,
-    item,
-) {
-
-    document.getElementById(
-        prefix + "Son"
-    ).textContent =
-        dovizGoster(
-            item.kur
-        ) + " TL";
-
-    document.getElementById(
-        prefix + "Degisim"
-    ).textContent =
-        dovizDegisimGoster(
-            item.degisim,
-            item.degisim_yuzde
-        );
-
-    dovizTrendUygula(
-        prefix + "Trend",
-        item.degisim
-    );
-
-    const bid =
-        item.bid !== null
-        && item.bid !== undefined
-            ? item.bid
-            : item.alis;
-
-    const ask =
-        item.ask !== null
-        && item.ask !== undefined
-            ? item.ask
-            : item.satis;
-
-    document.getElementById(
-        prefix + "Bid"
-    ).textContent =
-        bid !== null
-        && bid !== undefined
-            ? dovizGoster(bid) + " TL"
-            : "—";
-
-    document.getElementById(
-        prefix + "Ask"
-    ).textContent =
-        ask !== null
-        && ask !== undefined
-            ? dovizGoster(ask) + " TL"
-            : "—";
-
-    document.getElementById(
-        prefix + "Onceki"
-    ).textContent =
-        item.onceki_kapanis !== null
-        && item.onceki_kapanis !== undefined
-            ? dovizGoster(
-                item.onceki_kapanis
-              ) + " TL"
-            : "—";
-}
-
-
-async function dovizleriGetir() {
-
-    const info =
-        document.getElementById(
-            "currencyInfo"
-        );
-
-    try {
-
-        const response =
-            await fetch(
-                "/currency",
-                {
-                    cache: "no-store"
-                }
-            );
-
-        if (!response.ok) {
-            throw new Error(
-                "Döviz servisi çalışmadı."
-            );
-        }
-
-        const result =
-            await response.json();
-
-        const usd =
-            result.veriler &&
-            result.veriler.USD;
-
-        const eur =
-            result.veriler &&
-            result.veriler.EUR;
-
-        if (
-            result.status !== "success"
-            || !usd
-            || !eur
-        ) {
-            throw new Error(
-                result.hata
-                || "Döviz verisi alınamadı."
-            );
-        }
-
-        dovizKartiniDoldur(
-            "usd",
-            usd
-        );
-
-        dovizKartiniDoldur(
-            "eur",
-            eur
-        );
-
-        info.textContent =
-            "Kaynak: "
-            + (
-                result.kaynak
-                || "—"
-            )
-            + " · "
-            + (
-                result.kur_turu
-                || ""
-            )
-            + (
-                result.tarih
-                    ? " · Veri zamanı: "
-                    + result.tarih
-                    : ""
-            );
-
-    }
-    catch (error) {
-
-        [
-            "usdSon",
-            "usdBid",
-            "usdAsk",
-            "usdOnceki",
-            "eurSon",
-            "eurBid",
-            "eurAsk",
-            "eurOnceki",
-        ].forEach(
-            function(id) {
-
-                const element =
-                    document.getElementById(
-                        id
-                    );
-
-                if (element) {
-                    element.textContent =
-                        "—";
-                }
-            }
-        );
-
-        document.getElementById(
-            "usdDegisim"
-        ).textContent =
-            "Döviz verisi alınamadı.";
-
-        document.getElementById(
-            "eurDegisim"
-        ).textContent =
-            "Döviz verisi alınamadı.";
-
-        dovizTrendUygula(
-            "usdTrend",
-            null
-        );
-
-        dovizTrendUygula(
-            "eurTrend",
-            null
-        );
-
-        info.textContent =
-            "Döviz bilgisi şu anda alınamıyor.";
-
-        console.error(
-            "Döviz kurları:",
-            error
-        );
-
-    }
+    ) + " TL";
 
 }
 
@@ -5874,7 +5337,7 @@ async function lmeFiyatlariniGetir() {
                             : "TL karşılığı alınamadı"
                         ) +
                     "</div>" +
-                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × USD/TRY alış</div>' +
+                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × TCMB USD alış</div>' +
                     '<div class="grid grid-cols-2 gap-2 mt-3">' +
                         '<div class="bg-white rounded-lg p-2">' +
                             '<div class="text-[10px] text-slate-400">Bid</div>' +
@@ -5904,7 +5367,7 @@ async function lmeFiyatlariniGetir() {
             + " · Gün gecikmeli"
             + (
                 result.usd_tl
-                ? " · USD/TRY alış: "
+                ? " · TCMB USD alış: "
                 + Number(
                     result.usd_tl
                   ).toLocaleString(
