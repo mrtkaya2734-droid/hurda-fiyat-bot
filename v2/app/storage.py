@@ -479,6 +479,10 @@ def manuel_fiyat_kaydet(
 
     mevcut["manuel_fiyat"] = fiyat
 
+    mevcut["fiyat_tarihi"] = (
+        datetime.now().strftime("%Y-%m-%d")
+    )
+
     mevcut["guncelleme"] = now_string()
 
     gizlenen = data.get(
