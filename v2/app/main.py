@@ -4848,6 +4848,9 @@ body {
 .price-card {
     width: 100%;
     min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     transition:
         transform .2s ease,
         box-shadow .2s ease,
@@ -4885,6 +4888,7 @@ body {
 
 .desktop-ad-column {
     min-width: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -5474,7 +5478,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full min-w-0"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
 
@@ -5506,7 +5510,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full mt-5"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-5"
 >
 
 <div
@@ -6061,7 +6065,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-all duration-200";
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-full hover:shadow-md transition-all duration-200";
 
             if (
                 index === firmalar.length - 1
