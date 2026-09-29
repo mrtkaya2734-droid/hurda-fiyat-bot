@@ -6269,7 +6269,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-full hover:shadow-md transition-all duration-200";
+                "price-card self-start bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-all duration-200";
 
             if (
                 index === firmalar.length - 1
