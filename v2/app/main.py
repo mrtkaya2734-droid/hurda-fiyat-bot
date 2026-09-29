@@ -1708,9 +1708,11 @@ placeholder="Boş = otomatik"
 >
 
 <button
-type="submit"
-form="manuel_sil_{index}"
-class="w-full mt-2 border border-red-200 bg-red-50 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
+type="button"
+class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
+data-delete-url="/admin/source/{esc(firma_id)}/manual-delete"
+data-kalem="{esc(kalem)}"
+onclick="manuelFiyatSil(this)"
 >
 Manuel Fiyatı Kaldır
 </button>
@@ -1718,20 +1720,6 @@ Manuel Fiyatı Kaldır
 </div>
 """
 
-        manuel_sil_forms += f"""
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/manual-delete"
-id="manuel_sil_{index}"
-class="hidden"
->
-<input
-type="hidden"
-name="manuel_sil"
-value="{esc(kalem)}"
->
-</form>
-"""
 
     if not fiyat_rows:
 
@@ -2010,8 +1998,6 @@ Manuel Fiyatları Kaydet
 </button>
 
 </form>
-
-{manuel_sil_forms}
 
 </div>
 
@@ -2585,10 +2571,16 @@ async def admin_manual_delete(
             detail="Firma bulunamadı.",
         )
 
-    manuel_fiyat_sil(
+    silindi = manuel_fiyat_sil(
         firma_id,
         manuel_sil,
     )
+
+    if not silindi:
+        raise HTTPException(
+            status_code=404,
+            detail="Manuel fiyat bulunamadı.",
+        )
 
     bildirim_ekle(
         firma_id,
@@ -4296,6 +4288,84 @@ async function dovizleriGetir() {
 
         console.error(
             "Döviz kurları:",
+            error
+        );
+
+    }
+
+}
+
+
+async function manuelFiyatSil(button) {
+
+    const url =
+        button.dataset.deleteUrl;
+
+    const kalem =
+        button.dataset.kalem;
+
+    if (!url || !kalem) {
+        return;
+    }
+
+    if (
+        !confirm(
+            kalem
+            + " için manuel fiyat kaldırılacak. Devam edilsin mi?"
+        )
+    ) {
+        return;
+    }
+
+    const eskiMetin =
+        button.textContent;
+
+    button.disabled = true;
+    button.textContent =
+        "Kaldırılıyor...";
+
+    try {
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "manuel_sil",
+            kalem
+        );
+
+        const response =
+            await fetch(
+                url,
+                {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin",
+                    cache: "no-store",
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "Manuel fiyat silme isteği başarısız."
+            );
+        }
+
+        window.location.reload();
+
+    }
+    catch (error) {
+
+        button.disabled = false;
+        button.textContent =
+            eskiMetin;
+
+        alert(
+            "Manuel fiyat kaldırılamadı. Lütfen tekrar deneyin."
+        );
+
+        console.error(
+            "Manuel fiyat silme:",
             error
         );
 
