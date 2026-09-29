@@ -1905,56 +1905,80 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
+    API_URL = (
+        "https://api.frankfurter.dev/v2/rate"
+    )
+
+    bulunan = {}
+
     try:
 
-        response = requests.get(
-            "https://www.tcmb.gov.tr/kurlar/today.xml",
-            timeout=10,
-        )
+        for kod in (
+            "USD",
+            "EUR",
+        ):
 
-        response.raise_for_status()
-
-        root = ET.fromstring(
-            response.content
-        )
-
-        bulunan = {}
-
-        for currency in root.findall("Currency"):
-
-            code = currency.get(
-                "CurrencyCode"
+            response = requests.get(
+                f"{API_URL}/{kod.lower()}/try",
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "HurdaFiyatBot/2.0",
+                },
+                timeout=10,
             )
 
-            if code not in {"USD", "EUR"}:
-                continue
+            response.raise_for_status()
 
-            buying = currency.findtext("ForexBuying")
-            selling = currency.findtext("ForexSelling")
+            veri = response.json()
 
-            if not buying or not selling:
-                continue
+            rate = veri.get(
+                "rate"
+            )
 
-            bulunan[code] = {
-                "kod": code,
-                "birim": currency.get("Unit", "1"),
-                "alis": float(
-                    buying.replace(",", ".")
-                ),
-                "satis": float(
-                    selling.replace(",", ".")
-                ),
+            tarih = veri.get(
+                "date",
+                "",
+            )
+
+            if rate is None:
+
+                raise ValueError(
+                    f"Frankfurter {kod}/TRY kuru boş döndü."
+                )
+
+            bulunan[kod] = {
+                "kod": kod,
+                "birim": "1",
+                "alis": float(rate),
+                "satis": float(rate),
+                "kur": float(rate),
+                "kur_turu": "Referans kur",
+                "tarih": tarih,
             }
 
-        if "USD" not in bulunan or "EUR" not in bulunan:
-            raise ValueError(
-                "TCMB kur verisinde USD veya EUR bulunamadı."
+        tarihler = [
+            x.get(
+                "tarih",
+                "",
             )
+            for x in bulunan.values()
+            if x.get(
+                "tarih",
+                "",
+            )
+        ]
+
+        kaynak_tarihi = (
+            min(tarihler)
+            if tarihler
+            else ""
+        )
 
         DOVIZ_CACHE = {
             "status": "success",
-            "kaynak": "TCMB",
-            "tarih": root.get("Tarih", ""),
+            "kaynak": "Frankfurter",
+            "kur_turu": "Günlük referans kuru",
+            "tarih": kaynak_tarihi,
             "veriler": bulunan,
         }
 
@@ -1974,10 +1998,13 @@ def doviz_kurlarini_getir(force=False):
 
         return {
             "status": "error",
-            "kaynak": "TCMB",
+            "kaynak": "Frankfurter",
+            "kur_turu": "Günlük referans kuru",
             "tarih": "",
             "veriler": {},
-            "hata": "Döviz kurları şu anda alınamadı.",
+            "hata": (
+                "USD/EUR kurları şu anda alınamadı."
+            ),
         }
 
 
@@ -4920,14 +4947,14 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
         <div class="grid grid-cols-2 gap-3 mt-4">
 
             <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
+                <div class="text-[11px] text-slate-500 font-semibold">Referans</div>
                 <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
                     Yükleniyor...
                 </div>
             </div>
 
             <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
+                <div class="text-[11px] text-slate-500 font-semibold">TRY</div>
                 <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
                     Yükleniyor...
                 </div>
@@ -5428,7 +5455,7 @@ async function dovizleriGetir() {
             dovizGoster(eur.satis);
 
         document.getElementById("currencyInfo").textContent =
-            "Kur kaynağı: TCMB · Tarih: "
+            "Kur kaynağı: " + (result.kaynak || "Frankfurter") + " · "
             + (result.tarih || "-");
 
     }
