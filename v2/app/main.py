@@ -4859,6 +4859,14 @@ body {
     min-width: 0;
 }
 
+.ad-box:empty {
+    display: none;
+}
+
+.desktop-ad-column {
+    min-width: 0;
+}
+
 .ad-box a {
     display: block;
     width: 100%;
@@ -5371,7 +5379,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <div class="grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)_270px] gap-4 sm:gap-5">
 
-<aside class="hidden lg:block space-y-4 pt-16">
+<aside class="desktop-ad-column hidden lg:block space-y-4 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
@@ -5396,9 +5404,13 @@ Güncel Hurda Fiyatları
 <div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
 Fabrika Fiyatları
 </div>
-<div class="flex items-center justify-center gap-2 mt-1.5 text-[10px] font-bold text-slate-400">
+<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+<span class="inline-flex items-center gap-1.5">
 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
 Canlı takip
+</span>
+<span class="text-slate-300">•</span>
+<span>Firmaların son yayınladığı fiyatlar</span>
 </div>
 </div>
 
@@ -5417,7 +5429,7 @@ class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full min-w-0
 
 </main>
 
-<aside class="hidden lg:block space-y-4 pt-16">
+<aside class="desktop-ad-column hidden lg:block space-y-4 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
@@ -5994,8 +6006,42 @@ async function fiyatlariGetir() {
             wrapper.className =
                 "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-all duration-200";
 
+            if (
+                index === firmalar.length - 1
+                && firmalar.length % 2 === 1
+            ) {
+                wrapper.classList.add(
+                    "sm:col-span-2",
+                    "sm:w-1/2",
+                    "sm:justify-self-center"
+                );
+            }
+
             const panelId = "firma_" + index;
             let rows = "";
+
+            const kalemSayisi =
+                Array.isArray(item.kalemler)
+                    ? item.kalemler.length
+                    : 0;
+
+            const artisSayisi =
+                Array.isArray(item.kalemler)
+                    ? item.kalemler.filter(function(kalem) {
+                        return String(
+                            kalem.degisim || ""
+                        ).startsWith("+");
+                    }).length
+                    : 0;
+
+            const dususSayisi =
+                Array.isArray(item.kalemler)
+                    ? item.kalemler.filter(function(kalem) {
+                        return String(
+                            kalem.degisim || ""
+                        ).startsWith("-");
+                    }).length
+                    : 0;
 
             item.kalemler.forEach(function(kalem) {
 
@@ -6057,7 +6103,7 @@ async function fiyatlariGetir() {
 
                         '<div class="price-value text-right shrink-0 min-w-[105px] sm:min-w-[125px]">' +
 
-                            '<div class="font-black text-slate-950 text-base sm:text-lg leading-tight whitespace-nowrap">' +
+                            '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
                             "</div>" +
 
@@ -6118,6 +6164,11 @@ async function fiyatlariGetir() {
                                             "Fiyat tarihi: " +
                                             escapeHtml(item.tarih || "-") +
                                         "</span>" +
+                                        '<span class="text-slate-300">•</span>' +
+                                        '<span class="text-[10px] text-slate-400 font-bold">' +
+                                            kalemSayisi +
+                                            " kalem" +
+                                        "</span>" +
                                     "</div>" +
 
                                 "</div>" +
@@ -6125,6 +6176,28 @@ async function fiyatlariGetir() {
                             "</div>" +
 
                         "</div>" +
+
+                        (
+                            artisSayisi || dususSayisi
+                                ? '<div class="hidden sm:flex items-center gap-2 text-[10px] font-black mr-1">' +
+                                    (
+                                        artisSayisi
+                                            ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
+                                            : ""
+                                    ) +
+                                    (
+                                        artisSayisi && dususSayisi
+                                            ? '<span class="text-slate-300">•</span>'
+                                            : ""
+                                    ) +
+                                    (
+                                        dususSayisi
+                                            ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
+                                            : ""
+                                    ) +
+                                  "</div>"
+                                : ""
+                        ) +
 
                         '<div class="shrink-0 flex items-center gap-2">' +
 
@@ -6261,6 +6334,75 @@ setInterval(
     fiyatlariGetir,
     60000
 );
+
+</script>
+
+<script>
+
+function bosReklamAlanlariniGizle() {
+
+    document.querySelectorAll(
+        ".desktop-ad-column"
+    ).forEach(
+        function(aside) {
+
+            const kutular =
+                aside.querySelectorAll(
+                    ".ad-box"
+                );
+
+            const dolu =
+                Array.from(
+                    kutular
+                ).some(
+                    function(kutu) {
+                        return (
+                            kutu.innerHTML
+                            || ""
+                        ).trim() !== "";
+                    }
+                );
+
+            if (!dolu) {
+                aside.style.display = "none";
+            }
+
+        }
+    );
+
+    const bottom =
+        document.getElementById(
+            "bottomAds"
+        );
+
+    if (bottom) {
+
+        const kutular =
+            bottom.querySelectorAll(
+                ".ad-box"
+            );
+
+        const dolu =
+            Array.from(
+                kutular
+            ).some(
+                function(kutu) {
+                    return (
+                        kutu.innerHTML
+                        || ""
+                    ).trim() !== "";
+                }
+            );
+
+        if (!dolu) {
+            bottom.style.display = "none";
+        }
+
+    }
+
+}
+
+bosReklamAlanlariniGizle();
 
 </script>
 
