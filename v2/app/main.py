@@ -5995,7 +5995,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-shadow";
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-all duration-200";
 
             const panelId = "firma_" + index;
             let rows = "";
@@ -6006,15 +6006,20 @@ async function fiyatlariGetir() {
                 let degisimHtml = "";
 
                 if (degisim) {
-                    let cls = "text-slate-500 bg-slate-100 border-slate-200";
+
+                    let cls =
+                        "text-slate-600 bg-slate-100 border-slate-200";
+
                     let icon = "•";
 
                     if (degisim.startsWith("+")) {
-                        cls = "text-emerald-700 bg-emerald-50 border-emerald-200";
+                        cls =
+                            "text-emerald-700 bg-emerald-50 border-emerald-200";
                         icon = "▲";
                     }
                     else if (degisim.startsWith("-")) {
-                        cls = "text-red-700 bg-red-50 border-red-200";
+                        cls =
+                            "text-red-700 bg-red-50 border-red-200";
                         icon = "▼";
                     }
 
@@ -6029,25 +6034,36 @@ async function fiyatlariGetir() {
                 }
 
                 rows +=
-                    '<div class="price-row flex items-center justify-between gap-3 py-3.5 border-b border-slate-100 last:border-0">' +
-                        '<div class="price-name min-w-0">' +
-                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] break-words">' +
+                    '<div class="price-row flex items-center justify-between gap-3 py-3.5 sm:py-4 border-b border-slate-100 last:border-0">' +
+
+                        '<div class="price-name min-w-0 pr-2">' +
+
+                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
                                 escapeHtml(kalem.cins) +
                             "</div>" +
-                            '<div class="flex flex-wrap items-center gap-2 mt-1.5">' +
-                                '<span class="text-[10px] text-slate-400">Tarih</span>' +
+
+                            '<div class="flex flex-wrap items-center gap-1.5 mt-1.5">' +
+
+                                '<span class="text-[9px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
+
                                 '<span class="text-[10px] font-bold text-slate-500">' +
                                     escapeHtml(kalem.fiyat_tarihi || "-") +
                                 "</span>" +
+
                                 '<span class="ml-0.5">' +
                                     durumEtiketi(kalem.durum) +
                                 "</span>" +
+
                             "</div>" +
+
                         "</div>" +
-                        '<div class="price-value text-right shrink-0">' +
-                            '<div class="font-black text-slate-950 text-base sm:text-lg leading-tight break-words">' +
+
+                        '<div class="price-value text-right shrink-0 min-w-[105px] sm:min-w-[125px]">' +
+
+                            '<div class="font-black text-slate-950 text-base sm:text-lg leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
                             "</div>" +
+
                             (
                                 degisimHtml
                                     ? '<div class="mt-1.5 flex justify-end">' +
@@ -6055,7 +6071,9 @@ async function fiyatlariGetir() {
                                       "</div>"
                                     : ""
                             ) +
+
                         "</div>" +
+
                     "</div>";
             });
 
@@ -6063,70 +6081,80 @@ async function fiyatlariGetir() {
                 ? '<a href="' +
                     escapeHtml(item.url) +
                     '" target="_blank" rel="noopener noreferrer" ' +
-                    'class="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-600 hover:bg-slate-200 transition">' +
+                    'class="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition">' +
                         "Kaynak ↗" +
                   "</a>"
-                : '<span class="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-400">' +
+                : '<span class="inline-flex items-center rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-400">' +
                     "Manuel fiyat" +
                   "</span>";
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full min-h-[128px] text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' +
+                '<button type="button" class="firma-toggle w-full min-h-[112px] sm:min-h-[116px] text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
                     panelId +
                     '" aria-expanded="false">' +
 
-                    '<div class="flex items-center justify-between gap-4">' +
+                    '<div class="flex items-center justify-between gap-3 sm:gap-4">' +
 
                         '<div class="min-w-0 flex-1">' +
 
-                            '<div class="flex items-center gap-2 flex-wrap">' +
-                                '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-sm shrink-0">' +
-                                    (index + 1) +
+                            '<div class="flex items-center gap-2.5">' +
+
+                                '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
+                                    String(index + 1).padStart(2, "0") +
                                 "</div>" +
 
                                 '<div class="min-w-0">' +
+
                                     '<div class="flex items-center gap-2 flex-wrap">' +
-                                        '<h2 class="font-black text-base sm:text-lg text-slate-950 break-words">' +
+
+                                        '<h2 class="font-black text-[15px] sm:text-lg text-slate-950 leading-5 break-words">' +
                                             escapeHtml(item.baslik) +
                                         "</h2>" +
+
                                         durumEtiketi(item.durum) +
+
                                     "</div>" +
 
-                                    '<div class="text-[11px] text-slate-500 mt-1 break-words">' +
-                                        "Fiyat tarihi: " +
-                                        escapeHtml(item.tarih || "-") +
+                                    '<div class="flex items-center gap-1.5 mt-1">' +
+                                        '<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>' +
+                                        '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold break-words">' +
+                                            "Fiyat tarihi: " +
+                                            escapeHtml(item.tarih || "-") +
+                                        "</span>" +
                                     "</div>" +
+
                                 "</div>" +
 
                             "</div>" +
 
                         "</div>" +
 
-                        '<div class="shrink-0 flex flex-col items-end gap-2">' +
+                        '<div class="shrink-0 flex items-center gap-2">' +
 
-                            '<span class="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-black text-slate-500">' +
+                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500">' +
                                 "Fiyatları Gör" +
                             "</span>" +
 
-                            '<span class="firma-ok-icon w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm">' +
+                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm">' +
                                 "▼" +
                             "</span>" +
 
                         "</div>" +
 
                     "</div>" +
+
                 "</button>" +
 
                 '<div id="' +
                     panelId +
-                    '" class="hidden border-t border-slate-200 bg-slate-50/70">' +
+                    '" class="hidden border-t border-slate-200 bg-slate-50/60">' +
 
-                    '<div class="p-4 sm:p-5">' +
+                    '<div class="p-3.5 sm:p-4">' +
 
-                        '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">' +
+                        '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">' +
 
                             '<div>' +
-                                '<div class="text-[10px] uppercase tracking-wide font-black text-slate-400">Piyasa fiyatları</div>' +
+                                '<div class="text-[9px] uppercase tracking-[0.14em] font-black text-slate-400">Fiyatlar</div>' +
                                 '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
                             "</div>" +
 
@@ -6136,7 +6164,7 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="bg-white rounded-2xl border border-slate-200 px-3 sm:px-4">' +
+                        '<div class="bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
                             rows +
                         "</div>" +
 
@@ -6144,7 +6172,9 @@ async function fiyatlariGetir() {
 
                 "</div>";
 
-            firmaListesi.appendChild(wrapper);
+            firmaListesi.appendChild(
+                wrapper
+            );
 
             const toggle =
                 wrapper.querySelector(
