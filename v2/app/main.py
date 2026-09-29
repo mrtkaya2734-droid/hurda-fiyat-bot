@@ -1753,9 +1753,53 @@ def fiyat_verilerini_olustur():
 
     sonuc = []
 
-    for firma in firmalari_sirala(
+    firmalar = firmalari_sirala(
         data
+    )
+
+    # Fiyat kaydı mevcut olup firma kaydı eksikse,
+    # son bilinen fiyatları ana sayfada kaybetme.
+    firma_ids = {
+        str(
+            firma.get(
+                "firma_id",
+                ""
+            )
+        ).strip().lower()
+        for firma in firmalar
+    }
+
+    for fiyat_firma_id in data.get(
+        "prices",
+        {}
     ):
+        canonical_id = str(
+            fiyat_firma_id or ""
+        ).strip().lower()
+
+        if (
+            canonical_id
+            and canonical_id not in firma_ids
+        ):
+            firmalar.append(
+                {
+                    "firma_id": canonical_id,
+                    "baslik": canonical_id.replace(
+                        "_",
+                        " "
+                    ).title(),
+                    "url": "",
+                    "otomatik": False,
+                    "aktif": True,
+                    "son_basarili_cekme": None,
+                    "kaynak_fiyat_tarihi": None,
+                    "durum": "manuel",
+                    "sira": 999999,
+                }
+            )
+            firma_ids.add(canonical_id)
+
+    for firma in firmalar:
 
         firma_id = firma.get(
             "firma_id"
