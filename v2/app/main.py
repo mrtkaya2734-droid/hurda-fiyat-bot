@@ -6149,7 +6149,7 @@ async function fiyatlariGetir() {
                     panelId +
                     '" class="hidden border-t border-slate-200 bg-slate-50/60">' +
 
-                    '<div class="p-3.5 sm:p-4">' +
+                    '<div class="p-3 sm:p-4">' +
 
                         '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">' +
 
