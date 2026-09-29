@@ -25,6 +25,8 @@ import html as html_lib
 import uuid
 import shutil
 import re
+import requests
+import xml.etree.ElementTree as ET
 
 from app.scrapers import TUMU
 
@@ -1145,6 +1147,108 @@ app.mount(
 
 
 # =========================================================
+# DÖVİZ KURLARI
+# =========================================================
+
+DOVIZ_CACHE = {}
+DOVIZ_SON_CEKME = None
+DOVIZ_CACHE_SANIYE = 600
+
+
+def doviz_kurlarini_getir(force=False):
+
+    global DOVIZ_CACHE
+    global DOVIZ_SON_CEKME
+
+    simdi = datetime.now()
+
+    if (
+        not force
+        and DOVIZ_CACHE
+        and DOVIZ_SON_CEKME
+        and (
+            simdi - DOVIZ_SON_CEKME
+        ).total_seconds() < DOVIZ_CACHE_SANIYE
+    ):
+        return DOVIZ_CACHE
+
+    try:
+
+        response = requests.get(
+            "https://www.tcmb.gov.tr/kurlar/today.xml",
+            timeout=10,
+        )
+
+        response.raise_for_status()
+
+        root = ET.fromstring(
+            response.content
+        )
+
+        bulunan = {}
+
+        for currency in root.findall("Currency"):
+
+            code = currency.get(
+                "CurrencyCode"
+            )
+
+            if code not in {"USD", "EUR"}:
+                continue
+
+            buying = currency.findtext("ForexBuying")
+            selling = currency.findtext("ForexSelling")
+
+            if not buying or not selling:
+                continue
+
+            bulunan[code] = {
+                "kod": code,
+                "birim": currency.get("Unit", "1"),
+                "alis": float(
+                    buying.replace(",", ".")
+                ),
+                "satis": float(
+                    selling.replace(",", ".")
+                ),
+            }
+
+        if "USD" not in bulunan or "EUR" not in bulunan:
+            raise ValueError(
+                "TCMB kur verisinde USD veya EUR bulunamadı."
+            )
+
+        DOVIZ_CACHE = {
+            "status": "success",
+            "kaynak": "TCMB",
+            "tarih": root.get("Tarih", ""),
+            "veriler": bulunan,
+        }
+
+        DOVIZ_SON_CEKME = simdi
+
+        return DOVIZ_CACHE
+
+    except Exception as e:
+
+        print(
+            "DÖVİZ KUR HATASI: "
+            f"{type(e).__name__}: {e}"
+        )
+
+        if DOVIZ_CACHE:
+            return DOVIZ_CACHE
+
+        return {
+            "status": "error",
+            "kaynak": "TCMB",
+            "tarih": "",
+            "veriler": {},
+            "hata": "Döviz kurları şu anda alınamadı.",
+        }
+
+
+# =========================================================
 # FİYAT API
 # =========================================================
 
@@ -1158,6 +1262,14 @@ def get_prices():
         "son_guncelleme": SON_GUNCELLEME,
         "data": fiyat_verilerini_olustur(),
     }
+
+
+@app.get(
+    "/currency"
+)
+def get_currency():
+
+    return doviz_kurlarini_getir()
 
 
 # =========================================================
@@ -3853,6 +3965,98 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
 
 </header>
 
+<!-- =====================================================
+     DÖVİZ KURLARI
+     ===================================================== -->
+
+<section
+    id="currencySection"
+    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-5"
+>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+
+        <div class="flex items-center justify-between gap-3">
+
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Amerikan Doları
+                </div>
+                <div class="text-lg font-black text-slate-900 mt-1">
+                    USD / TL
+                </div>
+            </div>
+
+            <div class="text-2xl">🇺🇸</div>
+
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-4">
+
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
+                <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
+
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
+                <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+
+        <div class="flex items-center justify-between gap-3">
+
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Euro
+                </div>
+                <div class="text-lg font-black text-slate-900 mt-1">
+                    EUR / TL
+                </div>
+            </div>
+
+            <div class="text-2xl">🇪🇺</div>
+
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-4">
+
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
+                <div id="eurAlis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
+
+            <div class="bg-slate-50 rounded-xl p-3">
+                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
+                <div id="eurSatis" class="text-base font-black text-slate-900 mt-1">
+                    Yükleniyor...
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div
+        id="currencyInfo"
+        class="sm:col-span-2 text-[11px] text-slate-500 text-center"
+    >
+        Kur kaynağı: TCMB · Güncelleniyor...
+    </div>
+
+</section>
+
 
 <!-- =====================================================
      MOBİL REKLAMLAR
@@ -3982,6 +4186,97 @@ function durumEtiketi(durum) {
     }
 
     return "";
+}
+
+
+function dovizGoster(deger) {
+
+    return Number(
+        deger
+    ).toLocaleString(
+        "tr-TR",
+        {
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 4,
+        }
+    ) + " TL";
+
+}
+
+
+async function dovizleriGetir() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/currency",
+                {
+                    cache: "no-store"
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "Döviz servisi çalışmadı."
+            );
+        }
+
+        const result =
+            await response.json();
+
+        const usd =
+            result.veriler &&
+            result.veriler.USD;
+
+        const eur =
+            result.veriler &&
+            result.veriler.EUR;
+
+        if (
+            result.status !== "success"
+            || !usd
+            || !eur
+        ) {
+            throw new Error(
+                "Döviz verisi alınamadı."
+            );
+        }
+
+        document.getElementById("usdAlis").textContent =
+            dovizGoster(usd.alis);
+
+        document.getElementById("usdSatis").textContent =
+            dovizGoster(usd.satis);
+
+        document.getElementById("eurAlis").textContent =
+            dovizGoster(eur.alis);
+
+        document.getElementById("eurSatis").textContent =
+            dovizGoster(eur.satis);
+
+        document.getElementById("currencyInfo").textContent =
+            "Kur kaynağı: TCMB · Tarih: "
+            + (result.tarih || "-");
+
+    }
+    catch (error) {
+
+        document.getElementById("usdAlis").textContent = "-";
+        document.getElementById("usdSatis").textContent = "-";
+        document.getElementById("eurAlis").textContent = "-";
+        document.getElementById("eurSatis").textContent = "-";
+
+        document.getElementById("currencyInfo").textContent =
+            "Kur bilgisi şu anda alınamıyor.";
+
+        console.error(
+            "Döviz kurları:",
+            error
+        );
+
+    }
+
 }
 
 
@@ -4248,7 +4543,15 @@ async function fiyatlariGetir() {
 }
 
 
+dovizleriGetir();
+
 fiyatlariGetir();
+
+
+setInterval(
+    dovizleriGetir,
+    600000
+);
 
 
 setInterval(
