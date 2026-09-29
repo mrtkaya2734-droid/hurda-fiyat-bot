@@ -33,15 +33,47 @@ def _date_from_text(text: str):
 
 
 def _parse_price(raw: str):
-    match = PRICE_RE.search(str(raw or ""))
-    if not match:
-        return None
+    text = str(raw or "").strip()
 
-    value = match.group(1).replace(".", "").replace(" ", "")
-    try:
-        return int(value)
-    except ValueError:
-        return None
+    match = PRICE_RE.search(
+        text
+    )
+
+    if match:
+        value = (
+            match.group(1)
+            .replace(".", "")
+            .replace(" ", "")
+        )
+
+        try:
+            return int(value)
+        except ValueError:
+            pass
+
+    # Bazı tablolar para birimini ayrı sütunda verir:
+    # "DKP | 18605 | TL/ton" gibi.
+    for candidate in re.findall(
+        r"(?<!\\d)(\\d{1,3}(?:[. ]\\d{3})+|\\d{4,6})(?!\\d)",
+        text,
+    ):
+        value = candidate.replace(
+            ".",
+            "",
+        ).replace(
+            " ",
+            "",
+        )
+
+        if not value.isdigit():
+            continue
+
+        number = int(value)
+
+        if 4000 <= number <= 200000:
+            return number
+
+    return None
 
 
 def _looks_like_label(text: str):
