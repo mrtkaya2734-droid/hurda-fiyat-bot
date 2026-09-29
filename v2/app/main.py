@@ -492,8 +492,115 @@ def _westmetall_lme_verilerini_cek():
     return fiyatlar, tarih
 
 
-def lme_verilerini_cek():
+def _lme_api_verilerini_cek():
+    url = (
+        "https://www.lme.com/api/trading-data/"
+        "day-delayed"
+    )
 
+    response = requests.get(
+        url,
+        params={
+            "datasourceId": (
+                "1a0ef0b6-3ee6-4e44-a415-7a313d5bd771"
+            )
+        },
+        headers={
+            "Accept": "application/json,text/plain,*/*",
+            "Accept-Language": "en-GB,en;q=0.9",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/140.0.0.0 Safari/537.36"
+            ),
+            "Referer": (
+                "https://www.lme.com/"
+                "market-data/reports-and-data/"
+                "lme-official-prices"
+            ),
+        },
+        timeout=20,
+    )
+
+    response.raise_for_status()
+
+    payload = response.json()
+
+    rows = payload.get("Rows") or []
+
+    if not rows:
+        raise RuntimeError(
+            "LME day-delayed API boş veri döndürdü."
+        )
+
+    fiyatlar = {}
+
+    for row in rows:
+        metal_adi = str(
+            row.get("RowTitle") or ""
+        ).strip()
+
+        if not metal_adi:
+            continue
+
+        eslesen = None
+
+        for isim, turkce in LME_METALS.items():
+            if metal_adi.casefold() == isim.casefold():
+                eslesen = (
+                    isim,
+                    turkce,
+                )
+                break
+
+        if eslesen is None:
+            continue
+
+        values = row.get("Values") or []
+
+        if not isinstance(values, list):
+            continue
+
+        # LME day-delayed tablosunda ilk dört değer:
+        # Cash Bid, Cash Ask, 3 Month Bid, 3 Month Ask.
+        sayilar = [
+            _lme_sayi(x)
+            for x in values[:4]
+        ]
+
+        if len(sayilar) < 4:
+            continue
+
+        fiyatlar[eslesen[0]] = {
+            "ad": eslesen[1],
+            "cash_bid": sayilar[0],
+            "cash_ask": sayilar[1],
+            "three_month_bid": sayilar[2],
+            "three_month_ask": sayilar[3],
+        }
+
+    if not fiyatlar:
+        raise RuntimeError(
+            "LME day-delayed API içinden metal fiyatları okunamadı."
+        )
+
+    tarih = payload.get("DateOfData")
+
+    if tarih:
+        try:
+            tarih = datetime.fromisoformat(
+                str(tarih).replace("Z", "+00:00")
+            ).strftime("%d.%m.%Y")
+        except Exception:
+            tarih = str(tarih)
+    else:
+        tarih = None
+
+    return fiyatlar, tarih
+
+
+def lme_verilerini_cek():
     global _LME_CACHE
 
     simdi = now_istanbul()
@@ -502,75 +609,53 @@ def lme_verilerini_cek():
         _LME_CACHE["veriler"]
         and _LME_CACHE["cekilme"]
     ):
-
         gecen = (
             simdi
             - _LME_CACHE["cekilme"]
         ).total_seconds()
 
         if gecen < 900:
-
             return _LME_CACHE
 
-    fiyatlar = {}
-    tarih = None
-    kaynak = None
-    lme_hatasi = None
+    hatalar = []
 
-    # Önce LME resmi sayfasını dene.
+    # Birincil kaynak: LME'nin kendi gün gecikmeli JSON
+    # veri servisi. HTML sayfasındaki 403 kısıtından bağımsızdır.
     try:
-
-        cevap = requests.get(
-            LME_URL,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 Chrome/140 Safari/537.36"
-                ),
-                "Accept-Language": "en-GB,en;q=0.9",
-            },
-            timeout=25,
+        fiyatlar, tarih = (
+            _lme_api_verilerini_cek()
         )
 
-        cevap.raise_for_status()
-
-        fiyatlar, tarih = _lme_verilerini_html(
-            cevap.text
-        )
-
-        kaynak = "LME Official Prices"
+        kaynak = "LME Official Prices · day-delayed API"
 
     except Exception as exc:
-
-        lme_hatasi = str(
-            exc
+        hatalar.append(
+            f"LME API: {exc}"
         )
 
-    # LME sunucusu 403 gibi bir yanıt verirse
-    # aynı LME Official Prices verisini yayınlayan
-    # ikinci kaynağa geç.
-    if not fiyatlar:
-
+        # Resmi API erişilemezse mevcut yedek kaynağı dene.
         try:
-
-            fiyatlar, tarih = _westmetall_lme_verilerini_cek()
+            fiyatlar, tarih = (
+                _westmetall_lme_verilerini_cek()
+            )
 
             kaynak = (
                 "Westmetall · Official LME Prices"
             )
 
-        except Exception as exc:
+        except Exception as yedek_exc:
+            hatalar.append(
+                f"Westmetall: {yedek_exc}"
+            )
 
             raise RuntimeError(
                 "LME verisi alınamadı. "
-                f"Resmi kaynak: {lme_hatasi or '-'} | "
-                f"Yedek kaynak: {exc}"
-            ) from exc
+                + " | ".join(hatalar)
+            ) from yedek_exc
 
     usd_tl = None
 
     try:
-
         doviz = doviz_kurlarini_getir()
 
         usd_tl = (
@@ -588,13 +673,11 @@ def lme_verilerini_cek():
         )
 
     except Exception:
-
         usd_tl = None
 
     veriler = []
 
     for key in LME_METALS:
-
         if key not in fiyatlar:
             continue
 
@@ -605,6 +688,7 @@ def lme_verilerini_cek():
         bid = item.get(
             "three_month_bid"
         )
+
         ask = item.get(
             "three_month_ask"
         )
@@ -614,7 +698,6 @@ def lme_verilerini_cek():
             and bid is not None
             and ask is not None
         ):
-
             orta = (
                 float(bid)
                 + float(ask)
@@ -628,7 +711,6 @@ def lme_verilerini_cek():
             )
 
         else:
-
             item["three_month_tl"] = None
 
         veriler.append(
@@ -641,7 +723,7 @@ def lme_verilerini_cek():
         "cekilme": simdi.strftime(
             "%d.%m.%Y %H:%M:%S"
         ),
-        "kaynak": kaynak or "-",
+        "kaynak": kaynak,
         "usd_tl": usd_tl,
     }
 
