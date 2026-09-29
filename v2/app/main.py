@@ -25,6 +25,7 @@ import html as html_lib
 import uuid
 import shutil
 import re
+import gc
 import requests
 import xml.etree.ElementTree as ET
 
@@ -947,6 +948,10 @@ def verileri_guncelle():
 
     GUNCEL_VERILER = []
 
+    # Tarama sırasında oluşan geçici Python nesnelerini
+    # mümkün olduğunca hemen temizle.
+    gc.collect()
+
     print(
         "Güncelleme tamamlandı."
     )
@@ -1108,9 +1113,12 @@ async def lifespan(app):
     scheduler.add_job(
         verileri_guncelle,
         "interval",
-        minutes=30,
+        minutes=1,
         id="fiyat_guncelleme",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=30,
     )
 
     scheduler.start()
