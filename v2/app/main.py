@@ -4547,7 +4547,7 @@ async function fiyatlariGetir() {
                 : '<span class="text-[10px] text-slate-400">Manuel fiyat kaynağı</span>';
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full h-full min-h-[120px] text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' + panelId + '" aria-expanded="false">' +
+                '<button type="button" class="firma-toggle w-full h-[128px] text-left p-4 sm:p-5 hover:bg-slate-50 transition flex items-center" data-panel="' + panelId + '" aria-expanded="false">' +
                     '<div class="flex items-center justify-between gap-3">' +
                         '<div class="min-w-0 flex-1">' +
                             '<div class="flex items-center gap-2 flex-wrap">' +
