@@ -2230,19 +2230,19 @@ content="width=device-width, initial-scale=1.0"
 
 <body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-2xl mx-auto">
+<div class="max-w-3xl mx-auto">
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+<div class="bg-slate-900 text-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
-<h1 class="text-2xl font-bold text-slate-900">
+<h1 class="text-2xl sm:text-3xl font-black text-white">
 Yeni Firma / Kaynak
 </h1>
 
 <a
 href="/admin"
-class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-center"
+class="bg-white/10 border border-white/20 hover:bg-white/15 text-white px-4 py-2 rounded-xl text-sm font-bold text-center transition"
 >
 ← Geri
 </a>
@@ -2252,7 +2252,7 @@ class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-center"
 <form
 method="post"
 action="/admin/source/new"
-class="space-y-5"
+class="space-y-5 p-5 sm:p-7"
 >
 
 <div>
@@ -2267,7 +2267,7 @@ name="firma_id"
 required
 placeholder="ornekfirma"
 pattern="[a-zA-Z0-9_-]+"
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <p class="text-xs text-slate-500 mt-1">
@@ -2287,7 +2287,7 @@ type="text"
 name="baslik"
 required
 placeholder="Örnek Demir Çelik"
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 </div>
@@ -2302,7 +2302,7 @@ Kaynak URL
 type="url"
 name="url"
 placeholder="İsteğe bağlı: https://..."
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <div class="text-xs text-slate-500 mt-2">
@@ -2344,7 +2344,7 @@ Otomatik fiyat çek
 
 <button
 type="submit"
-class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold"
+class="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Firmayı Kaydet
 </button>
@@ -2584,7 +2584,7 @@ name="manuel_{esc(kalem)}"
 value="{esc(manuel if manuel is not None else '')}"
 min="0"
 step="1"
-class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-3 py-2 text-sm transition"
 placeholder="Boş = otomatik"
 >
 
@@ -2716,24 +2716,24 @@ content="width=device-width, initial-scale=1.0"
 
 <body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-3xl mx-auto space-y-5 sm:space-y-6">
+<div class="max-w-5xl mx-auto space-y-5 sm:space-y-6">
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+<div class="bg-slate-900 text-white rounded-3xl shadow-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-<h1 class="text-2xl font-bold text-slate-900 break-words">
+<h1 class="text-2xl sm:text-3xl font-black text-white break-words">
 {esc(firma.get("baslik", firma_id))}
 </h1>
 
 <a
 href="/admin"
-class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-center"
+class="bg-white/10 border border-white/20 hover:bg-white/15 text-white px-4 py-2 rounded-xl text-sm font-bold text-center transition"
 >
 ← Geri
 </a>
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="mb-6">
 
@@ -2769,7 +2769,7 @@ type="text"
 name="baslik"
 value="{esc(firma.get("baslik", ""))}"
 required
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 </div>
@@ -2785,7 +2785,7 @@ type="url"
 name="url"
 value="{esc(firma.get("url", ""))}"
 placeholder="İsteğe bağlı: https://..."
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <div class="text-xs text-slate-500 mt-2">
@@ -2834,7 +2834,7 @@ Scraper:
 
 <button
 type="submit"
-class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold"
+class="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Kaynak Bilgilerini Kaydet
 </button>
@@ -2849,7 +2849,7 @@ class="mt-3"
 
 <button
 type="submit"
-class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 py-3 rounded-xl font-bold"
+class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 py-3.5 rounded-xl font-black transition"
 >
 🔎 Kaynağı Test Et
 </button>
@@ -2858,7 +2858,7 @@ class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <h2 class="text-xl font-bold mb-5">
 Manuel Fiyatlar
@@ -2876,7 +2876,7 @@ class="space-y-4"
 
 <button
 type="submit"
-class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold"
+class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Manuel Fiyatları Kaydet
 </button>
@@ -2885,7 +2885,7 @@ Manuel Fiyatları Kaydet
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <h2 class="text-lg font-bold text-red-700 mb-3">
 Tehlikeli Bölge
