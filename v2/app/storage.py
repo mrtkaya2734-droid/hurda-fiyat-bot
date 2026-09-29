@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 
 
@@ -13,10 +14,21 @@ BASE_DIR = os.path.dirname(
     )
 )
 
-DATA_FILE = os.path.join(
+BUNDLED_DATA_FILE = os.path.join(
     BASE_DIR,
     "data.json"
 )
+
+DATA_FILE = os.getenv(
+    "DATA_FILE",
+    BUNDLED_DATA_FILE
+)
+
+if DATA_FILE != BUNDLED_DATA_FILE:
+    os.makedirs(
+        os.path.dirname(DATA_FILE),
+        exist_ok=True,
+    )
 
 
 # =========================================================
@@ -50,13 +62,43 @@ def load_data():
 
     if not os.path.exists(DATA_FILE):
 
-        return {
-            "firms": {},
-            "prices": {},
-            "history": [],
-            "notifications": [],
-            "gizlenen_kalemler": {},
-        }
+        if (
+            DATA_FILE != BUNDLED_DATA_FILE
+            and os.path.exists(
+                BUNDLED_DATA_FILE
+            )
+        ):
+
+            try:
+
+                with open(
+                    BUNDLED_DATA_FILE,
+                    "r",
+                    encoding="utf-8"
+                ) as source:
+
+                    initial_data = json.load(
+                        source
+                    )
+
+                save_data(
+                    initial_data
+                )
+
+            except Exception:
+                pass
+
+        if not os.path.exists(
+            DATA_FILE
+        ):
+
+            return {
+                "firms": {},
+                "prices": {},
+                "history": [],
+                "notifications": [],
+                "gizlenen_kalemler": {},
+            }
 
     try:
 
@@ -118,6 +160,11 @@ def load_data():
 # =========================================================
 
 def save_data(data):
+
+    os.makedirs(
+        os.path.dirname(DATA_FILE),
+        exist_ok=True,
+    )
 
     temporary_file = DATA_FILE + ".tmp"
 
@@ -321,10 +368,26 @@ def fiyat_kaydet(
         []
     )
 
-    if kalem in gizlenen:
+    kalem_anahtari = (
+        " ".join(
+            str(kalem or "").strip().split()
+        ).casefold()
+    )
+
+    if kalem_anahtari in {
+        " ".join(
+            str(x or "").strip().split()
+        ).casefold()
+        for x in gizlenen
+    }:
         data["gizlenen_kalemler"][firma_id] = [
             x for x in gizlenen
-            if x != kalem
+            if (
+                " ".join(
+                    str(x or "").strip().split()
+                ).casefold()
+                != kalem_anahtari
+            )
         ]
 
     if fiyat_tarihi is None:
@@ -473,7 +536,20 @@ def manuel_fiyat_sil(
         []
     )
 
-    if kalem not in mevcut_gizli:
+    kalem_anahtari = (
+        " ".join(
+            str(kalem or "").strip().split()
+        ).casefold()
+    )
+
+    mevcut_gizli_anahtarlari = {
+        " ".join(
+            str(x or "").strip().split()
+        ).casefold()
+        for x in mevcut_gizli
+    }
+
+    if kalem_anahtari not in mevcut_gizli_anahtarlari:
         mevcut_gizli.append(
             kalem
         )
