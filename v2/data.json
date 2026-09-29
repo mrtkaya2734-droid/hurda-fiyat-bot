@@ -98,17 +98,6 @@
             "kaynak_fiyat_tarihi": null,
             "durum": "bekliyor",
             "sira": 3
-        },
-        "Ekinciler1": {
-            "firma_id": "Ekinciler1",
-            "baslik": "Ekinciler Demir Çelik",
-            "url": "",
-            "otomatik": false,
-            "aktif": true,
-            "son_basarili_cekme": null,
-            "kaynak_fiyat_tarihi": null,
-            "durum": "bekliyor",
-            "sira": 9
         }
     },
     "prices": {
