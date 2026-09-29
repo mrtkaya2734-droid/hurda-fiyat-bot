@@ -1718,7 +1718,7 @@ data-delete-url="/admin/source/{esc(firma_id)}/manual-delete"
 data-kalem="{esc(kalem)}"
 onclick="manuelFiyatSil(this)"
 >
-Manuel Fiyatı Kaldır
+Kalemi Tamamen Sil
 </button>
 
 </div>
