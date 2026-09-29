@@ -4195,7 +4195,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full"
 >
 </div>
 
@@ -4511,7 +4511,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden self-start h-fit";
+                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col";
 
             const panelId = "firma_" + index;
             let rows = "";
@@ -4547,7 +4547,7 @@ async function fiyatlariGetir() {
                 : '<span class="text-[10px] text-slate-400">Manuel fiyat kaynağı</span>';
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' + panelId + '" aria-expanded="false">' +
+                '<button type="button" class="firma-toggle w-full h-full min-h-[120px] text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' + panelId + '" aria-expanded="false">' +
                     '<div class="flex items-center justify-between gap-3">' +
                         '<div class="min-w-0 flex-1">' +
                             '<div class="flex items-center gap-2 flex-wrap">' +
