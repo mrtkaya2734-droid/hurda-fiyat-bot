@@ -2829,8 +2829,8 @@ Otomatik fiyat çek
 </div>
 
 <div class="text-xs text-slate-500">
-Scraper:
-{"Mevcut" if scraper_var else "Yok - manuel kullanım"}
+Kaynak okuyucu:
+{"Özel scraper mevcut" if scraper_var else ("Genel URL okuyucu" if firma.get("url", "").strip() else "URL gerekli")}
 </div>
 
 <button
