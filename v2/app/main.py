@@ -4009,8 +4009,7 @@ BEKLİYOR
             ) - 1
         )
 
-        firma_rows += f"""
-<div class="border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md rounded-2xl p-4 sm:p-5 transition">
+        firma_rows += f"""\n<div data-firma-row="{esc(str(baslik) + " " + str(firma_id))}" class="border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md rounded-2xl p-4 sm:p-5 transition">
 
 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
