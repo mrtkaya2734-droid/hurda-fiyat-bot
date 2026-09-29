@@ -246,13 +246,24 @@ def firma_stale_mi(firma):
     if not firma:
         return True
 
-    # Scraper başarıyla çalıştıysa veri güncel kabul edilir.
-    # Kaynağın yayınladığı fiyat tarihi ayrı bir bilgidir.
-    return (
+    son_cekim = parse_datetime(
         firma.get(
-            "durum"
-        ) != "basarili"
+            "son_basarili_cekme"
+        )
     )
+
+    if not son_cekim:
+        return True
+
+    simdi = now_istanbul().replace(
+        tzinfo=None
+    )
+
+    dakika = (
+        simdi - son_cekim
+    ).total_seconds() / 60
+
+    return dakika > STALE_MINUTES
 
 def fiyat_tarih_yaz(value):
 
@@ -1660,8 +1671,6 @@ def admin_source_edit(
     )
 
     fiyat_rows = ""
-    manuel_sil_forms = ""
-
     for index, (kalem, bilgi) in enumerate(prices.items()):
 
         otomatik = bilgi.get(
@@ -2570,12 +2579,10 @@ async def admin_manual_delete(
 
     data = load_data()
 
-    firms = data.get(
+    if firma_id not in data.get(
         "firms",
         {},
-    )
-
-    if firma_id not in firms:
+    ):
 
         raise HTTPException(
             status_code=404,
@@ -2594,57 +2601,17 @@ async def admin_manual_delete(
             detail="Silinecek fiyat kalemi belirtilmedi.",
         )
 
-    firma_fiyatlari = data.get(
-        "prices",
-        {},
-    ).get(
-        firma_id
+    silindi = manuel_fiyat_sil(
+        firma_id,
+        kalem,
     )
 
-    if not isinstance(
-        firma_fiyatlari,
-        dict
-    ) or kalem not in firma_fiyatlari:
+    if not silindi:
 
         raise HTTPException(
             status_code=404,
             detail="Manuel fiyat kalemi bulunamadı.",
         )
-
-    kayit = firma_fiyatlari[
-        kalem
-    ]
-
-    if not isinstance(
-        kayit,
-        dict
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail="Fiyat kaydı geçersiz.",
-        )
-
-    kayit[
-        "manuel_fiyat"
-    ] = None
-
-    kayit[
-        "guncelleme"
-    ] = now_istanbul_string()
-
-    if kayit.get(
-        "otomatik_fiyat"
-    ) is None:
-
-        firma_fiyatlari.pop(
-            kalem,
-            None
-        )
-
-    save_data(
-        data
-    )
 
     bildirim_ekle(
         firma_id,
