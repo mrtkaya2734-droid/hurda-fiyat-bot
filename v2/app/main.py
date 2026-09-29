@@ -54,7 +54,7 @@ from app.storage import (
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "hurda123")
 
-STALE_MINUTES = 120
+STALE_MINUTES = 1440
 
 security = HTTPBasic()
 
@@ -1657,8 +1657,9 @@ def admin_source_edit(
     )
 
     fiyat_rows = ""
+    manuel_sil_forms = ""
 
-    for kalem, bilgi in prices.items():
+    for index, (kalem, bilgi) in enumerate(prices.items()):
 
         otomatik = bilgi.get(
             "otomatik_fiyat"
@@ -1700,15 +1701,28 @@ placeholder="Boş = otomatik"
 
 <button
 type="submit"
-name="manuel_sil"
-value="{esc(kalem)}"
-formaction="/admin/source/{esc(firma_id)}/manual-delete"
+form="manuel_sil_{index}"
 class="w-full mt-2 border border-red-200 bg-red-50 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
 >
 Manuel Fiyatı Kaldır
 </button>
 
 </div>
+"""
+
+        manuel_sil_forms += f"""
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/manual-delete"
+id="manuel_sil_{index}"
+class="hidden"
+>
+<input
+type="hidden"
+name="manuel_sil"
+value="{esc(kalem)}"
+>
+</form>
 """
 
     if not fiyat_rows:
@@ -1988,6 +2002,8 @@ Manuel Fiyatları Kaydet
 </button>
 
 </form>
+
+{manuel_sil_forms}
 
 </div>
 
@@ -4107,7 +4123,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full"
+class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full"
 >
 </div>
 
@@ -4345,7 +4361,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden";
+                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden self-start h-fit";
 
             const panelId = "firma_" + index;
             let rows = "";
