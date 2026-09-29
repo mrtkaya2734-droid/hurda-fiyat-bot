@@ -30,6 +30,7 @@ import requests
 import xml.etree.ElementTree as ET
 
 from app.scrapers import TUMU
+from app.scrapers.generic import cek_url as generic_url_cek
 
 from app.storage import (
     load_data,
@@ -156,13 +157,62 @@ def esc(value):
     )
 
 
-def firma_scraperini_bul(firma_id):
+def firma_scraperini_bul(
+    firma_id,
+    data=None,
+):
 
     for kayit_id, fonksiyon in TUMU:
         if kayit_id == firma_id:
             return fonksiyon
 
-    return None
+    if data is None:
+        data = load_data()
+
+    firma = data.get(
+        "firms",
+        {},
+    ).get(
+        firma_id
+    )
+
+    if not firma:
+        return None
+
+    url = str(
+        firma.get(
+            "url",
+            "",
+        )
+        or ""
+    ).strip()
+
+    baslik = str(
+        firma.get(
+            "baslik",
+            firma_id,
+        )
+        or firma_id
+    ).strip()
+
+    otomatik = bool(
+        firma.get(
+            "otomatik",
+            False,
+        )
+    )
+
+    if not otomatik or not url:
+        return None
+
+    def _ozel_url_cek():
+        return generic_url_cek(
+            firma_id=firma_id,
+            baslik=baslik,
+            url=url,
+        )
+
+    return _ozel_url_cek
 
 
 def firmalari_sirala(data):
@@ -865,7 +915,60 @@ def verileri_guncelle():
         "Fiyatlar güncelleniyor..."
     )
 
-    for firma_id, fonksiyon in TUMU:
+    data_baslangic = load_data()
+
+    kaynaklar = list(
+        TUMU
+    )
+
+    tanimli_idler = {
+        firma_id
+        for firma_id, _ in kaynaklar
+    }
+
+    for firma in firmalari_sirala(
+        data_baslangic
+    ):
+
+        firma_id = firma.get(
+            "firma_id"
+        )
+
+        if not firma_id:
+            continue
+
+        if firma_id in tanimli_idler:
+            continue
+
+        if not firma.get(
+            "aktif",
+            True,
+        ):
+            continue
+
+        if not firma.get(
+            "otomatik",
+            False,
+        ):
+            continue
+
+        if not str(
+            firma.get(
+                "url",
+                "",
+            )
+            or ""
+        ).strip():
+            continue
+
+        kaynaklar.append(
+            (
+                firma_id,
+                None,
+            )
+        )
+
+    for firma_id, kayitli_fonksiyon in kaynaklar:
 
         try:
 
@@ -904,6 +1007,17 @@ def verileri_guncelle():
                     f"MANUEL: {firma_id}"
                 )
 
+                continue
+
+            fonksiyon = firma_scraperini_bul(
+                firma_id,
+                data,
+            )
+
+            if fonksiyon is None:
+                print(
+                    f"OTOMATİK KAYNAK YOK: {firma_id}"
+                )
                 continue
 
             sonuc = firma_verisini_cek(
@@ -1521,7 +1635,7 @@ class="w-full border border-slate-300 rounded-xl px-4 py-3"
 >
 
 <div class="text-xs text-slate-500 mt-2">
-URL girmek zorunlu değildir. Scraper olmayan firmalar manuel fiyatlarla kullanılabilir.
+Otomatik fiyat çek seçilirse, girilen URL'den genel HTML tablo/API okuyucusu ile fiyatlar otomatik çekilmeyi denenir. JavaScript/API ile özel çalışan sayfalarda firmaya özel scraper gerekebilir.
 </div>
 
 </div>
@@ -1590,7 +1704,7 @@ async def admin_new_source_save(
     ),
 ):
 
-    firma_id = firma_id.strip()
+    firma_id = firma_id.strip().lower()
     baslik = baslik.strip()
     url = (
         url or ""
@@ -1624,15 +1738,19 @@ async def admin_new_source_save(
             detail="Bu firma ID zaten mevcut.",
         )
 
-    scraper_var = (
-        firma_scraperini_bul(
-            firma_id
-        ) is not None
+    kayitli_scraper_var = (
+        any(
+            kayit_id == firma_id
+            for kayit_id, _ in TUMU
+        )
     )
 
     otomatik_aktif = (
         otomatik == "1"
-        and scraper_var
+        and (
+            kayitli_scraper_var
+            or bool(url)
+        )
     )
 
     mevcut_firma_sayisi = len(
@@ -1665,20 +1783,53 @@ async def admin_new_source_save(
         data
     )
 
-    if (
-        otomatik == "1"
-        and not scraper_var
-    ):
+    if otomatik_aktif:
 
-        bildirim_ekle(
-            firma_id,
-            "scraper_bulunamadi",
-            (
-                "Firma kaydedildi ancak bu firma için "
-                "otomatik scraper bulunamadı. "
-                "Manuel fiyat kullanılabilir."
-            ),
-        )
+        try:
+
+            fonksiyon = firma_scraperini_bul(
+                firma_id,
+                data,
+            )
+
+            if fonksiyon is None:
+                raise RuntimeError(
+                    "Otomatik kaynak oluşturulamadı."
+                )
+
+            sonuc = firma_verisini_cek(
+                fonksiyon
+            )
+
+            bildirim_ekle(
+                firma_id,
+                "basarili_guncelleme",
+                (
+                    "Firma kaydedildi ve ilk otomatik çekim "
+                    "başarılı oldu. "
+                    f"{len(sonuc['kalemler'])} fiyat kalemi okundu."
+                ),
+            )
+
+        except Exception as e:
+
+            data = load_data()
+
+            if firma_id in data.get(
+                "firms",
+                {},
+            ):
+                data["firms"][firma_id]["durum"] = "hata"
+                save_data(data)
+
+            bildirim_ekle(
+                firma_id,
+                "kaynak_testi_hatasi",
+                (
+                    "Firma kaydedildi fakat ilk otomatik çekim "
+                    f"başarısız oldu: {e}"
+                ),
+            )
 
     return RedirectResponse(
         url="/admin",
@@ -1856,7 +2007,8 @@ Yeni bir fiyat kalemi oluşturmak için kalem adını ve fiyatı girin.
 
     scraper_var = (
         firma_scraperini_bul(
-            firma_id
+            firma_id,
+            data,
         )
         is not None
     )
@@ -2175,7 +2327,10 @@ async def admin_source_save(
         "otomatik"
     ] = (
         otomatik == "1"
-        and scraper_var
+        and (
+            kayitli_scraper_var
+            or bool(url)
+        )
     )
 
     if "sira" not in data[
@@ -2206,16 +2361,16 @@ async def admin_source_save(
 
     if (
         otomatik == "1"
-        and not scraper_var
+        and not kayitli_scraper_var
+        and not url
     ):
 
         bildirim_ekle(
             firma_id,
             "scraper_bulunamadi",
             (
-                "Otomatik çalışma seçildi ancak "
-                "bu firma için scraper bulunamadı. "
-                "Firma manuel moda alındı."
+                "Otomatik çalışma seçildi fakat kaynak URL "
+                "girilmedi. Otomatik çekim yapılamaz."
             ),
         )
 
@@ -2699,7 +2854,21 @@ async def admin_source_delete(
         {}
     )
 
-    if firma_id not in firms:
+    gercek_firma_id = firma_id
+
+    if gercek_firma_id not in firms:
+
+        for mevcut_id in list(
+            firms.keys()
+        ):
+            if (
+                str(mevcut_id).casefold()
+                == str(firma_id).casefold()
+            ):
+                gercek_firma_id = mevcut_id
+                break
+
+    if gercek_firma_id not in firms:
 
         raise HTTPException(
             status_code=404,
@@ -2711,7 +2880,7 @@ async def admin_source_delete(
     # =====================================================
 
     firms.pop(
-        firma_id,
+        gercek_firma_id,
         None,
     )
 
@@ -2723,7 +2892,15 @@ async def admin_source_delete(
         "prices",
         {},
     ).pop(
-        firma_id,
+        gercek_firma_id,
+        None,
+    )
+
+    data.get(
+        "gizlenen_kalemler",
+        {},
+    ).pop(
+        gercek_firma_id,
         None,
     )
 
@@ -2739,7 +2916,7 @@ async def admin_source_delete(
         )
         if item.get(
             "firma_id"
-        ) != firma_id
+        ) != gercek_firma_id
     ]
 
     # =====================================================
@@ -2799,7 +2976,8 @@ async def admin_source_test(
         )
 
     fonksiyon = firma_scraperini_bul(
-        firma_id
+        firma_id,
+        data,
     )
 
     if fonksiyon is None:
