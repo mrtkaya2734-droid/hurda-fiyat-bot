@@ -492,6 +492,281 @@ def _westmetall_lme_verilerini_cek():
     return fiyatlar, tarih
 
 
+LME_WESTMETALL_FIELDS = {
+    "Aluminium": (
+        "Alüminyum",
+        "LME_Al_cash",
+    ),
+    "Copper": (
+        "Bakır",
+        "LME_Cu_cash",
+    ),
+    "Zinc": (
+        "Çinko",
+        "LME_Zn_cash",
+    ),
+    "Nickel": (
+        "Nikel",
+        "LME_Ni_cash",
+    ),
+    "Lead": (
+        "Kurşun",
+        "LME_Pb_cash",
+    ),
+    "Tin": (
+        "Kalay",
+        "LME_Sn_cash",
+    ),
+    "Cobalt": (
+        "Kobalt",
+        "LME_Co_cash",
+    ),
+}
+
+
+def _westmetall_tablo_oku(
+    html
+):
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    for table in soup.find_all("table"):
+
+        rows = []
+
+        for row in table.find_all("tr"):
+
+            cells = [
+                " ".join(
+                    cell.stripped_strings
+                ).strip()
+                for cell in row.find_all(
+                    ["th", "td"]
+                )
+            ]
+
+            if len(cells) < 3:
+                continue
+
+            try:
+
+                datetime.strptime(
+                    cells[0],
+                    "%d. %B %Y",
+                )
+
+            except ValueError:
+
+                try:
+
+                    datetime.strptime(
+                        cells[0],
+                        "%d. %m. %Y",
+                    )
+
+                except ValueError:
+
+                    continue
+
+            cash = _lme_sayi(
+                cells[1]
+            )
+
+            three_month = _lme_sayi(
+                cells[2]
+            )
+
+            if (
+                cash is None
+                and three_month is None
+            ):
+                continue
+
+            rows.append(
+                {
+                    "tarih": cells[0],
+                    "cash": cash,
+                    "three_month": three_month,
+                    "stock": (
+                        _lme_sayi(
+                            cells[3]
+                        )
+                        if len(cells) >= 4
+                        else None
+                    ),
+                }
+            )
+
+        if rows:
+            return rows
+
+    return []
+
+
+def _westmetall_tarih_parse(
+    value
+):
+
+    text = " ".join(
+        str(value or "").split()
+    )
+
+    aylar = {
+        "January": 1,
+        "February": 2,
+        "March": 3,
+        "April": 4,
+        "May": 5,
+        "June": 6,
+        "July": 7,
+        "August": 8,
+        "September": 9,
+        "October": 10,
+        "November": 11,
+        "December": 12,
+    }
+
+    match = re.search(
+        r"(\d{1,2})\.\s*"
+        r"([A-Za-z]+)\s+"
+        r"(\d{4})",
+        text,
+        re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    ay = aylar.get(
+        match.group(2).title()
+    )
+
+    if not ay:
+        return None
+
+    try:
+
+        return datetime(
+            int(match.group(3)),
+            ay,
+            int(match.group(1)),
+        ).date()
+
+    except ValueError:
+
+        return None
+
+
+def _westmetall_tek_metal_cek(
+    metal
+):
+
+    turkce, field = (
+        LME_WESTMETALL_FIELDS[
+            metal
+        ]
+    )
+
+    url = (
+        "https://www.westmetall.com/en/"
+        "markdaten.php?action=table&field="
+        + field
+    )
+
+    try:
+
+        response = requests.get(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 "
+                    "Chrome/140 Safari/537.36"
+                ),
+                "Accept-Language": "en-GB,en;q=0.9",
+            },
+            timeout=15,
+        )
+
+        response.raise_for_status()
+
+    except requests.RequestException as exc:
+
+        raise RuntimeError(
+            f"{turkce}: Westmetall bağlantı hatası: {exc}"
+        ) from exc
+
+    rows = _westmetall_tablo_oku(
+        response.text
+    )
+
+    if not rows:
+
+        raise RuntimeError(
+            f"{turkce}: Westmetall fiyat tablosu okunamadı."
+        )
+
+    ilk = rows[0]
+    onceki = (
+        rows[1]
+        if len(rows) > 1
+        else None
+    )
+
+    tarih = _westmetall_tarih_parse(
+        ilk["tarih"]
+    )
+
+    degisim_yuzde = None
+
+    if (
+        onceki
+        and ilk["three_month"] is not None
+        and onceki["three_month"] is not None
+        and onceki["three_month"] != 0
+    ):
+
+        degisim_yuzde = (
+            (
+                float(
+                    ilk["three_month"]
+                )
+                - float(
+                    onceki["three_month"]
+                )
+            )
+            / float(
+                onceki["three_month"]
+            )
+        ) * 100
+
+    return {
+        "ad": turkce,
+        "cash": ilk["cash"],
+        "three_month": ilk["three_month"],
+        "stock": ilk["stock"],
+        "tarih": (
+            tarih.strftime(
+                "%d.%m.%Y"
+            )
+            if tarih
+            else "-"
+        ),
+        "onceki_three_month": (
+            onceki["three_month"]
+            if onceki
+            else None
+        ),
+        "degisim_yuzde": degisim_yuzde,
+    }
+
+
 def lme_verilerini_cek():
 
     global _LME_CACHE
@@ -512,61 +787,34 @@ def lme_verilerini_cek():
 
             return _LME_CACHE
 
-    fiyatlar = {}
-    tarih = None
-    kaynak = None
-    lme_hatasi = None
+    fiyatlar = []
 
-    # Önce LME resmi sayfasını dene.
-    try:
-
-        cevap = requests.get(
-            LME_URL,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 Chrome/140 Safari/537.36"
-                ),
-                "Accept-Language": "en-GB,en;q=0.9",
-            },
-            timeout=25,
-        )
-
-        cevap.raise_for_status()
-
-        fiyatlar, tarih = _lme_verilerini_html(
-            cevap.text
-        )
-
-        kaynak = "LME Official Prices"
-
-    except Exception as exc:
-
-        lme_hatasi = str(
-            exc
-        )
-
-    # LME sunucusu 403 gibi bir yanıt verirse
-    # aynı LME Official Prices verisini yayınlayan
-    # ikinci kaynağa geç.
-    if not fiyatlar:
+    for metal in LME_WESTMETALL_FIELDS:
 
         try:
 
-            fiyatlar, tarih = _westmetall_lme_verilerini_cek()
-
-            kaynak = (
-                "Westmetall · Official LME Prices"
+            fiyatlar.append(
+                _westmetall_tek_metal_cek(
+                    metal
+                )
             )
 
         except Exception as exc:
 
-            raise RuntimeError(
-                "LME verisi alınamadı. "
-                f"Resmi kaynak: {lme_hatasi or '-'} | "
-                f"Yedek kaynak: {exc}"
-            ) from exc
+            print(
+                "LME KAYNAK HATASI: "
+                f"{metal} -> "
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            )
 
+    if not fiyatlar:
+
+        raise RuntimeError(
+            "Westmetall'den hiçbir LME metal verisi alınamadı."
+        )
+
+    # Yahoo USD/TRY piyasa kurunu TL karşılığında kullan.
     usd_tl = None
 
     try:
@@ -583,7 +831,7 @@ def lme_verilerini_cek():
                 {}
             )
             .get(
-                "alis"
+                "kur"
             )
         )
 
@@ -591,57 +839,52 @@ def lme_verilerini_cek():
 
         usd_tl = None
 
-    veriler = []
-
-    for key in LME_METALS:
-
-        if key not in fiyatlar:
-            continue
-
-        item = dict(
-            fiyatlar[key]
-        )
-
-        bid = item.get(
-            "three_month_bid"
-        )
-        ask = item.get(
-            "three_month_ask"
-        )
+    for item in fiyatlar:
 
         if (
             usd_tl is not None
-            and bid is not None
-            and ask is not None
+            and item.get(
+                "three_month"
+            ) is not None
         ):
 
-            orta = (
-                float(bid)
-                + float(ask)
-            ) / 2
-
-            item["three_month_tl"] = (
-                round(
-                    orta * float(usd_tl),
-                    2,
+            item["three_month_tl"] = round(
+                float(
+                    item["three_month"]
                 )
+                * float(
+                    usd_tl
+                ),
+                2,
             )
 
         else:
 
             item["three_month_tl"] = None
 
-        veriler.append(
-            item
+    veri_tarihler = [
+        item.get(
+            "tarih"
         )
+        for item in fiyatlar
+        if item.get(
+            "tarih"
+        )
+    ]
 
     sonuc = {
-        "tarih": tarih or "-",
-        "veriler": veriler,
+        "tarih": (
+            veri_tarihler[0]
+            if veri_tarihler
+            else "-"
+        ),
+        "veriler": fiyatlar,
         "cekilme": simdi.strftime(
             "%d.%m.%Y %H:%M:%S"
         ),
-        "kaynak": kaynak or "-",
+        "kaynak": (
+            "Westmetall · LME market data"
+        ),
         "usd_tl": usd_tl,
     }
 
@@ -1888,6 +2131,77 @@ DOVIZ_SON_CEKME = None
 DOVIZ_CACHE_SANIYE = 600
 
 
+def _yahoo_quote_getir(symbols):
+
+    response = requests.get(
+        "https://query1.finance.yahoo.com/v7/finance/quote",
+        params={
+            "symbols": ",".join(
+                symbols
+            )
+        },
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0",
+        },
+        timeout=15,
+    )
+
+    response.raise_for_status()
+
+    payload = response.json()
+
+    return (
+        payload.get(
+            "quoteResponse",
+            {}
+        )
+        .get(
+            "result",
+            []
+        )
+    )
+
+
+def _yahoo_chart_getir(symbol):
+
+    response = requests.get(
+        "https://query1.finance.yahoo.com/v8/finance/chart/"
+        + symbol,
+        params={
+            "range": "2d",
+            "interval": "5m",
+        },
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0",
+        },
+        timeout=15,
+    )
+
+    response.raise_for_status()
+
+    payload = response.json()
+
+    results = (
+        payload.get(
+            "chart",
+            {}
+        )
+        .get(
+            "result",
+            []
+        )
+    )
+
+    if not results:
+        raise ValueError(
+            f"Yahoo chart sonucu boş: {symbol}"
+        )
+
+    return results[0]
+
+
 def doviz_kurlarini_getir(force=False):
 
     global DOVIZ_CACHE
@@ -1895,90 +2209,164 @@ def doviz_kurlarini_getir(force=False):
 
     simdi = datetime.now()
 
+    # Borsa ekranı görünümü için dakikalık yenileme.
     if (
         not force
         and DOVIZ_CACHE
         and DOVIZ_SON_CEKME
         and (
             simdi - DOVIZ_SON_CEKME
-        ).total_seconds() < DOVIZ_CACHE_SANIYE
+        ).total_seconds() < 60
     ):
         return DOVIZ_CACHE
-
-    API_URL = (
-        "https://api.frankfurter.dev/v2/rate"
-    )
 
     bulunan = {}
 
     try:
 
-        for kod in (
-            "USD",
-            "EUR",
-        ):
+        quotes = _yahoo_quote_getir(
+            [
+                "USDTRY=X",
+                "EURTRY=X",
+            ]
+        )
 
-            response = requests.get(
-                f"{API_URL}/{kod.lower()}/try",
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "HurdaFiyatBot/2.0",
-                },
-                timeout=10,
+        symbol_to_code = {
+            "USDTRY=X": "USD",
+            "EURTRY=X": "EUR",
+        }
+
+        for quote in quotes:
+
+            kod = symbol_to_code.get(
+                str(
+                    quote.get(
+                        "symbol",
+                        ""
+                    )
+                )
             )
 
-            response.raise_for_status()
+            if not kod:
+                continue
 
-            veri = response.json()
-
-            rate = veri.get(
-                "rate"
+            piyasa = quote.get(
+                "regularMarketPrice"
             )
 
-            tarih = veri.get(
-                "date",
-                "",
+            bid = quote.get(
+                "bid"
             )
 
-            if rate is None:
+            ask = quote.get(
+                "ask"
+            )
 
-                raise ValueError(
-                    f"Frankfurter {kod}/TRY kuru boş döndü."
+            onceki_kapanis = quote.get(
+                "regularMarketPreviousClose"
+            )
+
+            degisim = quote.get(
+                "regularMarketChange"
+            )
+
+            degisim_yuzde = quote.get(
+                "regularMarketChangePercent"
+            )
+
+            if piyasa is None:
+                continue
+
+            piyasa = float(
+                piyasa
+            )
+
+            if bid is None:
+                bid = piyasa
+
+            if ask is None:
+                ask = piyasa
+
+            if onceki_kapanis is None:
+                onceki_kapanis = (
+                    piyasa
+                    - float(
+                        degisim
+                        or 0
+                    )
+                )
+
+            if degisim is None:
+                degisim = (
+                    piyasa
+                    - float(
+                        onceki_kapanis
+                    )
+                )
+
+            if degisim_yuzde is None:
+
+                degisim_yuzde = (
+                    (
+                        float(
+                            degisim
+                        )
+                        / float(
+                            onceki_kapanis
+                        )
+                    )
+                    * 100
+                    if onceki_kapanis
+                    else 0
                 )
 
             bulunan[kod] = {
                 "kod": kod,
                 "birim": "1",
-                "alis": float(rate),
-                "satis": float(rate),
-                "kur": float(rate),
-                "kur_turu": "Referans kur",
-                "tarih": tarih,
+                "kur": piyasa,
+                "alis": float(bid),
+                "satis": float(ask),
+                "onceki_kapanis": float(
+                    onceki_kapanis
+                ),
+                "degisim": float(
+                    degisim
+                ),
+                "degisim_yuzde": float(
+                    degisim_yuzde
+                ),
+                "durum": (
+                    "up"
+                    if float(degisim) > 0
+                    else (
+                        "down"
+                        if float(degisim) < 0
+                        else "flat"
+                    )
+                ),
+                "market_state": quote.get(
+                    "marketState"
+                ),
+                "tarih": simdi.strftime(
+                    "%d.%m.%Y"
+                ),
             }
 
-        tarihler = [
-            x.get(
-                "tarih",
-                "",
+        if (
+            "USD" not in bulunan
+            or "EUR" not in bulunan
+        ):
+            raise ValueError(
+                "Yahoo Finance USD/TRY veya EUR/TRY verisi eksik."
             )
-            for x in bulunan.values()
-            if x.get(
-                "tarih",
-                "",
-            )
-        ]
-
-        kaynak_tarihi = (
-            min(tarihler)
-            if tarihler
-            else ""
-        )
 
         DOVIZ_CACHE = {
             "status": "success",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Günlük referans kuru",
-            "tarih": kaynak_tarihi,
+            "kaynak": "Yahoo Finance",
+            "kur_turu": "Gecikmeli piyasa verisi",
+            "tarih": simdi.strftime(
+                "%d.%m.%Y"
+            ),
             "veriler": bulunan,
         }
 
@@ -1986,24 +2374,138 @@ def doviz_kurlarini_getir(force=False):
 
         return DOVIZ_CACHE
 
-    except Exception as e:
+    except Exception as yahoo_error:
 
         print(
-            "DÖVİZ KUR HATASI: "
-            f"{type(e).__name__}: {e}"
+            "YAHOO QUOTE HATASI: "
+            f"{type(yahoo_error).__name__}: "
+            f"{yahoo_error}"
         )
+
+        # Quote uç noktası erişilemezse Yahoo Chart API
+        # ile en azından güncel fiyat + değişim bilgisi alınır.
+        try:
+
+            for kod in (
+                "USD",
+                "EUR",
+            ):
+
+                chart = _yahoo_chart_getir(
+                    kod + "TRY=X"
+                )
+
+                meta = chart.get(
+                    "meta",
+                    {}
+                )
+
+                piyasa = meta.get(
+                    "regularMarketPrice"
+                )
+
+                onceki_kapanis = meta.get(
+                    "chartPreviousClose",
+                    meta.get(
+                        "previousClose"
+                    )
+                )
+
+                if piyasa is None:
+                    continue
+
+                if onceki_kapanis is None:
+                    onceki_kapanis = piyasa
+
+                degisim = (
+                    float(piyasa)
+                    - float(onceki_kapanis)
+                )
+
+                degisim_yuzde = (
+                    (
+                        degisim
+                        / float(
+                            onceki_kapanis
+                        )
+                    )
+                    * 100
+                    if onceki_kapanis
+                    else 0
+                )
+
+                bulunan[kod] = {
+                    "kod": kod,
+                    "birim": "1",
+                    "kur": float(
+                        piyasa
+                    ),
+                    "alis": float(
+                        piyasa
+                    ),
+                    "satis": float(
+                        piyasa
+                    ),
+                    "onceki_kapanis": float(
+                        onceki_kapanis
+                    ),
+                    "degisim": degisim,
+                    "degisim_yuzde": degisim_yuzde,
+                    "durum": (
+                        "up"
+                        if degisim > 0
+                        else (
+                            "down"
+                            if degisim < 0
+                            else "flat"
+                        )
+                    ),
+                    "market_state": meta.get(
+                        "marketState"
+                    ),
+                    "tarih": simdi.strftime(
+                        "%d.%m.%Y"
+                    ),
+                }
+
+            if (
+                "USD" in bulunan
+                and "EUR" in bulunan
+            ):
+
+                DOVIZ_CACHE = {
+                    "status": "success",
+                    "kaynak": "Yahoo Finance",
+                    "kur_turu": "Gecikmeli piyasa verisi",
+                    "tarih": simdi.strftime(
+                        "%d.%m.%Y"
+                    ),
+                    "veriler": bulunan,
+                }
+
+                DOVIZ_SON_CEKME = simdi
+
+                return DOVIZ_CACHE
+
+        except Exception as chart_error:
+
+            print(
+                "YAHOO CHART HATASI: "
+                f"{type(chart_error).__name__}: "
+                f"{chart_error}"
+            )
 
         if DOVIZ_CACHE:
             return DOVIZ_CACHE
 
         return {
             "status": "error",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Günlük referans kuru",
+            "kaynak": "Yahoo Finance",
+            "kur_turu": "Gecikmeli piyasa verisi",
             "tarih": "",
             "veriler": {},
             "hata": (
-                "USD/EUR kurları şu anda alınamadı."
+                "USD/EUR piyasa kurları şu anda alınamadı."
             ),
         }
 
@@ -4679,7 +5181,7 @@ def lme_fiyatlari():
 
         return {
             "status": "error",
-            "kaynak": "LME Official Prices + yedek kaynak",
+            "kaynak": "Westmetall · LME market data",
             "gecikme": "Gün gecikmeli",
             "message": str(exc),
             "veriler": [],
@@ -4927,86 +5429,151 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
     class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-5"
 >
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
 
-        <div class="flex items-center justify-between gap-3">
+<div class="flex items-start justify-between gap-3">
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Amerikan Doları
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    USD / TL
-                </div>
-            </div>
+<div>
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Amerikan Doları
+</div>
+<div class="text-base font-black text-slate-900 mt-1">
+USD / TRY
+</div>
+</div>
 
-            <div class="text-2xl">🇺🇸</div>
+<div class="text-2xl">🇺🇸</div>
 
-        </div>
+</div>
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
+<div class="mt-4">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Referans</div>
-                <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="text-[11px] text-slate-400 font-semibold">
+Piyasa
+</div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">TRY</div>
-                <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div
+id="usdPiyasa"
+class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight"
+>
+Yükleniyor...
+</div>
 
-        </div>
+<div
+id="usdDegisim"
+class="text-sm font-black mt-1"
+>
+--
+</div>
 
-    </div>
+</div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div class="grid grid-cols-2 gap-2 mt-4">
 
-        <div class="flex items-center justify-between gap-3">
+<div class="bg-slate-50 rounded-xl p-3">
+<div class="text-[10px] text-slate-400 font-bold">
+ALIŞ / BID
+</div>
+<div
+id="usdAlis"
+class="text-sm sm:text-base font-black text-slate-800 mt-1"
+>
+-
+</div>
+</div>
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Euro
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    EUR / TL
-                </div>
-            </div>
+<div class="bg-slate-50 rounded-xl p-3">
+<div class="text-[10px] text-slate-400 font-bold">
+SATIŞ / ASK
+</div>
+<div
+id="usdSatis"
+class="text-sm sm:text-base font-black text-slate-800 mt-1"
+>
+-
+</div>
+</div>
 
-            <div class="text-2xl">🇪🇺</div>
+</div>
 
-        </div>
+</div>
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
-                <div id="eurAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
-                <div id="eurSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="flex items-start justify-between gap-3">
 
-        </div>
+<div>
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Euro
+</div>
+<div class="text-base font-black text-slate-900 mt-1">
+EUR / TRY
+</div>
+</div>
 
-    </div>
+<div class="text-2xl">🇪🇺</div>
 
-    <div
-        id="currencyInfo"
-        class="sm:col-span-2 text-[11px] text-slate-500 text-center"
-    >
-        Kur kaynağı: TCMB · Güncelleniyor...
-    </div>
+</div>
+
+<div class="mt-4">
+
+<div class="text-[11px] text-slate-400 font-semibold">
+Piyasa
+</div>
+
+<div
+id="eurPiyasa"
+class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight"
+>
+Yükleniyor...
+</div>
+
+<div
+id="eurDegisim"
+class="text-sm font-black mt-1"
+>
+--
+</div>
+
+</div>
+
+<div class="grid grid-cols-2 gap-2 mt-4">
+
+<div class="bg-slate-50 rounded-xl p-3">
+<div class="text-[10px] text-slate-400 font-bold">
+ALIŞ / BID
+</div>
+<div
+id="eurAlis"
+class="text-sm sm:text-base font-black text-slate-800 mt-1"
+>
+-
+</div>
+</div>
+
+<div class="bg-slate-50 rounded-xl p-3">
+<div class="text-[10px] text-slate-400 font-bold">
+SATIŞ / ASK
+</div>
+<div
+id="eurSatis"
+class="text-sm sm:text-base font-black text-slate-800 mt-1"
+>
+-
+</div>
+</div>
+
+</div>
+
+</div>
+
+<div
+id="currencyInfo"
+class="sm:col-span-2 text-[11px] text-slate-500 text-center"
+>
+Kur kaynağı: Yahoo Finance · Gecikmeli piyasa verisi · Güncelleniyor...
+</div>
 
 </section>
 
@@ -5251,7 +5818,6 @@ async function lmeFiyatlariniGetir() {
             );
 
         if (!response.ok) {
-
             throw new Error(
                 "LME servisi çalışmadı."
             );
@@ -5274,6 +5840,27 @@ async function lmeFiyatlariniGetir() {
 
         grid.innerHTML = "";
 
+        const formatFiyat =
+            function(value) {
+
+                if (
+                    value === null
+                    || value === undefined
+                ) {
+                    return "-";
+                }
+
+                return Number(
+                    value
+                ).toLocaleString(
+                    "tr-TR",
+                    {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }
+                );
+            };
+
         result.veriler.forEach(
             function(item) {
 
@@ -5283,72 +5870,82 @@ async function lmeFiyatlariniGetir() {
                     );
 
                 card.className =
-                    "bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 min-h-[154px]";
+                    "bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 min-h-[175px]";
 
-                const three =
-                    item.three_month_bid !== null
-                    && item.three_month_ask !== null
-                    ? (
-                        (
-                            Number(
-                                item.three_month_bid
-                            )
-                            + Number(
-                                item.three_month_ask
-                            )
-                        ) / 2
-                    )
-                    : null;
+                let degisimHtml = "";
 
-                const formatFiyat =
-                    function(value) {
+                if (
+                    item.degisim_yuzde !== null
+                    && item.degisim_yuzde !== undefined
+                ) {
 
-                        if (value === null || value === undefined) {
-                            return "-";
-                        }
-
-                        return Number(
-                            value
-                        ).toLocaleString(
-                            "tr-TR",
-                            {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                            }
+                    const pct =
+                        Number(
+                            item.degisim_yuzde
                         );
-                    };
+
+                    if (pct > 0) {
+
+                        degisimHtml =
+                            '<div class="text-sm font-black text-emerald-600 mt-1">▲ +'
+                            + formatFiyat(pct)
+                            + "%</div>";
+
+                    } else if (pct < 0) {
+
+                        degisimHtml =
+                            '<div class="text-sm font-black text-red-600 mt-1">▼ '
+                            + formatFiyat(
+                                Math.abs(
+                                    pct
+                                )
+                            )
+                            + "%</div>";
+
+                    } else {
+
+                        degisimHtml =
+                            '<div class="text-sm font-black text-slate-400 mt-1">● 0,00%</div>";
+
+                    }
+                }
 
                 card.innerHTML =
                     '<div class="flex items-center justify-between gap-2">' +
                         '<div class="font-black text-slate-900 break-words">' +
                             escapeHtml(item.ad) +
                         "</div>" +
-                        '<div class="text-[10px] font-bold text-slate-400">3M</div>' +
+                        '<div class="text-[10px] font-bold text-slate-400">LME 3M</div>' +
                     "</div>" +
                     '<div class="text-xs text-slate-500 mt-2">USD / Ton</div>' +
                     '<div class="text-lg font-black text-slate-900 mt-1">' +
-                        formatFiyat(three) +
+                        formatFiyat(item.three_month) +
                     "</div>" +
-                    '<div class="text-sm font-bold text-emerald-700 mt-1">' +
+                    degisimHtml +
+                    '<div class="text-sm font-bold text-emerald-700 mt-2">' +
                         (
                             item.three_month_tl !== null
                             && item.three_month_tl !== undefined
-                            ? formatFiyat(item.three_month_tl) + " TL"
-                            : "TL karşılığı alınamadı"
+                            ? formatFiyat(item.three_month_tl) + " TL/Ton"
+                            : "TL karşılığı yok"
                         ) +
                     "</div>" +
-                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × TCMB USD alış</div>' +
                     '<div class="grid grid-cols-2 gap-2 mt-3">' +
                         '<div class="bg-white rounded-lg p-2">' +
-                            '<div class="text-[10px] text-slate-400">Bid</div>' +
+                            '<div class="text-[10px] text-slate-400">Cash</div>' +
                             '<div class="text-xs font-bold text-slate-700">' +
-                                formatFiyat(item.three_month_bid) +
+                                formatFiyat(item.cash) +
                             "</div>" +
                         "</div>" +
                         '<div class="bg-white rounded-lg p-2">' +
-                            '<div class="text-[10px] text-slate-400">Ask</div>' +
+                            '<div class="text-[10px] text-slate-400">Stok</div>' +
                             '<div class="text-xs font-bold text-slate-700">' +
-                                formatFiyat(item.three_month_ask) +
+                                (
+                                    item.stock !== null
+                                    && item.stock !== undefined
+                                    ? Number(item.stock).toLocaleString("tr-TR")
+                                    : "-"
+                                ) +
                             "</div>" +
                         "</div>" +
                     "</div>";
@@ -5361,22 +5958,28 @@ async function lmeFiyatlariniGetir() {
 
         info.textContent =
             "Kaynak: "
-            + (result.kaynak || "LME Official Prices")
+            + (
+                result.kaynak
+                || "Westmetall · LME market data"
+            )
             + " · Veri tarihi: "
-            + (result.tarih || "-")
-            + " · Gün gecikmeli"
+            + (
+                result.tarih
+                || "-"
+            )
+            + " · USD/Ton"
             + (
                 result.usd_tl
-                ? " · TCMB USD alış: "
+                ? " · USD/TRY: "
                 + Number(
                     result.usd_tl
-                  ).toLocaleString(
+                ).toLocaleString(
                     "tr-TR",
                     {
                         minimumFractionDigits: 4,
                         maximumFractionDigits: 4
                     }
-                  )
+                )
                 : ""
             );
 
@@ -5438,44 +6041,259 @@ async function dovizleriGetir() {
             || !eur
         ) {
             throw new Error(
-                "Döviz verisi alınamadı."
+                result.hata
+                || "Döviz verisi alınamadı."
             );
         }
 
-        document.getElementById("usdAlis").textContent =
-            dovizGoster(usd.alis);
+        const formatKur =
+            function(value) {
 
-        document.getElementById("usdSatis").textContent =
-            dovizGoster(usd.satis);
+                return Number(
+                    value
+                ).toLocaleString(
+                    "tr-TR",
+                    {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 4,
+                    }
+                );
+            };
 
-        document.getElementById("eurAlis").textContent =
-            dovizGoster(eur.alis);
+        const degisimHtml =
+            function(item) {
 
-        document.getElementById("eurSatis").textContent =
-            dovizGoster(eur.satis);
+                const pct =
+                    Number(
+                        item.degisim_yuzde
+                        || 0
+                    );
 
-        document.getElementById("currencyInfo").textContent =
-            "Kur kaynağı: " + (result.kaynak || "Frankfurter") + " · "
-            + (result.tarih || "-");
+                const fark =
+                    Number(
+                        item.degisim
+                        || 0
+                    );
+
+                if (pct > 0) {
+
+                    return "▲ +"
+                        + pct.toLocaleString(
+                            "tr-TR",
+                            {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            }
+                        )
+                        + "%  ("
+                        + formatKur(
+                            fark
+                        )
+                        + " TL)";
+
+                }
+
+                if (pct < 0) {
+
+                    return "▼ "
+                        + Math.abs(
+                            pct
+                        ).toLocaleString(
+                            "tr-TR",
+                            {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            }
+                        )
+                        + "%  ("
+                        + formatKur(
+                            Math.abs(
+                                fark
+                            )
+                        )
+                        + " TL)";
+
+                }
+
+                return "● 0,00%";
+            };
+
+        const setChangeClass =
+            function(
+                element,
+                item
+            ) {
+
+                element.classList.remove(
+                    "text-emerald-600",
+                    "text-red-600",
+                    "text-slate-400"
+                );
+
+                if (
+                    Number(
+                        item.degisim
+                        || 0
+                    ) > 0
+                ) {
+
+                    element.classList.add(
+                        "text-emerald-600"
+                    );
+
+                } else if (
+                    Number(
+                        item.degisim
+                        || 0
+                    ) < 0
+                ) {
+
+                    element.classList.add(
+                        "text-red-600"
+                    );
+
+                } else {
+
+                    element.classList.add(
+                        "text-slate-400"
+                    );
+                }
+            };
+
+        document.getElementById(
+            "usdPiyasa"
+        ).textContent =
+            formatKur(
+                usd.kur
+            )
+            + " TL";
+
+        document.getElementById(
+            "usdAlis"
+        ).textContent =
+            formatKur(
+                usd.alis
+            )
+            + " TL";
+
+        document.getElementById(
+            "usdSatis"
+        ).textContent =
+            formatKur(
+                usd.satis
+            )
+            + " TL";
+
+        const usdDegisim =
+            document.getElementById(
+                "usdDegisim"
+            );
+
+        usdDegisim.textContent =
+            degisimHtml(
+                usd
+            );
+
+        setChangeClass(
+            usdDegisim,
+            usd
+        );
+
+        document.getElementById(
+            "eurPiyasa"
+        ).textContent =
+            formatKur(
+                eur.kur
+            )
+            + " TL";
+
+        document.getElementById(
+            "eurAlis"
+        ).textContent =
+            formatKur(
+                eur.alis
+            )
+            + " TL";
+
+        document.getElementById(
+            "eurSatis"
+        ).textContent =
+            formatKur(
+                eur.satis
+            )
+            + " TL";
+
+        const eurDegisim =
+            document.getElementById(
+                "eurDegisim"
+            );
+
+        eurDegisim.textContent =
+            degisimHtml(
+                eur
+            );
+
+        setChangeClass(
+            eurDegisim,
+            eur
+        );
+
+        document.getElementById(
+            "currencyInfo"
+        ).textContent =
+            "Kur kaynağı: "
+            + (
+                result.kaynak
+                || "Yahoo Finance"
+            )
+            + " · Gecikmeli piyasa verisi · "
+            + (
+                result.tarih
+                || "-"
+            );
 
     }
     catch (error) {
 
-        document.getElementById("usdAlis").textContent = "-";
-        document.getElementById("usdSatis").textContent = "-";
-        document.getElementById("eurAlis").textContent = "-";
-        document.getElementById("eurSatis").textContent = "-";
+        document.getElementById(
+            "usdPiyasa"
+        ).textContent = "-";
 
-        document.getElementById("currencyInfo").textContent =
-            "Kur bilgisi şu anda alınamıyor.";
+        document.getElementById(
+            "eurPiyasa"
+        ).textContent = "-";
+
+        document.getElementById(
+            "usdAlis"
+        ).textContent = "-";
+
+        document.getElementById(
+            "usdSatis"
+        ).textContent = "-";
+
+        document.getElementById(
+            "eurAlis"
+        ).textContent = "-";
+
+        document.getElementById(
+            "eurSatis"
+        ).textContent = "-";
+
+        document.getElementById(
+            "usdDegisim"
+        ).textContent =
+            "Veri alınamadı.";
+
+        document.getElementById(
+            "eurDegisim"
+        ).textContent =
+            "Veri alınamadı.";
 
         console.error(
             "Döviz kurları:",
             error
         );
-
     }
-
 }
 
 
@@ -5725,13 +6543,13 @@ fiyatlariGetir();
 
 setInterval(
     dovizleriGetir,
-    600000
+    60000
 );
 
 
 setInterval(
     lmeFiyatlariniGetir,
-    900000
+    300000
 );
 
 
