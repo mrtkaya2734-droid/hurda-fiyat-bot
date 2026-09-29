@@ -5097,15 +5097,36 @@ id="lmeSection"
 class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 mb-4 sm:mb-5"
 >
 
-<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+<button
+type="button"
+id="lmeToggle"
+class="w-full text-left flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-0 hover:bg-slate-50 rounded-xl p-2 -m-2 transition"
+aria-expanded="false"
+aria-controls="lmeContent"
+>
 
 <div class="min-w-0">
+<div class="flex items-center gap-2">
 <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
 Londra Metal Borsası
 </div>
 
-<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+<span class="text-[10px] font-bold text-slate-400">
+Aç / Kapat
+</span>
+</div>
+
+<div class="flex items-center gap-3 mt-1">
+<div class="text-lg sm:text-xl font-black text-slate-900">
 LME Metal Fiyatları
+</div>
+
+<span
+id="lmeToggleIcon"
+class="text-slate-400 text-sm transition-transform"
+>
+▼
+</span>
 </div>
 
 <div class="text-[10px] sm:text-[11px] text-slate-400 mt-1">
@@ -5120,7 +5141,13 @@ class="text-[10px] sm:text-[11px] text-slate-500 lg:text-right"
 LME verisi yükleniyor...
 </div>
 
-</div>
+</button>
+
+<div
+id="lmeContent"
+class="hidden mt-4"
+aria-hidden="true"
+>
 
 <div
 id="lmeGrid"
@@ -5162,6 +5189,8 @@ LME verileri alınıyor...
 </tr>
 </tbody>
 </table>
+
+</div>
 
 </div>
 
@@ -5345,7 +5374,72 @@ function dovizGoster(deger) {
 }
 
 
+function lmeAcKapat() {
+
+    const toggle =
+        document.getElementById(
+            "lmeToggle"
+        );
+
+    const content =
+        document.getElementById(
+            "lmeContent"
+        );
+
+    const icon =
+        document.getElementById(
+            "lmeToggleIcon"
+        );
+
+    if (!toggle || !content) {
+        return;
+    }
+
+    const acik =
+        !content.classList.contains(
+            "hidden"
+        );
+
+    content.classList.toggle(
+        "hidden",
+        acik
+    );
+
+    content.setAttribute(
+        "aria-hidden",
+        String(acik)
+    );
+
+    toggle.setAttribute(
+        "aria-expanded",
+        String(!acik)
+    );
+
+    if (icon) {
+        icon.style.transform =
+            acik
+                ? "rotate(0deg)"
+                : "rotate(180deg)";
+    }
+
+}
+
+
 async function lmeFiyatlariniGetir() {
+    
+    const lmeToggle =
+        document.getElementById(
+            "lmeToggle"
+        );
+
+    if (lmeToggle) {
+        lmeToggle.addEventListener(
+            "click",
+            lmeAcKapat
+        );
+    }
+
+    
 
     const tableBody =
         document.getElementById(
