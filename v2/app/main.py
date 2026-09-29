@@ -5939,7 +5939,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-fit";
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-shadow";
 
             const panelId = "firma_" + index;
             let rows = "";
@@ -5950,69 +5950,191 @@ async function fiyatlariGetir() {
                 let degisimHtml = "";
 
                 if (degisim) {
-                    let cls = "text-slate-500";
-                    if (degisim.startsWith("+")) { cls = "text-emerald-600"; }
-                    else if (degisim.startsWith("-")) { cls = "text-red-600"; }
-                    degisimHtml = '<span class="text-xs ' + cls + ' font-bold whitespace-nowrap">' + escapeHtml(degisim) + "</span>";
+                    let cls = "text-slate-500 bg-slate-100 border-slate-200";
+                    let icon = "•";
+
+                    if (degisim.startsWith("+")) {
+                        cls = "text-emerald-700 bg-emerald-50 border-emerald-200";
+                        icon = "▲";
+                    }
+                    else if (degisim.startsWith("-")) {
+                        cls = "text-red-700 bg-red-50 border-red-200";
+                        icon = "▼";
+                    }
+
+                    degisimHtml =
+                        '<span class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] ' +
+                        cls +
+                        ' font-black whitespace-nowrap">' +
+                            icon +
+                            " " +
+                            escapeHtml(degisim) +
+                        "</span>";
                 }
 
                 rows +=
-                    '<div class="price-row flex items-start justify-between gap-3 py-3 border-b border-slate-100 last:border-0">' +
+                    '<div class="price-row flex items-center justify-between gap-3 py-3.5 border-b border-slate-100 last:border-0">' +
                         '<div class="price-name min-w-0">' +
-                            '<div class="font-semibold text-slate-800 break-words">' + escapeHtml(kalem.cins) + "</div>" +
-                            '<div class="text-[10px] text-slate-400 mt-1">Tarih: ' + escapeHtml(kalem.fiyat_tarihi || "-") + "</div>" +
-                            '<div class="mt-1">' + durumEtiketi(kalem.durum) + "</div>" +
+                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] break-words">' +
+                                escapeHtml(kalem.cins) +
+                            "</div>" +
+                            '<div class="flex flex-wrap items-center gap-2 mt-1.5">' +
+                                '<span class="text-[10px] text-slate-400">Tarih</span>' +
+                                '<span class="text-[10px] font-bold text-slate-500">' +
+                                    escapeHtml(kalem.fiyat_tarihi || "-") +
+                                "</span>" +
+                                '<span class="ml-0.5">' +
+                                    durumEtiketi(kalem.durum) +
+                                "</span>" +
+                            "</div>" +
                         "</div>" +
                         '<div class="price-value text-right shrink-0">' +
-                            '<div class="font-black text-slate-900 break-words">' + escapeHtml(kalem.fiyat) + "</div>" +
-                            degisimHtml +
+                            '<div class="font-black text-slate-950 text-sm sm:text-base leading-tight break-words">' +
+                                escapeHtml(kalem.fiyat) +
+                            "</div>" +
+                            (
+                                degisimHtml
+                                    ? '<div class="mt-1.5 flex justify-end">' +
+                                        degisimHtml +
+                                      "</div>"
+                                    : ""
+                            ) +
                         "</div>" +
                     "</div>";
             });
 
             const kaynakLink = item.url
-                ? '<a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer" class="text-[10px] text-indigo-600 hover:text-indigo-800 underline break-words">Resmi Kaynağa Git ↗</a>'
-                : '<span class="text-[10px] text-slate-400">Manuel fiyat kaynağı</span>';
+                ? '<a href="' +
+                    escapeHtml(item.url) +
+                    '" target="_blank" rel="noopener noreferrer" ' +
+                    'class="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-600 hover:bg-slate-200 transition">' +
+                        "Kaynak ↗" +
+                  "</a>"
+                : '<span class="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-400">' +
+                    "Manuel fiyat" +
+                  "</span>";
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full h-[128px] text-left p-4 sm:p-5 hover:bg-slate-50 transition flex items-center" data-panel="' + panelId + '" aria-expanded="false">' +
-                    '<div class="flex items-center justify-between gap-3">' +
+                '<button type="button" class="firma-toggle w-full min-h-[128px] text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' +
+                    panelId +
+                    '" aria-expanded="false">' +
+
+                    '<div class="flex items-center justify-between gap-4">' +
+
                         '<div class="min-w-0 flex-1">' +
+
                             '<div class="flex items-center gap-2 flex-wrap">' +
-                                '<h2 class="font-black text-base sm:text-lg text-slate-900 break-words">' + escapeHtml(item.baslik) + "</h2>" +
-                                durumEtiketi(item.durum) +
+                                '<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-sm font-black shadow-sm shrink-0">' +
+                                    (index + 1) +
+                                "</div>" +
+
+                                '<div class="min-w-0">' +
+                                    '<div class="flex items-center gap-2 flex-wrap">' +
+                                        '<h2 class="font-black text-base sm:text-lg text-slate-950 break-words">' +
+                                            escapeHtml(item.baslik) +
+                                        "</h2>" +
+                                        durumEtiketi(item.durum) +
+                                    "</div>" +
+
+                                    '<div class="text-[11px] text-slate-500 mt-1 break-words">' +
+                                        "Fiyat tarihi: " +
+                                        escapeHtml(item.tarih || "-") +
+                                    "</div>" +
+                                "</div>" +
+
                             "</div>" +
-                            '<div class="text-xs text-slate-500 mt-1 break-words">Fiyat tarihi: ' + escapeHtml(item.tarih) + "</div>" +
+
                         "</div>" +
-                        '<div class="shrink-0 flex items-center gap-2">' +
-                            '<span class="text-xs font-bold text-indigo-600 hidden sm:inline">Fiyatları Gör</span>' +
-                            '<span class="firma-ok-icon text-slate-400 text-lg transition-transform">▼</span>' +
+
+                        '<div class="shrink-0 flex flex-col items-end gap-2">' +
+
+                            '<span class="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-black text-slate-500">' +
+                                "Fiyatları Gör" +
+                            "</span>" +
+
+                            '<span class="firma-ok-icon w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm">' +
+                                "▼" +
+                            "</span>" +
+
                         "</div>" +
+
                     "</div>" +
                 "</button>" +
-                '<div id="' + panelId + '" class="hidden border-t border-slate-200">' +
+
+                '<div id="' +
+                    panelId +
+                    '" class="hidden border-t border-slate-200 bg-slate-50/70">' +
+
                     '<div class="p-4 sm:p-5">' +
-                        '<div class="flex items-start justify-between gap-3 mb-3">' +
-                            '<div class="text-sm font-bold text-slate-700">Güncel fiyatlar</div>' +
-                            "<div>" + kaynakLink + "</div>" +
+
+                        '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">' +
+
+                            '<div>' +
+                                '<div class="text-[10px] uppercase tracking-wide font-black text-slate-400">Piyasa fiyatları</div>' +
+                                '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
+                            "</div>" +
+
+                            '<div class="shrink-0">' +
+                                kaynakLink +
+                            "</div>" +
+
                         "</div>" +
-                        rows +
+
+                        '<div class="bg-white rounded-2xl border border-slate-200 px-3 sm:px-4">' +
+                            rows +
+                        "</div>" +
+
                     "</div>" +
+
                 "</div>";
 
             firmaListesi.appendChild(wrapper);
 
-            const toggle = wrapper.querySelector(".firma-toggle");
-            toggle.addEventListener("click", function() {
-                const panel = document.getElementById(panelId);
-                const open = !panel.classList.contains("hidden");
-                panel.classList.toggle("hidden", open);
-                toggle.setAttribute("aria-expanded", String(!open));
-                const icon = toggle.querySelector(".firma-ok-icon");
-                if (icon) {
-                    icon.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
+            const toggle =
+                wrapper.querySelector(
+                    ".firma-toggle"
+                );
+
+            toggle.addEventListener(
+                "click",
+                function() {
+
+                    const panel =
+                        document.getElementById(
+                            panelId
+                        );
+
+                    const open =
+                        !panel.classList.contains(
+                            "hidden"
+                        );
+
+                    panel.classList.toggle(
+                        "hidden",
+                        open
+                    );
+
+                    toggle.setAttribute(
+                        "aria-expanded",
+                        String(!open)
+                    );
+
+                    const icon =
+                        toggle.querySelector(
+                            ".firma-ok-icon"
+                        );
+
+                    if (icon) {
+
+                        icon.style.transform =
+                            open
+                                ? "rotate(0deg)"
+                                : "rotate(180deg)";
+
+                    }
+
                 }
-            });
+            );
 
         });
     }
