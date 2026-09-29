@@ -55,6 +55,7 @@ def load_data():
             "prices": {},
             "history": [],
             "notifications": [],
+            "gizlenen_kalemler": {},
         }
 
     try:
