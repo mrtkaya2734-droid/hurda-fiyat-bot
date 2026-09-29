@@ -4195,7 +4195,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full"
+class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full"
 >
 </div>
 
@@ -4511,7 +4511,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col";
+                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-fit";
 
             const panelId = "firma_" + index;
             let rows = "";
