@@ -130,6 +130,18 @@ DEFAULT_ADS = {
         "target_url": "#",
         "active": True,
     },
+    "bottom_left": {
+        "title": "Alt Orta Sol Reklam",
+        "image_url": "",
+        "target_url": "#",
+        "active": True,
+    },
+    "bottom_right": {
+        "title": "Alt Orta Sağ Reklam",
+        "image_url": "",
+        "target_url": "#",
+        "active": True,
+    },
 }
 
 
@@ -3281,6 +3293,14 @@ Bildirim bulunmuyor.
             "right_bottom",
             "Sağ Alt",
         ),
+        (
+            "bottom_left",
+            "Alt Orta Sol",
+        ),
+        (
+            "bottom_right",
+            "Alt Orta Sağ",
+        ),
     ]:
 
         ad = ads[
@@ -3596,13 +3616,13 @@ Banner Yönetimi
 </h2>
 
 <p class="text-sm text-slate-500 mt-1">
-Ana sayfanın sağ ve sol tarafındaki bannerları buradan yönetebilirsiniz.
+Ana sayfanın sağ, sol ve sayfanın en alt orta bölümündeki bannerları buradan yönetebilirsiniz.
 </p>
 
 </div>
 
 <div class="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl font-semibold">
-4 Banner Alanı
+6 Banner Alanı
 </div>
 
 </div>
@@ -4166,6 +4186,8 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 </div>
 
 
+
+
 <div class="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_240px] gap-4 sm:gap-5">
 
 <aside class="hidden lg:block space-y-4 pt-16">
@@ -4216,6 +4238,25 @@ id="rightBottomAd"
 </div>
 
 </aside>
+
+</div>
+
+<div
+id="bottomAds"
+class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 max-w-4xl mx-auto mt-5"
+>
+
+<div
+class="ad-box rounded-2xl overflow-hidden"
+id="bottomLeftAd"
+>
+</div>
+
+<div
+class="ad-box rounded-2xl overflow-hidden"
+id="bottomRightAd"
+>
+</div>
 
 </div>
 
@@ -4677,6 +4718,12 @@ if (
         ],
         "rightBottomAd": ads[
             "right_bottom"
+        ],
+        "bottomLeftAd": ads[
+            "bottom_left"
+        ],
+        "bottomRightAd": ads[
+            "bottom_right"
         ],
     }
 
