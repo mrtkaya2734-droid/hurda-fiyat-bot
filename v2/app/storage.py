@@ -770,6 +770,28 @@ def bildirimleri_okundu_yap():
 
 
 # =========================================================
+# TÜM BİLDİRİMLERİ SİL
+# =========================================================
+
+def bildirimleri_sil():
+
+    data = load_data()
+
+    adet = len(
+        data.get(
+            "notifications",
+            [],
+        )
+    )
+
+    data["notifications"] = []
+
+    save_data(data)
+
+    return adet
+
+
+# =========================================================
 # GEÇMİŞ KAYDI EKLE
 # =========================================================
 
