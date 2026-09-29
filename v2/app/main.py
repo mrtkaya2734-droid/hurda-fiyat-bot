@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import uvicorn
@@ -1955,9 +1955,7 @@ def _frankfurter_onceki_pair_getir(
     for gun in range(1, 8):
         tarih = (
             son_dt
-            - __import__("datetime").timedelta(
-                days=gun
-            )
+            - timedelta(days=gun)
         ).strftime("%Y-%m-%d")
 
         try:
