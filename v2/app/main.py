@@ -4341,11 +4341,6 @@ async function fiyatlariGetir() {
 
         const firmalar = result.data;
 
-        const firmaListesi =
-            document.getElementById("firmaListesi");
-
-        firmaListesi.innerHTML = "";
-
         firmalar.forEach(function(item, index) {
 
             const wrapper = document.createElement("div");
