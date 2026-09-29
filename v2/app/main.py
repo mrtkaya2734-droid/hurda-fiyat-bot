@@ -4652,7 +4652,7 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
 </div>
 
 <script>
-(function () {
+(function () {{
     const input = document.getElementById("firmaAra");
     if (!input) return;
 
@@ -4660,10 +4660,10 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
         document.querySelectorAll("[data-firma-row]")
     );
 
-    input.addEventListener("input", function () {
+    input.addEventListener("input", function () {{
         const query = String(input.value || "").trim().toLocaleLowerCase("tr-TR");
 
-        rows.forEach(function (row) {
+        rows.forEach(function (row) {{
             const haystack = String(
                 row.getAttribute("data-firma-row") || ""
             ).toLocaleLowerCase("tr-TR");
@@ -4672,9 +4672,9 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
                 !query || haystack.includes(query)
                     ? ""
                     : "none";
-        });
-    });
-})();
+        }});
+    }});
+}})();
 </script>
 
 </body>
