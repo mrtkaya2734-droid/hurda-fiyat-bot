@@ -1885,11 +1885,349 @@ app.mount(
 
 DOVIZ_CACHE = {}
 DOVIZ_SON_CEKME = None
-DOVIZ_CACHE_SANIYE = 600
+DOVIZ_CACHE_SANIYE = 60
+
+YAHOO_QUOTE_URL = (
+    "https://query1.finance.yahoo.com/v7/finance/quote"
+)
+
+YAHOO_CHART_URL = (
+    "https://query1.finance.yahoo.com/v8/finance/chart"
+)
+
+YAHOO_HEADERS = {
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-GB,en;q=0.9,tr;q=0.8",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
+    ),
+}
+
+
+def _yahoo_zaman_yaz(timestamp):
+    try:
+        return datetime.fromtimestamp(
+            int(timestamp),
+            tz=ISTANBUL,
+        ).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ""
+
+
+def _yahoo_crumb_al():
+    session = requests.Session()
+    session.headers.update(YAHOO_HEADERS)
+
+    # Yahoo'nun güncel quote uç noktası cookie + crumb
+    # ile çalışabildiği için önce cookie oturumunu başlat.
+    try:
+        session.get(
+            "https://fc.yahoo.com",
+            timeout=10,
+        )
+    except requests.RequestException:
+        pass
+
+    response = session.get(
+        "https://query1.finance.yahoo.com/v1/test/getcrumb",
+        timeout=10,
+    )
+    response.raise_for_status()
+
+    crumb = response.text.strip()
+
+    if not crumb or len(crumb) > 200:
+        raise RuntimeError(
+            "Yahoo Finance oturum anahtarı alınamadı."
+        )
+
+    return session, crumb
+
+
+def _yahoo_quote_verilerini_cek():
+    session, crumb = _yahoo_crumb_al()
+
+    response = session.get(
+        YAHOO_QUOTE_URL,
+        params={
+            "symbols": "USDTRY=X,EURTRY=X",
+            "crumb": crumb,
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+
+    results = (
+        payload.get("quoteResponse", {})
+        .get("result", [])
+    )
+
+    bulunan = {}
+
+    sembol_to_kod = {
+        "USDTRY=X": "USD",
+        "EURTRY=X": "EUR",
+    }
+
+    for item in results:
+        sembol = item.get("symbol")
+        kod = sembol_to_kod.get(sembol)
+
+        if not kod:
+            continue
+
+        son = item.get("regularMarketPrice")
+
+        if son is None:
+            continue
+
+        onceki = item.get(
+            "regularMarketPreviousClose"
+        )
+
+        if onceki is None:
+            onceki = item.get(
+                "previousClose"
+            )
+
+        bid = item.get("bid")
+        ask = item.get("ask")
+
+        # Forex quote'unda bid/ask yoksa son fiyatı
+        # sadece görsel yedek olarak kullan; veri uydurma.
+        if bid is None:
+            bid = son
+
+        if ask is None:
+            ask = son
+
+        fark = None
+        fark_yuzde = None
+
+        if onceki is not None:
+            try:
+                fark = float(son) - float(onceki)
+
+                if float(onceki) != 0:
+                    fark_yuzde = (
+                        fark / float(onceki)
+                    ) * 100
+            except Exception:
+                fark = None
+                fark_yuzde = None
+
+        bulunan[kod] = {
+            "kod": kod,
+            "birim": "1",
+            "alis": float(bid),
+            "satis": float(ask),
+            "kur": float(son),
+            "bid": float(bid),
+            "ask": float(ask),
+            "onceki_kapanis": (
+                float(onceki)
+                if onceki is not None
+                else None
+            ),
+            "degisim": fark,
+            "degisim_yuzde": fark_yuzde,
+            "kur_turu": "Yahoo Finance piyasa kotasyonu",
+            "tarih": _yahoo_zaman_yaz(
+                item.get("regularMarketTime")
+            ),
+        }
+
+    if set(bulunan.keys()) != {"USD", "EUR"}:
+        raise RuntimeError(
+            "Yahoo Finance USD/TRY ve EUR/TRY kotasyonlarının "
+            "tamamını döndürmedi."
+        )
+
+    tarih_listesi = [
+        x.get("tarih", "")
+        for x in bulunan.values()
+        if x.get("tarih", "")
+    ]
+
+    return {
+        "status": "success",
+        "kaynak": "Yahoo Finance",
+        "kur_turu": "Piyasa kotasyonu · gecikmeli olabilir",
+        "tarih": max(tarih_listesi)
+        if tarih_listesi
+        else "",
+        "veriler": bulunan,
+    }
+
+
+def _yahoo_chart_verilerini_cek():
+    bulunan = {}
+
+    sembol_to_kod = {
+        "USDTRY=X": "USD",
+        "EURTRY=X": "EUR",
+    }
+
+    for sembol, kod in sembol_to_kod.items():
+        response = requests.get(
+            f"{YAHOO_CHART_URL}/{sembol}",
+            params={
+                "range": "5d",
+                "interval": "1d",
+            },
+            headers=YAHOO_HEADERS,
+            timeout=15,
+        )
+        response.raise_for_status()
+
+        payload = response.json()
+        sonuc = (
+            payload.get("chart", {})
+            .get("result", [])
+        )
+
+        if not sonuc:
+            raise RuntimeError(
+                f"Yahoo chart {kod} sonucu boş döndü."
+            )
+
+        meta = sonuc[0].get("meta", {})
+        son = meta.get("regularMarketPrice")
+
+        if son is None:
+            raise RuntimeError(
+                f"Yahoo chart {kod} son fiyatı boş döndü."
+            )
+
+        onceki = meta.get(
+            "chartPreviousClose"
+        )
+
+        fark = None
+        fark_yuzde = None
+
+        if onceki is not None:
+            try:
+                fark = float(son) - float(onceki)
+
+                if float(onceki) != 0:
+                    fark_yuzde = (
+                        fark / float(onceki)
+                    ) * 100
+            except Exception:
+                fark = None
+                fark_yuzde = None
+
+        bulunan[kod] = {
+            "kod": kod,
+            "birim": "1",
+            "alis": float(son),
+            "satis": float(son),
+            "kur": float(son),
+            "bid": None,
+            "ask": None,
+            "onceki_kapanis": (
+                float(onceki)
+                if onceki is not None
+                else None
+            ),
+            "degisim": fark,
+            "degisim_yuzde": fark_yuzde,
+            "kur_turu": "Yahoo Finance son fiyat",
+            "tarih": _yahoo_zaman_yaz(
+                meta.get("regularMarketTime")
+            ),
+        }
+
+    tarih_listesi = [
+        x.get("tarih", "")
+        for x in bulunan.values()
+        if x.get("tarih", "")
+    ]
+
+    return {
+        "status": "success",
+        "kaynak": "Yahoo Finance",
+        "kur_turu": "Son piyasa fiyatı · gecikmeli olabilir",
+        "tarih": max(tarih_listesi)
+        if tarih_listesi
+        else "",
+        "veriler": bulunan,
+    }
+
+
+def _frankfurter_yedek_verileri_cek():
+    API_URL = (
+        "https://api.frankfurter.dev/v2/rate"
+    )
+
+    bulunan = {}
+
+    for kod in (
+        "USD",
+        "EUR",
+    ):
+        response = requests.get(
+            f"{API_URL}/{kod.lower()}/try",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "HurdaFiyatBot/2.0",
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        veri = response.json()
+
+        rate = veri.get("rate")
+
+        tarih = veri.get(
+            "date",
+            "",
+        )
+
+        if rate is None:
+            raise ValueError(
+                f"Frankfurter {kod}/TRY kuru boş döndü."
+            )
+
+        bulunan[kod] = {
+            "kod": kod,
+            "birim": "1",
+            "alis": float(rate),
+            "satis": float(rate),
+            "kur": float(rate),
+            "bid": None,
+            "ask": None,
+            "onceki_kapanis": None,
+            "degisim": None,
+            "degisim_yuzde": None,
+            "kur_turu": "Günlük referans kuru",
+            "tarih": tarih,
+        }
+
+    tarihler = [
+        x.get("tarih", "")
+        for x in bulunan.values()
+        if x.get("tarih", "")
+    ]
+
+    return {
+        "status": "success",
+        "kaynak": "Frankfurter",
+        "kur_turu": "Günlük referans kuru",
+        "tarih": min(tarihler)
+        if tarihler
+        else "",
+        "veriler": bulunan,
+    }
 
 
 def doviz_kurlarini_getir(force=False):
-
     global DOVIZ_CACHE
     global DOVIZ_SON_CEKME
 
@@ -1905,107 +2243,69 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
-    API_URL = (
-        "https://api.frankfurter.dev/v2/rate"
-    )
+    hatalar = []
 
-    bulunan = {}
-
+    # 1) Yahoo quote: bid/ask + son fiyat + önceki kapanış
     try:
+        sonuc = _yahoo_quote_verilerini_cek()
 
-        for kod in (
-            "USD",
-            "EUR",
-        ):
-
-            response = requests.get(
-                f"{API_URL}/{kod.lower()}/try",
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "HurdaFiyatBot/2.0",
-                },
-                timeout=10,
-            )
-
-            response.raise_for_status()
-
-            veri = response.json()
-
-            rate = veri.get(
-                "rate"
-            )
-
-            tarih = veri.get(
-                "date",
-                "",
-            )
-
-            if rate is None:
-
-                raise ValueError(
-                    f"Frankfurter {kod}/TRY kuru boş döndü."
-                )
-
-            bulunan[kod] = {
-                "kod": kod,
-                "birim": "1",
-                "alis": float(rate),
-                "satis": float(rate),
-                "kur": float(rate),
-                "kur_turu": "Referans kur",
-                "tarih": tarih,
-            }
-
-        tarihler = [
-            x.get(
-                "tarih",
-                "",
-            )
-            for x in bulunan.values()
-            if x.get(
-                "tarih",
-                "",
-            )
-        ]
-
-        kaynak_tarihi = (
-            min(tarihler)
-            if tarihler
-            else ""
-        )
-
-        DOVIZ_CACHE = {
-            "status": "success",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Günlük referans kuru",
-            "tarih": kaynak_tarihi,
-            "veriler": bulunan,
-        }
-
+        DOVIZ_CACHE = sonuc
         DOVIZ_SON_CEKME = simdi
 
         return DOVIZ_CACHE
 
-    except Exception as e:
-
-        print(
-            "DÖVİZ KUR HATASI: "
-            f"{type(e).__name__}: {e}"
+    except Exception as exc:
+        hatalar.append(
+            f"Yahoo quote: {exc}"
         )
 
-        if DOVIZ_CACHE:
-            return DOVIZ_CACHE
+    # 2) Yahoo chart: quote uç noktası başarısızsa
+    # yine aynı kaynaktan son fiyat + değişim bilgisini getir.
+    try:
+        sonuc = _yahoo_chart_verilerini_cek()
 
-        return {
-            "status": "error",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Günlük referans kuru",
-            "tarih": "",
-            "veriler": {},
-            "hata": (
-                "USD/EUR kurları şu anda alınamadı."
-            ),
-        }
+        DOVIZ_CACHE = sonuc
+        DOVIZ_SON_CEKME = simdi
+
+        return DOVIZ_CACHE
+
+    except Exception as exc:
+        hatalar.append(
+            f"Yahoo chart: {exc}"
+        )
+
+    # 3) Son güvenli yedek: Frankfurter.
+    try:
+        sonuc = _frankfurter_yedek_verileri_cek()
+
+        DOVIZ_CACHE = sonuc
+        DOVIZ_SON_CEKME = simdi
+
+        return DOVIZ_CACHE
+
+    except Exception as exc:
+        hatalar.append(
+            f"Frankfurter: {exc}"
+        )
+
+    print(
+        "DÖVİZ KUR HATASI: "
+        + " | ".join(hatalar)
+    )
+
+    if DOVIZ_CACHE:
+        return DOVIZ_CACHE
+
+    return {
+        "status": "error",
+        "kaynak": "Yahoo Finance / Frankfurter",
+        "kur_turu": "Veri alınamadı",
+        "tarih": "",
+        "veriler": {},
+        "hata": (
+            "USD/EUR kurları şu anda alınamadı."
+        ),
+    }
 
 
 # =========================================================
@@ -4923,90 +5223,226 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
      ===================================================== -->
 
 <section
-    id="currencySection"
-    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-5"
+id="currencySection"
+class="mb-4 sm:mb-5"
 >
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
 
-        <div class="flex items-center justify-between gap-3">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Amerikan Doları
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    USD / TL
-                </div>
-            </div>
+<div>
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Döviz Piyasası
+</div>
+<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+USD / TL · EUR / TL
+</div>
+</div>
 
-            <div class="text-2xl">🇺🇸</div>
+<div class="text-[11px] text-slate-500 font-semibold">
+Piyasa görünümü
+</div>
 
-        </div>
+</div>
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Referans</div>
-                <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">TRY</div>
-                <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="flex items-start justify-between gap-3">
 
-        </div>
+<div class="flex items-center gap-3 min-w-0">
 
-    </div>
+<div class="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-2xl shrink-0">
+🇺🇸
+</div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div class="min-w-0">
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Amerikan Doları
+</div>
+<div class="text-lg font-black text-slate-900">
+USD / TRY
+</div>
+</div>
 
-        <div class="flex items-center justify-between gap-3">
+</div>
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Euro
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    EUR / TL
-                </div>
-            </div>
+<div
+id="usdTrend"
+class="shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500"
+>
+— Bekliyor
+</div>
 
-            <div class="text-2xl">🇪🇺</div>
+</div>
 
-        </div>
+<div class="mt-4">
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
+<div class="text-[11px] text-slate-500 font-semibold">
+Son
+</div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
-                <div id="eurAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div
+id="usdSon"
+class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tracking-tight"
+>
+Yükleniyor...
+</div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
-                <div id="eurSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div
+id="usdDegisim"
+class="text-sm font-bold text-slate-500 mt-1"
+>
+—
+</div>
 
-        </div>
+</div>
 
-    </div>
+<div class="grid grid-cols-2 gap-2 mt-4">
 
-    <div
-        id="currencyInfo"
-        class="sm:col-span-2 text-[11px] text-slate-500 text-center"
-    >
-        Kur kaynağı: TCMB · Güncelleniyor...
-    </div>
+<div class="bg-white rounded-xl p-3 border border-slate-200">
+<div class="text-[10px] text-slate-500 font-bold uppercase">
+Alış / Bid
+</div>
+<div
+id="usdBid"
+class="text-sm sm:text-base font-black text-slate-900 mt-1"
+>
+—
+</div>
+</div>
+
+<div class="bg-white rounded-xl p-3 border border-slate-200">
+<div class="text-[10px] text-slate-500 font-bold uppercase">
+Satış / Ask
+</div>
+<div
+id="usdAsk"
+class="text-sm sm:text-base font-black text-slate-900 mt-1"
+>
+—
+</div>
+</div>
+
+</div>
+
+<div class="flex items-center justify-between gap-3 mt-3 text-[10px] text-slate-400">
+<span>Önceki kapanış</span>
+<span
+id="usdOnceki"
+class="font-bold text-slate-500"
+>
+—
+</span>
+</div>
+
+</div>
+
+
+<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+
+<div class="flex items-start justify-between gap-3">
+
+<div class="flex items-center gap-3 min-w-0">
+
+<div class="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-2xl shrink-0">
+🇪🇺
+</div>
+
+<div class="min-w-0">
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Euro
+</div>
+<div class="text-lg font-black text-slate-900">
+EUR / TRY
+</div>
+</div>
+
+</div>
+
+<div
+id="eurTrend"
+class="shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500"
+>
+— Bekliyor
+</div>
+
+</div>
+
+<div class="mt-4">
+
+<div class="text-[11px] text-slate-500 font-semibold">
+Son
+</div>
+
+<div
+id="eurSon"
+class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tracking-tight"
+>
+Yükleniyor...
+</div>
+
+<div
+id="eurDegisim"
+class="text-sm font-bold text-slate-500 mt-1"
+>
+—
+</div>
+
+</div>
+
+<div class="grid grid-cols-2 gap-2 mt-4">
+
+<div class="bg-white rounded-xl p-3 border border-slate-200">
+<div class="text-[10px] text-slate-500 font-bold uppercase">
+Alış / Bid
+</div>
+<div
+id="eurBid"
+class="text-sm sm:text-base font-black text-slate-900 mt-1"
+>
+—
+</div>
+</div>
+
+<div class="bg-white rounded-xl p-3 border border-slate-200">
+<div class="text-[10px] text-slate-500 font-bold uppercase">
+Satış / Ask
+</div>
+<div
+id="eurAsk"
+class="text-sm sm:text-base font-black text-slate-900 mt-1"
+>
+—
+</div>
+</div>
+
+</div>
+
+<div class="flex items-center justify-between gap-3 mt-3 text-[10px] text-slate-400">
+<span>Önceki kapanış</span>
+<span
+id="eurOnceki"
+class="font-bold text-slate-500"
+>
+—
+</span>
+</div>
+
+</div>
+
+</div>
+
+<div
+id="currencyInfo"
+class="text-[10px] sm:text-[11px] text-slate-500 text-center mt-4 pt-3 border-t border-slate-100"
+>
+Kur bilgisi yükleniyor...
+</div>
+
+</div>
 
 </section>
 
@@ -5215,6 +5651,14 @@ function durumEtiketi(durum) {
 
 function dovizGoster(deger) {
 
+    if (
+        deger === null
+        || deger === undefined
+        || deger === ""
+    ) {
+        return "—";
+    }
+
     return Number(
         deger
     ).toLocaleString(
@@ -5223,7 +5667,326 @@ function dovizGoster(deger) {
             minimumFractionDigits: 4,
             maximumFractionDigits: 4,
         }
-    ) + " TL";
+    );
+}
+
+
+function dovizDegisimGoster(deger, yuzde) {
+
+    if (
+        deger === null
+        || deger === undefined
+    ) {
+        return "Değişim bilgisi yok";
+    }
+
+    const isUp = Number(deger) > 0;
+    const isDown = Number(deger) < 0;
+
+    const ok = isUp
+        ? "▲"
+        : isDown
+            ? "▼"
+            : "•";
+
+    const sign = isUp
+        ? "+"
+        : "";
+
+    const fark = Number(
+        deger
+    ).toLocaleString(
+        "tr-TR",
+        {
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 4,
+        }
+    );
+
+    const pct = (
+        yuzde !== null
+        && yuzde !== undefined
+        && !Number.isNaN(
+            Number(yuzde)
+        )
+    )
+        ? Number(
+            yuzde
+          ).toLocaleString(
+            "tr-TR",
+            {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            }
+          )
+          + "%"
+        : "";
+
+    return ok
+        + " "
+        + sign
+        + fark
+        + " TL"
+        + (
+            pct
+                ? " (" + sign + pct + ")"
+                : ""
+        );
+}
+
+
+function dovizTrendUygula(
+    elementId,
+    degisim,
+) {
+
+    const element =
+        document.getElementById(
+            elementId
+        );
+
+    if (!element) {
+        return;
+    }
+
+    if (degisim === null || degisim === undefined) {
+
+        element.className =
+            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-white border border-slate-200 text-slate-500";
+
+        element.textContent =
+            "— Bekliyor";
+
+        return;
+    }
+
+    const number =
+        Number(degisim);
+
+    if (number > 0) {
+
+        element.className =
+            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-emerald-100 border border-emerald-200 text-emerald-700";
+
+        element.textContent =
+            "▲ Yükseliyor";
+
+        return;
+    }
+
+    if (number < 0) {
+
+        element.className =
+            "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-red-100 border border-red-200 text-red-700";
+
+        element.textContent =
+            "▼ Düşüyor";
+
+        return;
+    }
+
+    element.className =
+        "shrink-0 rounded-xl px-3 py-2 text-xs font-black bg-slate-100 border border-slate-200 text-slate-600";
+
+    element.textContent =
+        "• Sabit";
+}
+
+
+function dovizKartiniDoldur(
+    prefix,
+    item,
+) {
+
+    document.getElementById(
+        prefix + "Son"
+    ).textContent =
+        dovizGoster(
+            item.kur
+        ) + " TL";
+
+    document.getElementById(
+        prefix + "Degisim"
+    ).textContent =
+        dovizDegisimGoster(
+            item.degisim,
+            item.degisim_yuzde
+        );
+
+    dovizTrendUygula(
+        prefix + "Trend",
+        item.degisim
+    );
+
+    const bid =
+        item.bid !== null
+        && item.bid !== undefined
+            ? item.bid
+            : item.alis;
+
+    const ask =
+        item.ask !== null
+        && item.ask !== undefined
+            ? item.ask
+            : item.satis;
+
+    document.getElementById(
+        prefix + "Bid"
+    ).textContent =
+        bid !== null
+        && bid !== undefined
+            ? dovizGoster(bid) + " TL"
+            : "—";
+
+    document.getElementById(
+        prefix + "Ask"
+    ).textContent =
+        ask !== null
+        && ask !== undefined
+            ? dovizGoster(ask) + " TL"
+            : "—";
+
+    document.getElementById(
+        prefix + "Onceki"
+    ).textContent =
+        item.onceki_kapanis !== null
+        && item.onceki_kapanis !== undefined
+            ? dovizGoster(
+                item.onceki_kapanis
+              ) + " TL"
+            : "—";
+}
+
+
+async function dovizleriGetir() {
+
+    const info =
+        document.getElementById(
+            "currencyInfo"
+        );
+
+    try {
+
+        const response =
+            await fetch(
+                "/currency",
+                {
+                    cache: "no-store"
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "Döviz servisi çalışmadı."
+            );
+        }
+
+        const result =
+            await response.json();
+
+        const usd =
+            result.veriler &&
+            result.veriler.USD;
+
+        const eur =
+            result.veriler &&
+            result.veriler.EUR;
+
+        if (
+            result.status !== "success"
+            || !usd
+            || !eur
+        ) {
+            throw new Error(
+                result.hata
+                || "Döviz verisi alınamadı."
+            );
+        }
+
+        dovizKartiniDoldur(
+            "usd",
+            usd
+        );
+
+        dovizKartiniDoldur(
+            "eur",
+            eur
+        );
+
+        info.textContent =
+            "Kaynak: "
+            + (
+                result.kaynak
+                || "—"
+            )
+            + " · "
+            + (
+                result.kur_turu
+                || ""
+            )
+            + (
+                result.tarih
+                    ? " · Veri zamanı: "
+                    + result.tarih
+                    : ""
+            );
+
+    }
+    catch (error) {
+
+        [
+            "usdSon",
+            "usdBid",
+            "usdAsk",
+            "usdOnceki",
+            "eurSon",
+            "eurBid",
+            "eurAsk",
+            "eurOnceki",
+        ].forEach(
+            function(id) {
+
+                const element =
+                    document.getElementById(
+                        id
+                    );
+
+                if (element) {
+                    element.textContent =
+                        "—";
+                }
+            }
+        );
+
+        document.getElementById(
+            "usdDegisim"
+        ).textContent =
+            "Döviz verisi alınamadı.";
+
+        document.getElementById(
+            "eurDegisim"
+        ).textContent =
+            "Döviz verisi alınamadı.";
+
+        dovizTrendUygula(
+            "usdTrend",
+            null
+        );
+
+        dovizTrendUygula(
+            "eurTrend",
+            null
+        );
+
+        info.textContent =
+            "Döviz bilgisi şu anda alınamıyor.";
+
+        console.error(
+            "Döviz kurları:",
+            error
+        );
+
+    }
 
 }
 
