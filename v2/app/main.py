@@ -4901,8 +4901,8 @@ body {
 }
 
 #bottomAds .ad-box {
-    height: 180px;
-    min-height: 180px;
+    height: 155px;
+    min-height: 155px;
 }
 
 .desktop-ad-column .ad-box img,
@@ -5026,7 +5026,7 @@ body {
 
 <body class="min-h-screen">
 
-<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+<div class="w-full max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
 <header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
@@ -5426,7 +5426,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_220px] gap-3 sm:gap-4 items-stretch">
+<div class="grid grid-cols-1 lg:grid-cols-[190px_minmax(0,1fr)_190px] gap-3 sm:gap-4 items-stretch">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
