@@ -4867,6 +4867,22 @@ body {
     min-width: 0;
 }
 
+.desktop-ad-column .ad-box,
+#bottomAds .ad-box {
+    height: 270px;
+}
+
+.desktop-ad-column .ad-box img,
+#bottomAds .ad-box img {
+    width: 100%;
+    height: 270px;
+    min-height: 270px;
+    max-height: 270px;
+    display: block;
+    object-fit: cover;
+    object-position: center;
+}
+
 .ad-box a {
     display: block;
     width: 100%;
@@ -5379,7 +5395,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <div class="grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)_270px] gap-4 sm:gap-5">
 
-<aside class="desktop-ad-column hidden lg:block space-y-4 pt-16">
+<aside class="desktop-ad-column hidden lg:block space-y-6 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
@@ -5429,7 +5445,7 @@ class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full min-w-0
 
 </main>
 
-<aside class="desktop-ad-column hidden lg:block space-y-4 pt-16">
+<aside class="desktop-ad-column hidden lg:block space-y-6 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
@@ -5449,7 +5465,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 max-w-4xl mx-auto mt-5"
+class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto mt-5"
 >
 
 <div
