@@ -4853,8 +4853,8 @@ body {
 
 .ad-box img {
     width: 100%;
-    height: 260px;
-    min-height: 220px;
+    height: 290px;
+    min-height: 240px;
     max-width: 100%;
     display: block;
     object-fit: cover;
@@ -4899,6 +4899,8 @@ body {
 
 .mobile-ad-grid .ad-box {
     min-width: 0;
+    width: 100%;
+    overflow: hidden;
 }
 
 @media (max-width: 640px) {
@@ -4954,7 +4956,7 @@ body {
 
 <body class="min-h-screen">
 
-<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-5">
+<div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-5">
 
 <header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
@@ -5327,7 +5329,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_240px] gap-4 sm:gap-5">
+<div class="grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)_270px] gap-4 sm:gap-5">
 
 <aside class="hidden lg:block space-y-4 pt-16">
 
@@ -5356,7 +5358,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full"
+class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
 
