@@ -5134,19 +5134,19 @@ class="w-full overflow-x-auto rounded-xl border border-slate-200"
 Metal
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-Cash Bid
+Alış (Nakit)
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-Cash Ask
+Satış (Nakit)
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-3M Bid
+3 Ay Alış
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-3M Ask
+3 Ay Satış
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-3M TL / Ton
+3 Ay TL / Ton
 </th>
 </tr>
 </thead>
