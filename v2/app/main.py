@@ -4888,28 +4888,33 @@ body {
 
 .desktop-ad-column {
     min-width: 0;
-    height: 100%;
+    height: fit-content;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    align-self: start;
 }
 
 .desktop-ad-column .ad-box {
-    flex: 1 1 0;
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 4 / 3;
     min-height: 0;
     height: auto;
+    overflow: hidden;
 }
 
 #bottomAds {
     width: 100%;
-    max-width: 860px;
+    max-width: 1120px;
     margin-left: auto;
     margin-right: auto;
 }
 
 #bottomAds .ad-box {
-    height: 145px;
-    min-height: 145px;
+    aspect-ratio: 16 / 5;
+    height: auto;
+    min-height: 0;
     overflow: hidden;
 }
 
