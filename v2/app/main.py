@@ -5102,10 +5102,9 @@ id="lmeSection"
 class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 mb-4 sm:mb-5"
 >
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
 
-<div>
-
+<div class="min-w-0">
 <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
 Londra Metal Borsası
 </div>
@@ -5114,11 +5113,14 @@ Londra Metal Borsası
 LME Metal Fiyatları
 </div>
 
+<div class="text-[10px] sm:text-[11px] text-slate-400 mt-1">
+Gün gecikmeli resmi piyasa verileri · USD / metrik ton
+</div>
 </div>
 
 <div
 id="lmeInfo"
-class="text-[11px] text-slate-500"
+class="text-[10px] sm:text-[11px] text-slate-500 lg:text-right"
 >
 LME verisi yükleniyor...
 </div>
@@ -5127,17 +5129,55 @@ LME verisi yükleniyor...
 
 <div
 id="lmeGrid"
-class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+class="w-full overflow-x-auto rounded-xl border border-slate-200"
 >
-<div
-class="sm:col-span-2 lg:col-span-4 text-sm text-slate-500 text-center py-5"
+
+<table class="w-full min-w-[720px] border-collapse text-sm">
+<thead class="bg-slate-50 border-b border-slate-200">
+<tr>
+<th class="px-3 sm:px-4 py-3 text-left text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+Metal
+</th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+Cash Bid
+</th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+Cash Ask
+</th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+3M Bid
+</th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+3M Ask
+</th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
+3M TL / Ton
+</th>
+</tr>
+</thead>
+
+<tbody id="lmeTableBody">
+<tr>
+<td
+colspan="6"
+class="px-4 py-8 text-center text-sm text-slate-500"
 >
 LME verileri alınıyor...
-</div>
+</td>
+</tr>
+</tbody>
+</table>
+
 </div>
 
-<div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı TCMB USD alış kuru ile
+<div class="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[10px] text-slate-400">
+<div>
+3M TL değeri: 3 aylık Bid/Ask ortalaması × USD/TRY alış kuru
+</div>
+
+<div class="shrink-0">
+Kaynak: LME Official Prices
+</div>
 </div>
 
 </section>
@@ -5312,9 +5352,9 @@ function dovizGoster(deger) {
 
 async function lmeFiyatlariniGetir() {
 
-    const grid =
+    const tableBody =
         document.getElementById(
-            "lmeGrid"
+            "lmeTableBody"
         );
 
     const info =
@@ -5354,125 +5394,131 @@ async function lmeFiyatlariniGetir() {
             );
         }
 
-        grid.innerHTML = "";
+        const formatFiyat =
+            function(value) {
+
+                if (
+                    value === null
+                    || value === undefined
+                ) {
+                    return "-";
+                }
+
+                return Number(
+                    value
+                ).toLocaleString(
+                    "tr-TR",
+                    {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }
+                );
+            };
+
+        tableBody.innerHTML = "";
 
         result.veriler.forEach(
-            function(item) {
+            function(item, index) {
 
-                const card =
+                const row =
                     document.createElement(
-                        "div"
+                        "tr"
                     );
 
-                card.className =
-                    "bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 min-h-[154px]";
+                row.className =
+                    "border-b border-slate-100 last:border-0 hover:bg-slate-50 transition";
 
-                const three =
-                    item.three_month_bid !== null
-                    && item.three_month_ask !== null
-                    ? (
-                        (
-                            Number(
-                                item.three_month_bid
-                            )
-                            + Number(
-                                item.three_month_ask
-                            )
-                        ) / 2
-                    )
-                    : null;
-
-                const formatFiyat =
-                    function(value) {
-
-                        if (value === null || value === undefined) {
-                            return "-";
-                        }
-
-                        return Number(
-                            value
-                        ).toLocaleString(
-                            "tr-TR",
-                            {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                            }
-                        );
-                    };
-
-                card.innerHTML =
-                    '<div class="flex items-center justify-between gap-2">' +
-                        '<div class="font-black text-slate-900 break-words">' +
-                            escapeHtml(item.ad) +
-                        "</div>" +
-                        '<div class="text-[10px] font-bold text-slate-400">3M</div>' +
-                    "</div>" +
-                    '<div class="text-xs text-slate-500 mt-2">USD / Ton</div>' +
-                    '<div class="text-lg font-black text-slate-900 mt-1">' +
-                        formatFiyat(three) +
-                    "</div>" +
-                    '<div class="text-sm font-bold text-emerald-700 mt-1">' +
-                        (
-                            item.three_month_tl !== null
-                            && item.three_month_tl !== undefined
-                            ? formatFiyat(item.three_month_tl) + " TL"
-                            : "TL karşılığı alınamadı"
+                row.innerHTML =
+                    '<td class="px-3 sm:px-4 py-3 font-black text-slate-900 whitespace-nowrap">' +
+                        escapeHtml(
+                            item.ad
+                            || "-"
                         ) +
-                    "</div>" +
-                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × TCMB USD alış</div>' +
-                    '<div class="grid grid-cols-2 gap-2 mt-3">' +
-                        '<div class="bg-white rounded-lg p-2">' +
-                            '<div class="text-[10px] text-slate-400">Bid</div>' +
-                            '<div class="text-xs font-bold text-slate-700">' +
-                                formatFiyat(item.three_month_bid) +
-                            "</div>" +
-                        "</div>" +
-                        '<div class="bg-white rounded-lg p-2">' +
-                            '<div class="text-[10px] text-slate-400">Ask</div>' +
-                            '<div class="text-xs font-bold text-slate-700">' +
-                                formatFiyat(item.three_month_ask) +
-                            "</div>" +
-                        "</div>" +
-                    "</div>";
+                    "</td>" +
 
-                grid.appendChild(
-                    card
+                    '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
+                        formatFiyat(
+                            item.cash_bid
+                        ) +
+                    "</td>" +
+
+                    '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
+                        formatFiyat(
+                            item.cash_ask
+                        ) +
+                    "</td>" +
+
+                    '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
+                        formatFiyat(
+                            item.three_month_bid
+                        ) +
+                    "</td>" +
+
+                    '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
+                        formatFiyat(
+                            item.three_month_ask
+                        ) +
+                    "</td>" +
+
+                    '<td class="px-3 sm:px-4 py-3 text-right whitespace-nowrap">' +
+                        '<span class="inline-flex items-center justify-end rounded-lg bg-slate-900 text-white px-2.5 py-1.5 font-black">' +
+                            (
+                                item.three_month_tl !== null
+                                && item.three_month_tl !== undefined
+                                    ? formatFiyat(
+                                        item.three_month_tl
+                                      ) + " TL"
+                                    : "-"
+                            ) +
+                        "</span>" +
+                    "</td>";
+
+                tableBody.appendChild(
+                    row
                 );
             }
         );
 
         info.textContent =
             "Kaynak: "
-            + (result.kaynak || "LME Official Prices")
+            + (
+                result.kaynak
+                || "LME Official Prices"
+            )
             + " · Veri tarihi: "
-            + (result.tarih || "-")
+            + (
+                result.tarih
+                || "-"
+            )
             + " · Gün gecikmeli"
             + (
                 result.usd_tl
-                ? " · TCMB USD alış: "
-                + Number(
-                    result.usd_tl
-                  ).toLocaleString(
-                    "tr-TR",
-                    {
-                        minimumFractionDigits: 4,
-                        maximumFractionDigits: 4
-                    }
-                  )
-                : ""
+                    ? " · USD/TRY alış: "
+                    + Number(
+                        result.usd_tl
+                      ).toLocaleString(
+                        "tr-TR",
+                        {
+                            minimumFractionDigits: 4,
+                            maximumFractionDigits: 4
+                        }
+                      )
+                    : ""
             );
 
     }
     catch (error) {
 
-        grid.innerHTML =
-            '<div class="sm:col-span-2 lg:col-span-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">' +
-                "LME verisi şu anda alınamıyor: "
-                + escapeHtml(
-                    error.message
-                    || "Bilinmeyen hata."
-                ) +
-            "</div>";
+        tableBody.innerHTML =
+            '<tr>' +
+                '<td colspan="6" class="px-4 py-6 text-center text-sm text-amber-800 bg-amber-50">' +
+                    "LME verisi şu anda alınamıyor: "
+                    + escapeHtml(
+                        error.message
+                        || "Bilinmeyen hata."
+                    ) +
+                "</td>" +
+            "</tr>";
 
         info.textContent =
             "LME verisi alınamadı.";
