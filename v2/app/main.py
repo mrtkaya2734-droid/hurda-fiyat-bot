@@ -4900,9 +4900,28 @@ body {
     height: auto;
 }
 
+#bottomAds {
+    width: 100%;
+    max-width: 860px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 #bottomAds .ad-box {
-    height: 155px;
-    min-height: 155px;
+    height: 145px;
+    min-height: 145px;
+    overflow: hidden;
+}
+
+#bottomAds .ad-box a {
+    height: 100%;
+}
+
+#bottomAds .ad-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 
 .desktop-ad-column .ad-box img,
@@ -5510,7 +5529,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 max-w-4xl mx-auto w-full mt-4"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
 >
 
 <div
