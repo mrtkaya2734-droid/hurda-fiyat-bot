@@ -103,49 +103,156 @@ def _looks_like_label(text: str):
     )
 
 
-def _rows_from_html(html: str):
-    soup = BeautifulSoup(html, "html.parser")
+def _normalize_text(text: str):
+    return " ".join(
+        str(text or "").split()
+    ).strip()
+
+
+def _clean_label(text: str):
+    value = _normalize_text(text)
+    if not value:
+        return ""
+
+    value = PRICE_RE.sub("", value)
+    value = re.sub(
+        r"\b(?:TL|TRY|₺)(?:\s*/\s*(?:ton|mt|kg))?\b",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(r"[|:;]+$", "", value).strip(" -–—")
+    return _normalize_text(value)
+
+
+def _rows_from_table(table):
     rows = []
 
-    for table in soup.find_all("table"):
-        for tr in table.find_all("tr"):
-            cells = [
-                " ".join(cell.stripped_strings)
-                for cell in tr.find_all(["th", "td"])
-            ]
+    for tr in table.find_all("tr"):
+        # Sadece satırın doğrudan hücrelerini oku.
+        # Nested/responsive tabloların aynı veriyi tekrar üretmesini önler.
+        cells = [
+            _normalize_text(cell.get_text(" ", strip=True))
+            for cell in tr.find_all(["th", "td"], recursive=False)
+        ]
 
-            if len(cells) < 2:
-                continue
+        if len(cells) < 2:
+            continue
 
-            price = None
-            price_index = -1
+        price_candidates = []
+        for index, cell in enumerate(cells):
+            price = _parse_price(cell)
+            if price is not None:
+                price_candidates.append((index, price))
 
+        if not price_candidates:
+            continue
+
+        # Bir satırda birden fazla sayı varsa fiyat olarak ilk uygun
+        # TL/₺ hücresini, yoksa makul aralıktaki ilk sayıyı kullan.
+        price_index, price = price_candidates[0]
+
+        for candidate_index, candidate_price in price_candidates:
+            if re.search(r"(TL|TRY|₺)", cells[candidate_index], re.IGNORECASE):
+                price_index, price = candidate_index, candidate_price
+                break
+
+        label = ""
+
+        # En güvenilir durum: fiyat hücresinin hemen solundaki hücre.
+        if price_index > 0:
+            candidate = _clean_label(cells[price_index - 1])
+            if _looks_like_label(candidate):
+                label = candidate
+
+        # Bazı sitelerde fiyat hücresi ilk sırada olabilir.
+        if not label:
             for index, cell in enumerate(cells):
-                candidate = _parse_price(cell)
-                if candidate is not None:
-                    price = candidate
-                    price_index = index
-
-            if price is None:
-                continue
-
-            label = ""
-            for cell in cells[:price_index]:
-                if _looks_like_label(cell) and _parse_price(cell) is None:
-                    label = cell
+                if index == price_index:
+                    continue
+                candidate = _clean_label(cell)
+                if _looks_like_label(candidate):
+                    label = candidate
                     break
 
-            if not label:
-                for cell in cells:
-                    if _looks_like_label(cell) and _parse_price(cell) is None:
-                        label = cell
-                        break
+        # Tek hücre içinde "DKP 18.605 TL" gibi birleşik içerik.
+        if not label:
+            for cell in cells:
+                if _parse_price(cell) is None:
+                    continue
+                candidate = _clean_label(cell)
+                if _looks_like_label(candidate):
+                    label = candidate
+                    break
 
-            if label:
-                rows.append((label, price))
+        if not label:
+            continue
 
-    if rows:
-        return rows, soup
+        rows.append((label[:100], price))
+
+    return rows
+
+
+def _rows_from_html(html: str):
+    soup = BeautifulSoup(html, "html.parser")
+    candidates = []
+
+    for table_index, table in enumerate(soup.find_all("table")):
+        rows = _rows_from_table(table)
+        if not rows:
+            continue
+
+        # Gerçek fiyat tabloları genellikle birden fazla anlamlı satıra sahiptir.
+        # Başlık/fiyat tekrarları oluşturan küçük tabloları aşağıda düşük puanlarız.
+        unique_labels = {
+            _normalize_text(label).casefold()
+            for label, _ in rows
+        }
+
+        table_text = _normalize_text(
+            table.get_text(" ", strip=True)
+        ).casefold()
+
+        score = (
+            min(len(rows), 20) * 10
+            + min(len(unique_labels), 20) * 5
+        )
+
+        if any(
+            token in table_text
+            for token in (
+                "fiyat",
+                "hurda",
+                "scrap",
+                "price",
+                "tl/ton",
+                "tl / ton",
+                "₺/ton",
+            )
+        ):
+            score += 20
+
+        candidates.append(
+            (
+                score,
+                table_index,
+                rows,
+            )
+        )
+
+    if candidates:
+        # En güçlü tabloyu seç; aynı sayfadaki mobil/desktop kopyalarını
+        # toplamak yerine yalnızca tek kaynaktan veri üret.
+        candidates.sort(
+            key=lambda item: (
+                item[0],
+                len(item[2]),
+                -item[1],
+            ),
+            reverse=True,
+        )
+
+        return candidates[0][2], soup
 
     # Bazı siteler tablo yerine kart/div yapısı kullanır.
     fallback = []
@@ -157,14 +264,18 @@ def _rows_from_html(html: str):
         if parent is None:
             continue
 
-        full = " ".join(parent.stripped_strings).strip()
+        full = _normalize_text(parent.get_text(" ", strip=True))
         price = _parse_price(full)
+
         if price is None:
             continue
 
-        label = PRICE_RE.sub("", full).strip(" -:|")
+        label = _clean_label(full)
+
         if _looks_like_label(label):
-            fallback.append((label[:80], price))
+            fallback.append(
+                (label[:100], price)
+            )
 
     return fallback, soup
 
