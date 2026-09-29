@@ -4240,10 +4240,31 @@ class="w-full max-h-72 object-contain rounded-lg"
 """
 
         ad_form_fields += f"""
-<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/40">
+
+<form
+method="post"
+action="/admin/update-ads"
+enctype="multipart/form-data"
+class="space-y-3"
+>
+
+<input
+type="hidden"
+name="banner_key"
+value="{key}"
+>
+
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 
 <div class="font-bold text-slate-900 text-lg">
 {label}
+</div>
+
+<div class="text-xs bg-white border border-slate-200 text-slate-500 px-2.5 py-1.5 rounded-lg font-semibold">
+{key}
+</div>
+
 </div>
 
 <div class="text-xs text-slate-500">
@@ -4300,6 +4321,15 @@ class="w-5 h-5"
 Banner aktif
 
 </label>
+
+<button
+type="submit"
+class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl font-bold text-sm transition"
+>
+Bannerı Kaydet
+</button>
+
+</form>
 
 </div>
 """
@@ -4535,23 +4565,11 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
 
 </div>
 
-<form
-method="post"
-action="/admin/update-ads"
-enctype="multipart/form-data"
-class="space-y-5"
->
+<div class="space-y-5">
 
 {ad_form_fields}
 
-<button
-type="submit"
-class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold"
->
-Bannerları Kaydet
-</button>
-
-</form>
+</div>
 
 </div>
 
@@ -4583,7 +4601,27 @@ async def update_ads(
 
     mevcut_ads = load_ads()
 
-    data = {}
+    banner_key = str(
+        form.get(
+            "banner_key",
+            "",
+        )
+    ).strip()
+
+    if banner_key and banner_key not in DEFAULT_ADS:
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz banner alanı.",
+        )
+
+    # Tek banner kaydediliyorsa diğer bannerlara dokunma.
+    keys_to_save = (
+        [banner_key]
+        if banner_key
+        else list(DEFAULT_ADS.keys())
+    )
+
+    data = dict(mevcut_ads)
 
     allowed_extensions = {
         ".jpg",
@@ -4592,7 +4630,7 @@ async def update_ads(
         ".webp",
     }
 
-    for key in DEFAULT_ADS.keys():
+    for key in keys_to_save:
 
         eski = mevcut_ads.get(
             key,
