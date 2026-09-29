@@ -635,7 +635,20 @@ def firma_verisini_cek(
         else None
     )
 
+    gizlenen_kalemler = set(
+        data.get(
+            "gizlenen_kalemler",
+            {}
+        ).get(
+            sonuc.firma_id,
+            []
+        )
+    )
+
     for kalem in sonuc.kalemler:
+
+        if kalem.cins in gizlenen_kalemler:
+            continue
 
         degisim = ""
 
@@ -2442,6 +2455,20 @@ async def admin_manual_save_real(
                     ][
                         firma_id
                     ] = {}
+
+                gizlenen = data.get(
+                    "gizlenen_kalemler",
+                    {}
+                ).get(
+                    firma_id,
+                    []
+                )
+
+                if new_kalem in gizlenen:
+                    data["gizlenen_kalemler"][firma_id] = [
+                        x for x in gizlenen
+                        if x != new_kalem
+                    ]
 
                 mevcut = data[
                     "prices"
