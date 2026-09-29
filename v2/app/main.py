@@ -4149,6 +4149,28 @@ Henüz firma bulunmuyor.
         ]
     ):
 
+        notification_read_action = ""
+        if not item.get("okundu", False):
+            notification_read_action = f"""
+<form
+method="post"
+action="/admin/notifications/read-one"
+class="inline"
+>
+<input
+type="hidden"
+name="notification_id"
+value="{esc(item.get("id", ""))}"
+>
+<button
+type="submit"
+class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold"
+>
+Okundu
+</button>
+</form>
+"""
+
         notification_rows += f"""
 <div class="border border-slate-200 bg-slate-50/50 rounded-xl p-4 hover:bg-white transition">
 
@@ -4172,23 +4194,7 @@ Henüz firma bulunmuyor.
 {esc(item.get("tarih", ""))}
 </div>
 
-{"<form
-method="post"
-action="/admin/notifications/read-one"
-class="inline"
->
-<input
-type="hidden"
-name="notification_id"
-value="{esc(item.get("id", ""))}"
->
-<button
-type="submit"
-class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold"
->
-Okundu
-</button>
-</form>" if not item.get("okundu", False) else ""}
+{notification_read_action}
 <form
 method="post"
 action="/admin/notifications/delete"
