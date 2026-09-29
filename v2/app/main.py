@@ -44,6 +44,7 @@ from app.storage import (
     bildirim_okundu,
     bildirim_sil,
     bildirimleri_okundu_yap,
+    bildirimleri_sil,
     gecmis_ekle,
     sistem_ozeti,
 )
@@ -3837,6 +3838,27 @@ async def notifications_delete(
 
 
 # =========================================================
+# TÜM BİLDİRİMLERİ SİL
+# =========================================================
+
+@app.post(
+    "/admin/notifications/delete-all"
+)
+async def notifications_delete_all(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirimleri_sil()
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
 # ADMİN PANELİ
 # =========================================================
 
@@ -4603,6 +4625,21 @@ type="submit"
 class="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold"
 >
 Tümünü Okundu Yap
+</button>
+
+</form>
+
+<form
+method="post"
+action="/admin/notifications/delete-all"
+onsubmit="return confirm('Tüm bildirimleri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.');"
+>
+
+<button
+type="submit"
+class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-3 py-2 rounded-xl text-xs font-bold"
+>
+Tümünü Sil
 </button>
 
 </form>
