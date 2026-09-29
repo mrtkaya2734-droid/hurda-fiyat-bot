@@ -1558,6 +1558,65 @@ Firmayı Kaydet
 
 </div>
 
+<script>
+
+function manuelKalemSil(button) {
+
+    const url =
+        button.dataset.deleteUrl;
+
+    const kalem =
+        button.dataset.kalem;
+
+    if (!url || !kalem) {
+        return;
+    }
+
+    if (
+        !confirm(
+            kalem
+            + " kalemi tamamen silinecek. Devam edilsin mi?"
+        )
+    ) {
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent =
+        "Siliniyor...";
+
+    const form =
+        document.createElement(
+            "form"
+        );
+
+    form.method = "POST";
+    form.action = url;
+    form.style.display = "none";
+
+    const input =
+        document.createElement(
+            "input"
+        );
+
+    input.type = "hidden";
+    input.name = "manuel_sil";
+    input.value = kalem;
+
+    form.appendChild(
+        input
+    );
+
+    document.body.appendChild(
+        form
+    );
+
+    form.submit();
+
+}
+
+</script>
+
 </body>
 
 </html>
@@ -1755,12 +1814,10 @@ placeholder="Boş = otomatik"
 >
 
 <button
-type="submit"
-name="manuel_sil"
-value="{esc(kalem)}"
-formaction="/admin/source/{esc(firma_id)}/manual-delete"
-formmethod="post"
-formnovalidate
+type="button"
+data-delete-url="/admin/source/{esc(firma_id)}/manual-delete"
+data-kalem="{esc(kalem)}"
+onclick="manuelKalemSil(this)"
 class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
 >
 Kalemi Tamamen Sil
@@ -3906,10 +3963,12 @@ body {
 
 .ad-box img {
     width: 100%;
-    height: auto;
+    height: 260px;
+    min-height: 220px;
     max-width: 100%;
     display: block;
-    object-fit: contain;
+    object-fit: cover;
+    object-position: center;
 }
 
 .price-header {
@@ -4164,9 +4223,9 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 </div>
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)_210px] gap-4 sm:gap-5">
+<div class="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_240px] gap-4 sm:gap-5">
 
-<aside class="hidden lg:block space-y-4 pt-12">
+<aside class="hidden lg:block space-y-4 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
