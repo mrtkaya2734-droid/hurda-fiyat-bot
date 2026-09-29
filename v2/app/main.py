@@ -4956,38 +4956,65 @@ body {
 
 <div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-5">
 
-<header class="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-lg">
+<header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+<div class="absolute -right-16 -top-20 w-44 h-44 rounded-full bg-slate-800/40 blur-2xl"></div>
+<div class="absolute -left-10 -bottom-20 w-36 h-36 rounded-full bg-slate-800/30 blur-2xl"></div>
+
+<div class="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
 
 <div class="min-w-0">
 
-<h1 class="text-xl sm:text-2xl md:text-3xl font-black break-words">
+<div class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+Piyasa Takip Merkezi
+</div>
+
+<h1 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight mt-3 break-words">
 Cevhersan Metal
 </h1>
 
-<p class="text-slate-300 text-sm mt-1">
-Güncel Hurda Fiyatları
+<p class="text-slate-300 text-sm sm:text-base mt-1">
+Güncel hurda fiyatları, döviz kurları ve LME verileri
 </p>
 
-</div>
-
-<div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-
-<div class="bg-white/10 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm">
-
-Son Güncelleme:
-
-<span
-id="sonGuncelleme"
-class="font-bold"
->
-Yükleniyor...
+<div class="flex flex-wrap items-center gap-2 mt-4">
+<span class="inline-flex items-center gap-2 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-[11px] font-bold text-slate-200">
+<span class="text-slate-400">Veri</span>
+Otomatik güncelleniyor
 </span>
 
+<span class="inline-flex items-center gap-2 rounded-xl bg-emerald-400/10 border border-emerald-400/20 px-3 py-2 text-[11px] font-bold text-emerald-300">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+Sistem aktif
+</span>
 </div>
 
+</div>
 
+<div class="w-full lg:w-auto lg:min-w-[230px]">
+
+<div class="rounded-2xl bg-white/10 border border-white/10 backdrop-blur-sm p-3 sm:p-4">
+
+<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
+Son Güncelleme
+</div>
+
+<div
+id="sonGuncelleme"
+class="text-sm sm:text-base font-black text-white mt-1 break-words"
+>
+Yükleniyor...
+</div>
+
+<div class="h-px bg-white/10 my-3"></div>
+
+<div class="flex items-center justify-between gap-3 text-[10px]">
+<span class="text-slate-400">Piyasa ekranı</span>
+<span class="font-bold text-emerald-300">Aktif</span>
+</div>
+
+</div>
 
 </div>
 
@@ -5000,90 +5027,161 @@ Yükleniyor...
      ===================================================== -->
 
 <section
-    id="currencySection"
-    class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 sm:mb-5"
+id="currencySection"
+class="mb-4 sm:mb-5"
 >
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div class="flex items-end justify-between gap-3 mb-3 px-1">
 
-        <div class="flex items-center justify-between gap-3">
+<div>
+<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+Döviz Piyasası
+</div>
+<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+USD / TL · EUR / TL
+</div>
+</div>
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Amerikan Doları
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    USD / TL
-                </div>
-            </div>
+<div class="hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+Günlük referans kurları
+</div>
 
-            <div class="text-2xl">🇺🇸</div>
+</div>
 
-        </div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
+<div class="relative overflow-hidden bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5">
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Referans</div>
-                <div id="usdAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="absolute right-0 top-0 w-28 h-28 rounded-full bg-slate-50 -translate-y-10 translate-x-10"></div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">TRY</div>
-                <div id="usdSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="relative flex items-start justify-between gap-3">
 
-        </div>
+<div class="flex items-center gap-3">
 
-    </div>
+<div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shadow-sm">
+🇺🇸
+</div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<div>
+<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-wide text-slate-400">
+Amerikan Doları
+</div>
+<div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+USD / TRY
+</div>
+</div>
 
-        <div class="flex items-center justify-between gap-3">
+</div>
 
-            <div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    Euro
-                </div>
-                <div class="text-lg font-black text-slate-900 mt-1">
-                    EUR / TL
-                </div>
-            </div>
+<div class="rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500">
+USD
+</div>
 
-            <div class="text-2xl">🇪🇺</div>
+</div>
 
-        </div>
+<div class="relative mt-5">
+<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
+Referans Kur
+</div>
 
-        <div class="grid grid-cols-2 gap-3 mt-4">
+<div
+id="usdAlis"
+class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 mt-1"
+>
+Yükleniyor...
+</div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Alış</div>
-                <div id="eurAlis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="text-[11px] text-slate-400 mt-1">
+1 USD karşılığı Türk Lirası
+</div>
+</div>
 
-            <div class="bg-slate-50 rounded-xl p-3">
-                <div class="text-[11px] text-slate-500 font-semibold">Satış</div>
-                <div id="eurSatis" class="text-base font-black text-slate-900 mt-1">
-                    Yükleniyor...
-                </div>
-            </div>
+<div class="relative mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+<div class="text-[10px] font-bold text-slate-400">
+Günlük oran
+</div>
 
-        </div>
+<div
+id="usdSatis"
+class="text-xs sm:text-sm font-black text-slate-700"
+>
+Yükleniyor...
+</div>
+</div>
 
-    </div>
+</div>
 
-    <div
-        id="currencyInfo"
-        class="sm:col-span-2 text-[11px] text-slate-500 text-center"
-    >
-        Kur kaynağı: TCMB · Güncelleniyor...
-    </div>
+
+<div class="relative overflow-hidden bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5">
+
+<div class="absolute right-0 top-0 w-28 h-28 rounded-full bg-slate-50 -translate-y-10 translate-x-10"></div>
+
+<div class="relative flex items-start justify-between gap-3">
+
+<div class="flex items-center gap-3">
+
+<div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shadow-sm">
+🇪🇺
+</div>
+
+<div>
+<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-wide text-slate-400">
+Euro
+</div>
+<div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+EUR / TRY
+</div>
+</div>
+
+</div>
+
+<div class="rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500">
+EUR
+</div>
+
+</div>
+
+<div class="relative mt-5">
+<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
+Referans Kur
+</div>
+
+<div
+id="eurAlis"
+class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 mt-1"
+>
+Yükleniyor...
+</div>
+
+<div class="text-[11px] text-slate-400 mt-1">
+1 EUR karşılığı Türk Lirası
+</div>
+</div>
+
+<div class="relative mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+<div class="text-[10px] font-bold text-slate-400">
+Günlük oran
+</div>
+
+<div
+id="eurSatis"
+class="text-xs sm:text-sm font-black text-slate-700"
+>
+Yükleniyor...
+</div>
+</div>
+
+</div>
+
+</div>
+
+<div
+id="currencyInfo"
+class="mt-3 px-1 text-[10px] sm:text-[11px] text-slate-400"
+>
+Kur kaynağı: TCMB · Güncelleniyor...
+</div>
 
 </section>
 
