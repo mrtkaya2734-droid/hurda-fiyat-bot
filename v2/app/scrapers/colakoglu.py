@@ -4,12 +4,21 @@ import requests
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi
+from app.scrapers.generic import cek_url as generic_url_cek
 
 
 ID = "colakoglu"
 BASLIK = "Çolakoğlu Metalurji"
 URL = "https://www.colakoglu.com.tr/hurda"
 API = "https://client.colakoglu.com.tr/webservice/scrap-price"
+
+
+def _resmi_sayfadan_cek() -> FirmaSonuc:
+    return generic_url_cek(
+        ID,
+        BASLIK,
+        URL,
+    )
 
 
 def cek() -> FirmaSonuc:
@@ -21,25 +30,39 @@ def cek() -> FirmaSonuc:
                 "Accept": "application/json",
             },
             verify=False,
-            timeout=20,
+            timeout=8,
         )
         cevap.raise_for_status()
         veri = cevap.json()
 
     except requests.RequestException as e:
-        raise ScraperHatasi(f"Çolakoğlu: API bağlantı hatası: {e}") from e
+        try:
+            return _resmi_sayfadan_cek()
+        except Exception as fallback_error:
+            raise ScraperHatasi(
+                f"Çolakoğlu: API bağlantı hatası: {e}; "
+                f"resmi sayfa yedeği de başarısız: {fallback_error}"
+            ) from e
 
     except ValueError as e:
-        raise ScraperHatasi(
-            "Çolakoğlu: API geçerli JSON döndürmedi"
-        ) from e
+        try:
+            return _resmi_sayfadan_cek()
+        except Exception as fallback_error:
+            raise ScraperHatasi(
+                "Çolakoğlu: API geçerli JSON döndürmedi; "
+                f"resmi sayfa yedeği de başarısız: {fallback_error}"
+            ) from e
 
     fiyatlar = veri.get("prices")
 
     if not fiyatlar:
-        raise ScraperHatasi(
-            "Çolakoğlu: 'prices' alanı boş ya da yok"
-        )
+        try:
+            return _resmi_sayfadan_cek()
+        except Exception as fallback_error:
+            raise ScraperHatasi(
+                "Çolakoğlu: 'prices' alanı boş ya da yok; "
+                f"resmi sayfa yedeği de başarısız: {fallback_error}"
+            )
 
     kalemler = []
 
@@ -57,9 +80,13 @@ def cek() -> FirmaSonuc:
             )
 
     if not kalemler:
-        raise ScraperHatasi(
-            "Çolakoğlu: geçerli kalem bulunamadı"
-        )
+        try:
+            return _resmi_sayfadan_cek()
+        except Exception as fallback_error:
+            raise ScraperHatasi(
+                "Çolakoğlu: geçerli kalem bulunamadı; "
+                f"resmi sayfa yedeği de başarısız: {fallback_error}"
+            )
 
     try:
         tarih = datetime.fromisoformat(
