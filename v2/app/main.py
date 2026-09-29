@@ -4901,8 +4901,8 @@ body {
 }
 
 #bottomAds .ad-box {
-    height: 200px;
-    min-height: 200px;
+    height: 180px;
+    min-height: 180px;
 }
 
 .desktop-ad-column .ad-box img,
@@ -5426,7 +5426,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_220px] gap-3 sm:gap-4 items-start">
+<div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_220px] gap-3 sm:gap-4 items-stretch">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
@@ -5510,7 +5510,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 max-w-4xl mx-auto w-full mt-4"
 >
 
 <div
