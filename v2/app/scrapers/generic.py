@@ -54,7 +54,7 @@ def _parse_price(raw: str):
     # Bazı tablolar para birimini ayrı sütunda verir:
     # "DKP | 18605 | TL/ton" gibi.
     for candidate in re.findall(
-        r"(?<!\\d)(\\d{1,3}(?:[. ]\\d{3})+|\\d{4,6})(?!\\d)",
+        r"(?<!\d)(\d{1,3}(?:[. ]\d{3})+|\d{4,6})(?!\d)",
         text,
     ):
         value = candidate.replace(
