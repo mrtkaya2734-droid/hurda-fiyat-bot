@@ -19,9 +19,18 @@ BUNDLED_DATA_FILE = os.path.join(
     "data.json"
 )
 
+DEFAULT_DATA_DIR = (
+    "/var/data"
+    if os.path.isdir("/var/data")
+    else BASE_DIR
+)
+
 DATA_FILE = os.getenv(
     "DATA_FILE",
-    BUNDLED_DATA_FILE
+    os.path.join(
+        DEFAULT_DATA_DIR,
+        "data.json"
+    )
 )
 
 if DATA_FILE != BUNDLED_DATA_FILE:
