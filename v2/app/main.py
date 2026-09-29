@@ -6073,7 +6073,7 @@ async function fiyatlariGetir() {
             ) {
                 wrapper.classList.add(
                     "sm:col-span-2",
-                    "sm:w-1/2",
+                    "sm:w-[calc(50%-0.5rem)]",
                     "sm:justify-self-center"
                 );
             }
