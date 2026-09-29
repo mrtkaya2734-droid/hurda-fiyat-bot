@@ -2589,6 +2589,20 @@ class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-sl
 placeholder="Boş = otomatik"
 >
 
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+
+<button
+type="submit"
+name="guncelle_kalem"
+value="{esc(kalem)}"
+formaction="/admin/source/{esc(firma_id)}/manual-update"
+formmethod="post"
+formnovalidate
+class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl px-3 py-2 text-sm font-bold"
+>
+✏️ Güncelle
+</button>
+
 <button
 type="submit"
 name="manuel_sil"
@@ -2596,10 +2610,12 @@ value="{esc(kalem)}"
 formaction="/admin/source/{esc(firma_id)}/manual-delete"
 formmethod="post"
 formnovalidate
-class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
+class="w-full border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
 >
-Kalemi Tamamen Sil
+🗑️ Sil
 </button>
+
+</div>
 
 </div>
 """
@@ -3490,6 +3506,112 @@ async def admin_manual_save_real(
                 f"{kaydedilen} manuel fiyat kaydedildi."
             ),
         )
+
+    return RedirectResponse(
+        url=f"/admin/source/{firma_id}",
+        status_code=303,
+    )
+
+
+# =========================================================
+# MANUEL FİYAT GÜNCELLE
+# =========================================================
+
+@app.post(
+    "/admin/source/{firma_id}/manual-update"
+)
+async def admin_manual_update(
+    request: Request,
+    firma_id: str,
+    guncelle_kalem: str = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    data = load_data()
+
+    if firma_id not in data.get(
+        "firms",
+        {},
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Firma bulunamadı.",
+        )
+
+    kalem = str(
+        guncelle_kalem
+        or ""
+    ).strip()
+
+    if not kalem:
+        raise HTTPException(
+            status_code=400,
+            detail="Güncellenecek kalem belirtilmedi.",
+        )
+
+    form = await request.form()
+    value = form.get(
+        "manuel_" + kalem
+    )
+
+    value = str(
+        value or ""
+    ).strip()
+
+    try:
+        fiyat = int(
+            float(value)
+        )
+
+        if fiyat <= 0:
+            raise ValueError
+
+    except Exception:
+        bildirim_ekle(
+            firma_id,
+            "manuel_fiyat_hatasi",
+            f"{kalem} için geçerli bir manuel fiyat girilmedi.",
+        )
+        return RedirectResponse(
+            url=f"/admin/source/{firma_id}",
+            status_code=303,
+        )
+
+    prices = data.get(
+        "prices",
+        {},
+    ).get(
+        firma_id,
+        {},
+    )
+
+    if kalem not in prices:
+        raise HTTPException(
+            status_code=404,
+            detail="Güncellenecek fiyat kalemi bulunamadı.",
+        )
+
+    manuel_fiyat_kaydet(
+        firma_id=firma_id,
+        kalem=kalem,
+        fiyat=fiyat,
+    )
+
+    gecmis_ekle(
+        firma_id=firma_id,
+        kalem=kalem,
+        fiyat=fiyat,
+        fiyat_tarihi=now_istanbul().strftime(
+            "%Y-%m-%d"
+        ),
+    )
+
+    bildirim_ekle(
+        firma_id,
+        "manuel_fiyat",
+        f"{kalem} manuel fiyatı {fiyat_format(fiyat)} olarak güncellendi.",
+    )
 
     return RedirectResponse(
         url=f"/admin/source/{firma_id}",
@@ -6938,3 +7060,5 @@ if __name__ == "__main__":
 
 
 # DEPLOY SYNTAX CHECK MARKER
+
+
