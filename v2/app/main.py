@@ -5333,12 +5333,14 @@ async function lmeFiyatlariniGetir() {
         );
 
         info.textContent =
-            "Veri tarihi: "
+            "Kaynak: "
+            + (result.kaynak || "LME Official Prices")
+            + " · Veri tarihi: "
             + (result.tarih || "-")
             + " · Gün gecikmeli"
             + (
                 result.usd_tl
-                ? " · TCMB USD: "
+                ? " · TCMB USD alış: "
                 + Number(
                     result.usd_tl
                   ).toLocaleString(
