@@ -4926,21 +4926,26 @@ body {
 
 .desktop-ad-column {
     min-width: 0;
-    height: fit-content;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    align-self: start;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    align-self: stretch;
 }
 
 .desktop-ad-column .ad-box {
     flex: 0 0 auto;
     width: 100%;
+    max-width: 250px;
     aspect-ratio: 4 / 3;
     min-height: 0;
     height: auto;
     overflow: hidden;
 }
+
+
 
 #bottomAds {
     width: 100%;
