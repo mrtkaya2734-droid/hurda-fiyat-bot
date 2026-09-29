@@ -1017,7 +1017,18 @@ def fiyat_verilerini_olustur():
 
         firma_kalemleri = []
 
-        for kalem, bilgi in fiyatlar.items():
+        sirali_fiyatlar = sorted(
+            fiyatlar.items(),
+            key=lambda item: str(
+                item[1].get(
+                    "guncelleme",
+                    ""
+                )
+            ),
+            reverse=True,
+        )
+
+        for kalem, bilgi in sirali_fiyatlar:
 
             manuel = bilgi.get(
                 "manuel_fiyat"
@@ -2609,26 +2620,21 @@ async def admin_manual_delete(
 
         raise HTTPException(
             status_code=400,
-            detail="Silinecek fiyat kalemi belirtilmedi.",
+            detail="Silinecek kalem belirtilmedi.",
         )
 
-    silindi = manuel_fiyat_sil(
+    # Storage katmanı gerçek kaydı siler ve
+    # otomatik scraper'ın tekrar eklemesini engeller.
+    manuel_fiyat_sil(
         firma_id,
         kalem,
     )
-
-    if not silindi:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Manuel fiyat kalemi bulunamadı.",
-        )
 
     bildirim_ekle(
         firma_id,
         "manuel_fiyat",
         (
-            f"{kalem} için manuel fiyat kaldırıldı."
+            f"{kalem} fiyat listesinden kaldırıldı."
         ),
     )
 
