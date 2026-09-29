@@ -5622,7 +5622,7 @@ LME verileri alınıyor...
 </div>
 
 <div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı TCMB USD alış kuru ile
+Kaynak: Westmetall LME market data · USD / metrik ton · Gün gecikmeli veri · TL karşılığı Yahoo Finance USD/TRY ile
 </div>
 
 </section>
