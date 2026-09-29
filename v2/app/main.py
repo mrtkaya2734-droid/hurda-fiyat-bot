@@ -1558,65 +1558,6 @@ Firmayı Kaydet
 
 </div>
 
-<script>
-
-function manuelKalemSil(button) {
-
-    const url =
-        button.dataset.deleteUrl;
-
-    const kalem =
-        button.dataset.kalem;
-
-    if (!url || !kalem) {
-        return;
-    }
-
-    if (
-        !confirm(
-            kalem
-            + " kalemi tamamen silinecek. Devam edilsin mi?"
-        )
-    ) {
-        return;
-    }
-
-    button.disabled = true;
-    button.textContent =
-        "Siliniyor...";
-
-    const form =
-        document.createElement(
-            "form"
-        );
-
-    form.method = "POST";
-    form.action = url;
-    form.style.display = "none";
-
-    const input =
-        document.createElement(
-            "input"
-        );
-
-    input.type = "hidden";
-    input.name = "manuel_sil";
-    input.value = kalem;
-
-    form.appendChild(
-        input
-    );
-
-    document.body.appendChild(
-        form
-    );
-
-    form.submit();
-
-}
-
-</script>
-
 </body>
 
 </html>
@@ -1814,10 +1755,12 @@ placeholder="Boş = otomatik"
 >
 
 <button
-type="button"
-data-delete-url="/admin/source/{esc(firma_id)}/manual-delete"
-data-kalem="{esc(kalem)}"
-onclick="manuelKalemSil(this)"
+type="submit"
+name="manuel_sil"
+value="{esc(kalem)}"
+formaction="/admin/source/{esc(firma_id)}/manual-delete"
+formmethod="post"
+formnovalidate
 class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
 >
 Kalemi Tamamen Sil
@@ -4258,7 +4201,7 @@ class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full"
 
 </main>
 
-<aside class="hidden lg:block space-y-4">
+<aside class="hidden lg:block space-y-4 pt-16">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
