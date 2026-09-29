@@ -106,6 +106,236 @@ def now_istanbul_string():
     )
 
 
+# =========================================================
+# LME RESMİ GECİKMELİ FİYATLARI
+# =========================================================
+
+LME_URL = (
+    "https://www.lme.com/en/market-data/"
+    "reports-and-data/lme-official-prices"
+)
+
+LME_METALS = {
+    "Aluminium": "Alüminyum",
+    "Copper": "Bakır",
+    "Zinc": "Çinko",
+    "Nickel": "Nikel",
+    "Lead": "Kurşun",
+    "Tin": "Kalay",
+    "Cobalt": "Kobalt",
+}
+
+_LME_CACHE = {
+    "tarih": None,
+    "veriler": [],
+    "cekilme": None,
+}
+
+
+def _lme_sayi(value):
+
+    try:
+
+        return float(
+            str(value)
+            .replace(",", "")
+            .replace(" ", "")
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return None
+
+
+def lme_verilerini_cek():
+
+    global _LME_CACHE
+
+    simdi = now_istanbul()
+
+    if (
+        _LME_CACHE["veriler"]
+        and _LME_CACHE["cekilme"]
+    ):
+
+        gecen = (
+            simdi
+            - _LME_CACHE["cekilme"]
+        ).total_seconds()
+
+        if gecen < 900:
+
+            return _LME_CACHE
+
+    try:
+
+        cevap = requests.get(
+            LME_URL,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 "
+                    "Chrome/140 Safari/537.36"
+                ),
+                "Accept-Language": "en-GB,en;q=0.9",
+            },
+            timeout=25,
+        )
+
+        cevap.raise_for_status()
+
+    except requests.RequestException as exc:
+
+        raise RuntimeError(
+            f"LME sayfasına ulaşılamadı: {exc}"
+        ) from exc
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        cevap.text,
+        "html.parser",
+    )
+
+    hedef_tablo = None
+
+    for table in soup.find_all("table"):
+
+        tablo_metni = " ".join(
+            table.stripped_strings
+        ).casefold()
+
+        if (
+            "aluminium" in tablo_metni
+            and "copper" in tablo_metni
+            and "3 month" in tablo_metni
+        ):
+
+            hedef_tablo = table
+            break
+
+    if hedef_tablo is None:
+
+        raise RuntimeError(
+            "LME Official Prices tablosu bulunamadı."
+        )
+
+    fiyatlar = {}
+
+    for row in hedef_tablo.find_all("tr"):
+
+        hucreler = [
+            " ".join(
+                cell.stripped_strings
+            ).strip()
+            for cell in row.find_all(
+                ["th", "td"]
+            )
+        ]
+
+        if len(hucreler) < 5:
+            continue
+
+        metal_adi = hucreler[0]
+
+        eslesen = None
+
+        for isim, turkce in LME_METALS.items():
+
+            if (
+                isim.casefold()
+                == metal_adi.casefold()
+            ):
+
+                eslesen = (
+                    isim,
+                    turkce,
+                )
+                break
+
+        if eslesen is None:
+            continue
+
+        fiyatlar[eslesen[0]] = {
+            "ad": eslesen[1],
+            "cash_bid": _lme_sayi(
+                hucreler[1]
+            ),
+            "cash_ask": _lme_sayi(
+                hucreler[2]
+            ),
+            "three_month_bid": _lme_sayi(
+                hucreler[3]
+            ),
+            "three_month_ask": _lme_sayi(
+                hucreler[4]
+            ),
+        }
+
+    if not fiyatlar:
+
+        raise RuntimeError(
+            "LME tablosundan fiyat okunamadı."
+        )
+
+    sayfa_metni = soup.get_text(
+        " ",
+        strip=True,
+    )
+
+    tarih = None
+
+    tarih_eslesmesi = re.search(
+        r"Data valid for\s+"
+        r"(\d{1,2})\s+"
+        r"([A-Za-z]{3})\s+"
+        r"(\d{4})",
+        sayfa_metni,
+        re.IGNORECASE,
+    )
+
+    if tarih_eslesmesi:
+
+        try:
+
+            tarih = datetime.strptime(
+                " ".join(
+                    tarih_eslesmesi.groups()
+                ),
+                "%d %b %Y",
+            ).strftime(
+                "%d.%m.%Y"
+            )
+
+        except ValueError:
+
+            tarih = None
+
+    sonuc = {
+        "tarih": tarih or "-",
+        "veriler": [
+            fiyatlar[key]
+            for key in LME_METALS
+            if key in fiyatlar
+        ],
+        "cekilme": simdi.strftime(
+            "%d.%m.%Y %H:%M:%S"
+        ),
+    }
+
+    _LME_CACHE = {
+        "tarih": sonuc["tarih"],
+        "veriler": sonuc["veriler"],
+        "cekilme": simdi,
+    }
+
+    return sonuc
+
+
 DEFAULT_ADS = {
     "left_top": {
         "title": "Sol Üst Reklam",
@@ -4071,6 +4301,39 @@ async def update_ads(
 
 
 # =========================================================
+# LME ENDPOINT
+# =========================================================
+
+@app.get(
+    "/lme"
+)
+def lme_fiyatlari():
+
+    try:
+
+        sonuc = lme_verilerini_cek()
+
+        return {
+            "status": "success",
+            "kaynak": "LME Official Prices",
+            "gecikme": "Gün gecikmeli",
+            "tarih": sonuc["tarih"],
+            "cekilme": sonuc["cekilme"],
+            "veriler": sonuc["veriler"],
+        }
+
+    except Exception as exc:
+
+        return {
+            "status": "error",
+            "kaynak": "LME Official Prices",
+            "gecikme": "Gün gecikmeli",
+            "message": str(exc),
+            "veriler": [],
+        }
+
+
+# =========================================================
 # ANA SAYFA
 # =========================================================
 
@@ -4396,6 +4659,56 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
 
 
 <!-- =====================================================
+     LME METAL FİYATLARI
+     ===================================================== -->
+
+<section
+id="lmeSection"
+class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 mb-4 sm:mb-5"
+>
+
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+
+<div>
+
+<div class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+Londra Metal Borsası
+</div>
+
+<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+LME Metal Fiyatları
+</div>
+
+</div>
+
+<div
+id="lmeInfo"
+class="text-[11px] text-slate-500"
+>
+LME verisi yükleniyor...
+</div>
+
+</div>
+
+<div
+id="lmeGrid"
+class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+>
+<div
+class="sm:col-span-2 lg:col-span-4 text-sm text-slate-500 text-center py-5"
+>
+LME verileri alınıyor...
+</div>
+</div>
+
+<div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
+Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri
+</div>
+
+</section>
+
+
+<!-- =====================================================
      MOBİL REKLAMLAR
      ===================================================== -->
 
@@ -4559,6 +4872,156 @@ function dovizGoster(deger) {
         }
     ) + " TL";
 
+}
+
+
+async function lmeFiyatlariniGetir() {
+
+    const grid =
+        document.getElementById(
+            "lmeGrid"
+        );
+
+    const info =
+        document.getElementById(
+            "lmeInfo"
+        );
+
+    try {
+
+        const response =
+            await fetch(
+                "/lme",
+                {
+                    cache: "no-store"
+                }
+            );
+
+        if (!response.ok) {
+
+            throw new Error(
+                "LME servisi çalışmadı."
+            );
+        }
+
+        const result =
+            await response.json();
+
+        if (
+            result.status !== "success"
+            || !result.veriler
+            || !result.veriler.length
+        ) {
+
+            throw new Error(
+                result.message
+                || "LME verisi alınamadı."
+            );
+        }
+
+        grid.innerHTML = "";
+
+        result.veriler.forEach(
+            function(item) {
+
+                const card =
+                    document.createElement(
+                        "div"
+                    );
+
+                card.className =
+                    "bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 min-h-[154px]";
+
+                const three =
+                    item.three_month_bid !== null
+                    && item.three_month_ask !== null
+                    ? (
+                        (
+                            Number(
+                                item.three_month_bid
+                            )
+                            + Number(
+                                item.three_month_ask
+                            )
+                        ) / 2
+                    )
+                    : null;
+
+                const formatFiyat =
+                    function(value) {
+
+                        if (value === null || value === undefined) {
+                            return "-";
+                        }
+
+                        return Number(
+                            value
+                        ).toLocaleString(
+                            "tr-TR",
+                            {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }
+                        );
+                    };
+
+                card.innerHTML =
+                    '<div class="flex items-center justify-between gap-2">' +
+                        '<div class="font-black text-slate-900 break-words">' +
+                            escapeHtml(item.ad) +
+                        "</div>" +
+                        '<div class="text-[10px] font-bold text-slate-400">3M</div>' +
+                    "</div>" +
+                    '<div class="text-xs text-slate-500 mt-2">USD / Ton</div>' +
+                    '<div class="text-lg font-black text-slate-900 mt-1">' +
+                        formatFiyat(three) +
+                    "</div>" +
+                    '<div class="grid grid-cols-2 gap-2 mt-3">' +
+                        '<div class="bg-white rounded-lg p-2">' +
+                            '<div class="text-[10px] text-slate-400">Bid</div>' +
+                            '<div class="text-xs font-bold text-slate-700">' +
+                                formatFiyat(item.three_month_bid) +
+                            "</div>" +
+                        "</div>" +
+                        '<div class="bg-white rounded-lg p-2">' +
+                            '<div class="text-[10px] text-slate-400">Ask</div>' +
+                            '<div class="text-xs font-bold text-slate-700">' +
+                                formatFiyat(item.three_month_ask) +
+                            "</div>" +
+                        "</div>" +
+                    "</div>";
+
+                grid.appendChild(
+                    card
+                );
+            }
+        );
+
+        info.textContent =
+            "Veri tarihi: "
+            + (result.tarih || "-")
+            + " · Gün gecikmeli";
+
+    }
+    catch (error) {
+
+        grid.innerHTML =
+            '<div class="sm:col-span-2 lg:col-span-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">' +
+                "LME verisi şu anda alınamıyor: "
+                + escapeHtml(
+                    error.message
+                    || "Bilinmeyen hata."
+                ) +
+            "</div>";
+
+        info.textContent =
+            "LME verisi alınamadı.";
+
+        console.error(
+            "LME:",
+            error
+        );
+    }
 }
 
 
@@ -4877,12 +5340,20 @@ async function fiyatlariGetir() {
 
 dovizleriGetir();
 
+lmeFiyatlariniGetir();
+
 fiyatlariGetir();
 
 
 setInterval(
     dovizleriGetir,
     600000
+);
+
+
+setInterval(
+    lmeFiyatlariniGetir,
+    900000
 );
 
 
