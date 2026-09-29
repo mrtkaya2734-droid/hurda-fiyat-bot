@@ -1074,6 +1074,18 @@ def fiyat_verilerini_olustur():
                     "durum": kaynak_tipi,
                     "otomatik_fiyat": otomatik,
                     "manuel_fiyat": manuel,
+                    "fiyat_tarihi": (
+                        now_istanbul().strftime("%Y-%m-%d")
+                        if manuel is not None
+                        else (
+                            bilgi.get(
+                                "fiyat_tarihi"
+                            )
+                            or firma.get(
+                                "kaynak_fiyat_tarihi"
+                            )
+                        )
+                    ),
                 }
             )
 
@@ -1092,8 +1104,19 @@ def fiyat_verilerini_olustur():
                     "",
                 ),
                 "tarih": fiyat_tarih_yaz(
-                    firma.get(
-                        "kaynak_fiyat_tarihi"
+                    max(
+                        [
+                            k.get(
+                                "fiyat_tarihi"
+                            )
+                            for k in firma_kalemleri
+                            if k.get(
+                                "fiyat_tarihi"
+                            )
+                        ],
+                        default=firma.get(
+                            "kaynak_fiyat_tarihi"
+                        ),
                     )
                 ),
                 "son_kontrol": firma.get(
@@ -4141,9 +4164,9 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 </div>
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[150px_minmax(0,1fr)_150px] gap-3 sm:gap-4">
+<div class="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)_210px] gap-4 sm:gap-5">
 
-<aside class="hidden lg:block space-y-4">
+<aside class="hidden lg:block space-y-4 pt-12">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
@@ -4507,6 +4530,7 @@ async function fiyatlariGetir() {
                     '<div class="price-row flex items-start justify-between gap-3 py-3 border-b border-slate-100 last:border-0">' +
                         '<div class="price-name min-w-0">' +
                             '<div class="font-semibold text-slate-800 break-words">' + escapeHtml(kalem.cins) + "</div>" +
+                            '<div class="text-[10px] text-slate-400 mt-1">Tarih: ' + escapeHtml(kalem.fiyat_tarihi || "-") + "</div>" +
                             '<div class="mt-1">' + durumEtiketi(kalem.durum) + "</div>" +
                         "</div>" +
                         '<div class="price-value text-right shrink-0">' +
