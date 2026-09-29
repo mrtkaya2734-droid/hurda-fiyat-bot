@@ -2717,7 +2717,7 @@ content="width=device-width, initial-scale=1.0"
 
 <body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-5xl mx-auto space-y-5 sm:space-y-6">
+<div class="admin-compact max-w-5xl mx-auto space-y-4 sm:space-y-5">
 
 <div class="bg-slate-900 text-white rounded-3xl shadow-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
@@ -2818,7 +2818,7 @@ type="checkbox"
 name="otomatik"
 value="1"
 {"checked" if firma.get("otomatik", True) else ""}
-{"disabled" if not scraper_var else ""}
+{"disabled" if not scraper_var and not firma.get("url", "").strip() else ""}
 class="w-5 h-5"
 >
 
@@ -4310,7 +4310,7 @@ Mevcut Banner
 <img
 src="{esc(ad.get("image_url", ""))}"
 alt="{esc(ad.get("title", label))}"
-class="w-full max-h-72 object-contain rounded-lg"
+class="w-full max-h-32 object-contain rounded-lg"
 >
 </div>
 
@@ -4318,7 +4318,7 @@ class="w-full max-h-72 object-contain rounded-lg"
 """
 
         ad_form_fields += f"""
-<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/60 hover:bg-white hover:shadow-md transition">
+<div class="admin-banner-card border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/60 hover:bg-white hover:shadow-md transition">
 
 <form
 method="post"
@@ -4455,6 +4455,76 @@ body {{
     box-sizing: border-box;
 }}
 
+.admin-compact .max-w-7xl {{
+    gap: 12px;
+}}
+
+.admin-compact .max-w-7xl > .bg-slate-900 {{
+    padding: 14px 18px !important;
+    border-radius: 18px !important;
+}}
+
+.admin-compact .max-w-7xl > .bg-white {{
+    padding: 14px 16px !important;
+    border-radius: 18px !important;
+}}
+
+.admin-compact h1 {{
+    font-size: 1.35rem !important;
+}}
+
+.admin-compact h2 {{
+    font-size: 1rem !important;
+}}
+
+.admin-compact .space-y-3 > * + * {{
+    margin-top: 8px !important;
+}}
+
+.admin-compact .space-y-5 > * + * {{
+    margin-top: 12px !important;
+}}
+
+.admin-compact .space-y-6 > * + * {{
+    margin-top: 14px !important;
+}}
+
+.admin-compact [data-firma-row] {{
+    padding: 10px 12px !important;
+}}
+
+.admin-compact [data-firma-row] .text-lg {{
+    font-size: .95rem !important;
+}}
+
+.admin-compact .admin-banner-grid {{
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 10px;
+}}
+
+@media (min-width: 1024px) {{
+    .admin-compact .admin-banner-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+}}
+
+.admin-compact .admin-banner-card {{
+    padding: 11px !important;
+    border-radius: 14px !important;
+}}
+
+.admin-compact .admin-banner-card input[type="text"],
+.admin-compact .admin-banner-card input[type="url"],
+.admin-compact .admin-banner-card input[type="file"] {{
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}}
+
+.admin-compact .admin-banner-card img {{
+    max-height: 120px !important;
+}}
+
 .break-anywhere {{
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -4464,7 +4534,7 @@ body {{
 
 </head>
 
-<body class="bg-slate-100 min-h-screen p-3 sm:p-4 text-slate-900">
+<body class="admin-compact bg-slate-100 min-h-screen p-3 sm:p-4 text-slate-900">
 
 <div class="max-w-7xl mx-auto space-y-5 sm:space-y-6">
 
@@ -4678,7 +4748,7 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
 
 </div>
 
-<div class="space-y-5">
+<div class="admin-banner-grid">
 
 {ad_form_fields}
 
