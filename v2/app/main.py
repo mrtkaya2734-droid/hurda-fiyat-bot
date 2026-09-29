@@ -3789,6 +3789,30 @@ async def notifications_read(
 
 
 # =========================================================
+# TEK BİLDİRİMİ OKUNDU YAP
+# =========================================================
+
+@app.post(
+    "/admin/notifications/read-one"
+)
+async def notification_read_one(
+    notification_id: int = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirim_okundu(
+        notification_id
+    )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
 # BİLDİRİM SİL
 # =========================================================
 
@@ -4136,25 +4160,39 @@ Henüz firma bulunmuyor.
 {esc(item.get("tarih", ""))}
 </div>
 
-<form
+{"<form
 method="post"
-action="/admin/notifications/delete"
-onsubmit="return confirm('Bu bildirimi silmek istediğinizden emin misiniz?');"
+action="/admin/notifications/read-one"
+class="inline"
 >
-
 <input
 type="hidden"
 name="notification_id"
 value="{esc(item.get("id", ""))}"
 >
-
+<button
+type="submit"
+class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold"
+>
+Okundu
+</button>
+</form>" if not item.get("okundu", False) else ""}
+<form
+method="post"
+action="/admin/notifications/delete"
+onsubmit="return confirm('Bu bildirimi silmek istediğinizden emin misiniz?');"
+>
+<input
+type="hidden"
+name="notification_id"
+value="{esc(item.get("id", ""))}"
+>
 <button
 type="submit"
 class="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold"
 >
 Sil
 </button>
-
 </form>
 
 </div>
@@ -4622,6 +4660,41 @@ async def update_ads(
     )
 
     data = dict(mevcut_ads)
+
+    # Tek banneri tamamen kaldır.
+    if str(form.get("banner_delete", "")).strip() == "1":
+        eski = mevcut_ads.get(
+            banner_key,
+            DEFAULT_ADS.get(banner_key, {}),
+        )
+
+        eski_url = str(
+            eski.get("image_url", "")
+        ).strip()
+
+        if eski_url.startswith("/static/ads/"):
+            eski_dosya = os.path.basename(eski_url)
+            eski_yol = os.path.join(
+                ADS_UPLOAD_DIR,
+                eski_dosya,
+            )
+
+            if os.path.exists(eski_yol):
+                try:
+                    os.remove(eski_yol)
+                except Exception:
+                    pass
+
+        data[banner_key] = dict(
+            DEFAULT_ADS[banner_key]
+        )
+
+        save_ads(data)
+
+        return RedirectResponse(
+            url="/admin",
+            status_code=303,
+        )
 
     allowed_extensions = {
         ".jpg",
