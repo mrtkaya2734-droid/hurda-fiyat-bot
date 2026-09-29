@@ -109,11 +109,33 @@ def _normalize_text(text: str):
     ).strip()
 
 
+def _dedupe_repeated_label(text: str):
+    """
+    Kaynak sayfalarında aynı ürün adı iki kez art arda gelebiliyor:
+    'DKP DKP', 'Top Şiş Top Şiş', '1. Kalite 1. Kalite' gibi.
+    Yalnızca metnin tamamı iki eş parçadan oluşuyorsa tekilleştirir.
+    """
+    value = _normalize_text(text)
+    if not value:
+        return ""
+
+    parts = value.split()
+    if len(parts) >= 2 and len(parts) % 2 == 0:
+        half = len(parts) // 2
+        left = " ".join(parts[:half])
+        right = " ".join(parts[half:])
+        if left.casefold() == right.casefold():
+            return left
+
+    return value
+
+
 def _clean_label(text: str):
     value = _normalize_text(text)
     if not value:
         return ""
 
+    value = _dedupe_repeated_label(value)
     value = PRICE_RE.sub("", value)
     value = re.sub(
         r"\b(?:TL|TRY|₺)(?:\s*/\s*(?:ton|mt|kg))?\b",
@@ -389,9 +411,11 @@ def cek_url(
 
     unique = {}
     for label, price in pairs:
-        normalized = " ".join(
-            str(label or "").split()
-        ).strip()
+        normalized = _dedupe_repeated_label(
+            " ".join(
+                str(label or "").split()
+            ).strip()
+        )
 
         if not normalized:
             continue
