@@ -22,5 +22,17 @@
         "image_url": "/static/ads/right_bottom_ab6ec233b930426395827587fd4b764f.jpg",
         "target_url": "https://www.cevhersanmetal.com/",
         "active": true
+    },
+    "left_middle": {
+        "title": "",
+        "image_url": "",
+        "target_url": "https://www.cevhersanmetal.com/",
+        "active": true
+    },
+    "right_middle": {
+        "title": "",
+        "image_url": "",
+        "target_url": "https://www.cevhersanmetal.com/",
+        "active": true
     }
 }
