@@ -156,7 +156,7 @@ def _lme_sonraki_tarih(metin):
         r"Data valid for\\s+"
         r"(\\d{1,2})\\s+"
         r"([A-Za-z]{3})\\s+"
-        r"(\\d{4})",
+        r"(\d{4})",
         metin or "",
         re.IGNORECASE,
     )
@@ -403,10 +403,10 @@ def _westmetall_lme_verilerini_cek():
     tarih = None
 
     tarih_eslesmesi = re.search(
-        r"Official LME-Prices in US Dollar\\s*"
-        r"\\|?\\s*"
-        r"(\\d{1,2})\\.\\s*"
-        r"([A-Za-z]+)\\s+"
+        r"Official LME-Prices in US Dollar\s*"
+        r"\|?\s*"
+        r"(\d{1,2})\.\s*"
+        r"([A-Za-z]+)\s+"
         r"(\\d{4})",
         page_text,
         re.IGNORECASE,
@@ -451,7 +451,7 @@ def _westmetall_lme_verilerini_cek():
         tarih = (
             re.search(
                 r"Official LME-Prices.*?"
-                r"(\\d{1,2})\\.\\s*"
+                r"(\d{1,2})\.\s*"
                 r"([A-Za-z]+)\\s+"
                 r"(\\d{4})",
                 page_text,
