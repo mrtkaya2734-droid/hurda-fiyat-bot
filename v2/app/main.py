@@ -4885,16 +4885,20 @@ body {
 
 .desktop-ad-column {
     min-width: 0;
-    height: 100%;
-    display: grid;
-    grid-template-rows: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 16px;
 }
 
-.desktop-ad-column .ad-box,
-#bottomAds .ad-box {
-    height: 100%;
+.desktop-ad-column .ad-box {
+    flex: 1 1 0;
     min-height: 0;
+    height: auto;
+}
+
+#bottomAds .ad-box {
+    height: 270px;
+    min-height: 270px;
 }
 
 .desktop-ad-column .ad-box img,
