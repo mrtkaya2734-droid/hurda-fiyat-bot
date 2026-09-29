@@ -2,6 +2,7 @@ import json
 import os
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 # =========================================================
@@ -480,7 +481,9 @@ def manuel_fiyat_kaydet(
     mevcut["manuel_fiyat"] = fiyat
 
     mevcut["fiyat_tarihi"] = (
-        datetime.now().strftime("%Y-%m-%d")
+        datetime.now(
+            ZoneInfo("Europe/Istanbul")
+        ).strftime("%Y-%m-%d")
     )
 
     mevcut["guncelleme"] = now_string()
