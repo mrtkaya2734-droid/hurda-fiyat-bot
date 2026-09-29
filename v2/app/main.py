@@ -1887,339 +1887,170 @@ DOVIZ_CACHE = {}
 DOVIZ_SON_CEKME = None
 DOVIZ_CACHE_SANIYE = 60
 
-YAHOO_QUOTE_URL = (
-    "https://query1.finance.yahoo.com/v7/finance/quote"
+FRANKFURTER_RATES_URL = (
+    "https://api.frankfurter.dev/v2/rates"
 )
 
-YAHOO_CHART_URL = (
-    "https://query1.finance.yahoo.com/v8/finance/chart"
-)
 
-YAHOO_HEADERS = {
-    "Accept": "application/json,text/plain,*/*",
-    "Accept-Language": "en-GB,en;q=0.9,tr;q=0.8",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/140.0.0.0 Safari/537.36"
-    ),
-}
-
-
-def _yahoo_zaman_yaz(timestamp):
-    try:
-        return datetime.fromtimestamp(
-            int(timestamp),
-            tz=ISTANBUL,
-        ).strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        return ""
-
-
-def _yahoo_crumb_al():
-    session = requests.Session()
-    session.headers.update(YAHOO_HEADERS)
-
-    # Yahoo'nun güncel quote uç noktası cookie + crumb
-    # ile çalışabildiği için önce cookie oturumunu başlat.
-    try:
-        session.get(
-            "https://fc.yahoo.com",
-            timeout=10,
-        )
-    except requests.RequestException:
-        pass
-
-    response = session.get(
-        "https://query1.finance.yahoo.com/v1/test/getcrumb",
+def _frankfurter_pair_getir(
+    base,
+    quote="TRY",
+):
+    response = requests.get(
+        FRANKFURTER_RATES_URL,
+        params={
+            "base": base,
+            "quotes": quote,
+        },
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "HurdaFiyatBot/2.0",
+        },
         timeout=10,
     )
     response.raise_for_status()
 
-    crumb = response.text.strip()
+    rows = response.json()
 
-    if not crumb or len(crumb) > 200:
+    if not isinstance(rows, list):
         raise RuntimeError(
-            "Yahoo Finance oturum anahtarı alınamadı."
+            "Frankfurter geçersiz veri döndürdü."
         )
 
-    return session, crumb
-
-
-def _yahoo_quote_verilerini_cek():
-    session, crumb = _yahoo_crumb_al()
-
-    response = session.get(
-        YAHOO_QUOTE_URL,
-        params={
-            "symbols": "USDTRY=X,EURTRY=X",
-            "crumb": crumb,
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-
-    payload = response.json()
-
-    results = (
-        payload.get("quoteResponse", {})
-        .get("result", [])
-    )
-
-    bulunan = {}
-
-    sembol_to_kod = {
-        "USDTRY=X": "USD",
-        "EURTRY=X": "EUR",
-    }
-
-    for item in results:
-        sembol = item.get("symbol")
-        kod = sembol_to_kod.get(sembol)
-
-        if not kod:
-            continue
-
-        son = item.get("regularMarketPrice")
-
-        if son is None:
-            continue
-
-        onceki = item.get(
-            "regularMarketPreviousClose"
-        )
-
-        if onceki is None:
-            onceki = item.get(
-                "previousClose"
-            )
-
-        bid = item.get("bid")
-        ask = item.get("ask")
-
-        # Forex quote'unda bid/ask yoksa son fiyatı
-        # sadece görsel yedek olarak kullan; veri uydurma.
-        if bid is None:
-            bid = son
-
-        if ask is None:
-            ask = son
-
-        fark = None
-        fark_yuzde = None
-
-        if onceki is not None:
-            try:
-                fark = float(son) - float(onceki)
-
-                if float(onceki) != 0:
-                    fark_yuzde = (
-                        fark / float(onceki)
-                    ) * 100
-            except Exception:
-                fark = None
-                fark_yuzde = None
-
-        bulunan[kod] = {
-            "kod": kod,
-            "birim": "1",
-            "alis": float(bid),
-            "satis": float(ask),
-            "kur": float(son),
-            "bid": float(bid),
-            "ask": float(ask),
-            "onceki_kapanis": (
-                float(onceki)
-                if onceki is not None
-                else None
-            ),
-            "degisim": fark,
-            "degisim_yuzde": fark_yuzde,
-            "kur_turu": "Yahoo Finance piyasa kotasyonu",
-            "tarih": _yahoo_zaman_yaz(
-                item.get("regularMarketTime")
-            ),
-        }
-
-    if set(bulunan.keys()) != {"USD", "EUR"}:
-        raise RuntimeError(
-            "Yahoo Finance USD/TRY ve EUR/TRY kotasyonlarının "
-            "tamamını döndürmedi."
-        )
-
-    tarih_listesi = [
-        x.get("tarih", "")
-        for x in bulunan.values()
-        if x.get("tarih", "")
+    rows = [
+        row
+        for row in rows
+        if row.get("quote") == quote
+        and row.get("rate") is not None
     ]
 
-    return {
-        "status": "success",
-        "kaynak": "Yahoo Finance",
-        "kur_turu": "Piyasa kotasyonu · gecikmeli olabilir",
-        "tarih": max(tarih_listesi)
-        if tarih_listesi
-        else "",
-        "veriler": bulunan,
-    }
-
-
-def _yahoo_chart_verilerini_cek():
-    bulunan = {}
-
-    sembol_to_kod = {
-        "USDTRY=X": "USD",
-        "EURTRY=X": "EUR",
-    }
-
-    for sembol, kod in sembol_to_kod.items():
-        response = requests.get(
-            f"{YAHOO_CHART_URL}/{sembol}",
-            params={
-                "range": "5d",
-                "interval": "1d",
-            },
-            headers=YAHOO_HEADERS,
-            timeout=15,
-        )
-        response.raise_for_status()
-
-        payload = response.json()
-        sonuc = (
-            payload.get("chart", {})
-            .get("result", [])
+    if not rows:
+        raise RuntimeError(
+            f"{base}/{quote} kuru bulunamadı."
         )
 
-        if not sonuc:
-            raise RuntimeError(
-                f"Yahoo chart {kod} sonucu boş döndü."
-            )
+    row = rows[-1]
 
-        meta = sonuc[0].get("meta", {})
-        son = meta.get("regularMarketPrice")
-
-        if son is None:
-            raise RuntimeError(
-                f"Yahoo chart {kod} son fiyatı boş döndü."
-            )
-
-        onceki = meta.get(
-            "chartPreviousClose"
-        )
-
-        fark = None
-        fark_yuzde = None
-
-        if onceki is not None:
-            try:
-                fark = float(son) - float(onceki)
-
-                if float(onceki) != 0:
-                    fark_yuzde = (
-                        fark / float(onceki)
-                    ) * 100
-            except Exception:
-                fark = None
-                fark_yuzde = None
-
-        bulunan[kod] = {
-            "kod": kod,
-            "birim": "1",
-            "alis": float(son),
-            "satis": float(son),
-            "kur": float(son),
-            "bid": None,
-            "ask": None,
-            "onceki_kapanis": (
-                float(onceki)
-                if onceki is not None
-                else None
-            ),
-            "degisim": fark,
-            "degisim_yuzde": fark_yuzde,
-            "kur_turu": "Yahoo Finance son fiyat",
-            "tarih": _yahoo_zaman_yaz(
-                meta.get("regularMarketTime")
-            ),
-        }
-
-    tarih_listesi = [
-        x.get("tarih", "")
-        for x in bulunan.values()
-        if x.get("tarih", "")
-    ]
-
-    return {
-        "status": "success",
-        "kaynak": "Yahoo Finance",
-        "kur_turu": "Son piyasa fiyatı · gecikmeli olabilir",
-        "tarih": max(tarih_listesi)
-        if tarih_listesi
-        else "",
-        "veriler": bulunan,
-    }
-
-
-def _frankfurter_yedek_verileri_cek():
-    API_URL = (
-        "https://api.frankfurter.dev/v2/rate"
+    return (
+        float(row["rate"]),
+        str(row.get("date") or ""),
     )
 
+
+def _frankfurter_onceki_pair_getir(
+    base,
+    quote,
+    son_tarih,
+):
+    try:
+        son_dt = datetime.strptime(
+            son_tarih,
+            "%Y-%m-%d",
+        )
+    except Exception:
+        return None
+
+    # Hafta sonu / tatil gibi boş günleri atlamak için
+    # son yayın tarihinden geriye doğru birkaç gün tara.
+    for gun in range(1, 8):
+        tarih = (
+            son_dt
+            - __import__("datetime").timedelta(
+                days=gun
+            )
+        ).strftime("%Y-%m-%d")
+
+        try:
+            response = requests.get(
+                FRANKFURTER_RATES_URL,
+                params={
+                    "base": base,
+                    "quotes": quote,
+                    "date": tarih,
+                },
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "HurdaFiyatBot/2.0",
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            rows = response.json()
+
+            if not isinstance(rows, list):
+                continue
+
+            for row in rows:
+                if (
+                    row.get("quote") == quote
+                    and row.get("rate") is not None
+                ):
+                    return float(row["rate"])
+        except Exception:
+            continue
+
+    return None
+
+
+def _frankfurter_piyasa_verilerini_cek():
     bulunan = {}
 
     for kod in (
         "USD",
         "EUR",
     ):
-        response = requests.get(
-            f"{API_URL}/{kod.lower()}/try",
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "HurdaFiyatBot/2.0",
-            },
-            timeout=10,
-        )
-        response.raise_for_status()
-
-        veri = response.json()
-
-        rate = veri.get("rate")
-
-        tarih = veri.get(
-            "date",
-            "",
+        rate, tarih = _frankfurter_pair_getir(
+            kod,
+            "TRY",
         )
 
-        if rate is None:
-            raise ValueError(
-                f"Frankfurter {kod}/TRY kuru boş döndü."
-            )
+        onceki = _frankfurter_onceki_pair_getir(
+            kod,
+            "TRY",
+            tarih,
+        )
+
+        fark = None
+        fark_yuzde = None
+
+        if onceki is not None:
+            fark = rate - onceki
+
+            if onceki != 0:
+                fark_yuzde = (
+                    fark / onceki
+                ) * 100
 
         bulunan[kod] = {
             "kod": kod,
             "birim": "1",
-            "alis": float(rate),
-            "satis": float(rate),
-            "kur": float(rate),
-            "bid": None,
-            "ask": None,
-            "onceki_kapanis": None,
-            "degisim": None,
-            "degisim_yuzde": None,
-            "kur_turu": "Günlük referans kuru",
+            "alis": rate,
+            "satis": rate,
+            "kur": rate,
+            "bid": rate,
+            "ask": rate,
+            "onceki_kapanis": onceki,
+            "degisim": fark,
+            "degisim_yuzde": fark_yuzde,
+            "kur_turu": (
+                "Frankfurter günlük referans kuru"
+            ),
             "tarih": tarih,
         }
 
     tarihler = [
-        x.get("tarih", "")
-        for x in bulunan.values()
-        if x.get("tarih", "")
+        item["tarih"]
+        for item in bulunan.values()
+        if item.get("tarih")
     ]
 
     return {
         "status": "success",
         "kaynak": "Frankfurter",
-        "kur_turu": "Günlük referans kuru",
+        "kur_turu": (
+            "Günlük referans kuru · piyasa saatleri dışında değişmeyebilir"
+        ),
         "tarih": min(tarihler)
         if tarihler
         else "",
@@ -2243,11 +2074,8 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
-    hatalar = []
-
-    # 1) Yahoo quote: bid/ask + son fiyat + önceki kapanış
     try:
-        sonuc = _yahoo_quote_verilerini_cek()
+        sonuc = _frankfurter_piyasa_verilerini_cek()
 
         DOVIZ_CACHE = sonuc
         DOVIZ_SON_CEKME = simdi
@@ -2255,57 +2083,24 @@ def doviz_kurlarini_getir(force=False):
         return DOVIZ_CACHE
 
     except Exception as exc:
-        hatalar.append(
-            f"Yahoo quote: {exc}"
+        print(
+            "DÖVİZ KUR HATASI: "
+            f"{type(exc).__name__}: {exc}"
         )
 
-    # 2) Yahoo chart: quote uç noktası başarısızsa
-    # yine aynı kaynaktan son fiyat + değişim bilgisini getir.
-    try:
-        sonuc = _yahoo_chart_verilerini_cek()
+        if DOVIZ_CACHE:
+            return DOVIZ_CACHE
 
-        DOVIZ_CACHE = sonuc
-        DOVIZ_SON_CEKME = simdi
-
-        return DOVIZ_CACHE
-
-    except Exception as exc:
-        hatalar.append(
-            f"Yahoo chart: {exc}"
-        )
-
-    # 3) Son güvenli yedek: Frankfurter.
-    try:
-        sonuc = _frankfurter_yedek_verileri_cek()
-
-        DOVIZ_CACHE = sonuc
-        DOVIZ_SON_CEKME = simdi
-
-        return DOVIZ_CACHE
-
-    except Exception as exc:
-        hatalar.append(
-            f"Frankfurter: {exc}"
-        )
-
-    print(
-        "DÖVİZ KUR HATASI: "
-        + " | ".join(hatalar)
-    )
-
-    if DOVIZ_CACHE:
-        return DOVIZ_CACHE
-
-    return {
-        "status": "error",
-        "kaynak": "Yahoo Finance / Frankfurter",
-        "kur_turu": "Veri alınamadı",
-        "tarih": "",
-        "veriler": {},
-        "hata": (
-            "USD/EUR kurları şu anda alınamadı."
-        ),
-    }
+        return {
+            "status": "error",
+            "kaynak": "Frankfurter",
+            "kur_turu": "Veri alınamadı",
+            "tarih": "",
+            "veriler": {},
+            "hata": (
+                "USD/EUR kurları şu anda alınamadı."
+            ),
+        }
 
 
 # =========================================================
