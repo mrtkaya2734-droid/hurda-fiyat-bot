@@ -4891,7 +4891,7 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .desktop-ad-column .ad-box {
@@ -4901,8 +4901,8 @@ body {
 }
 
 #bottomAds .ad-box {
-    height: 270px;
-    min-height: 270px;
+    height: 200px;
+    min-height: 200px;
 }
 
 .desktop-ad-column .ad-box img,
@@ -5026,7 +5026,7 @@ body {
 
 <body class="min-h-screen">
 
-<div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-5">
+<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
 <header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
@@ -5426,7 +5426,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)_270px] gap-4 sm:gap-5">
+<div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_220px] gap-3 sm:gap-4 items-start">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
@@ -5510,7 +5510,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-5"
+class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
 >
 
 <div
