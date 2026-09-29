@@ -150,15 +150,81 @@ def firma_scraperini_bul(firma_id):
     return None
 
 
+def firmalari_sirala(data):
+
+    firmalar = list(
+        data.get(
+            "firms",
+            {},
+        ).values()
+    )
+
+    def sira_degeri(firma):
+
+        try:
+            return int(
+                firma.get(
+                    "sira",
+                    999999,
+                )
+            )
+        except Exception:
+            return 999999
+
+    firmalar.sort(
+        key=lambda firma: (
+            sira_degeri(firma),
+            str(
+                firma.get(
+                    "firma_id",
+                    "",
+                )
+            ).lower(),
+        )
+    )
+
+    return firmalar
+
+
+def firma_siralarini_duzelt(data):
+
+    firmalar = firmalari_sirala(
+        data
+    )
+
+    for index, firma in enumerate(
+        firmalar
+    ):
+
+        firma_id = firma.get(
+            "firma_id"
+        )
+
+        if firma_id in data.get(
+            "firms",
+            {},
+        ):
+
+            data["firms"][
+                firma_id
+            ]["sira"] = index
+
+    return data
+
+
 def parse_datetime(value):
 
     if not value:
         return None
 
     try:
-        dt = datetime.fromisoformat(str(value))
+
+        dt = datetime.fromisoformat(
+            str(value)
+        )
 
         if dt.tzinfo is not None:
+
             dt = dt.astimezone(
                 ISTANBUL
             ).replace(
@@ -168,6 +234,7 @@ def parse_datetime(value):
         return dt
 
     except Exception:
+
         return None
 
 
@@ -176,11 +243,16 @@ def firma_stale_mi(firma):
     if not firma:
         return True
 
-    if firma.get("durum") != "basarili":
+    if firma.get(
+        "durum"
+    ) != "basarili":
+
         return True
 
     son_cekim = parse_datetime(
-        firma.get("son_basarili_cekme")
+        firma.get(
+            "son_basarili_cekme"
+        )
     )
 
     if not son_cekim:
@@ -203,13 +275,17 @@ def fiyat_tarih_yaz(value):
         return "-"
 
     try:
+
         dt = datetime.fromisoformat(
             str(value)
         )
 
-        return dt.strftime("%d.%m.%Y")
+        return dt.strftime(
+            "%d.%m.%Y"
+        )
 
     except Exception:
+
         return str(value)
 
 
@@ -219,12 +295,17 @@ def fiyat_format(fiyat):
         return "-"
 
     try:
+
         return (
-            f"{int(fiyat):,}".replace(",", ".")
+            f"{int(fiyat):,}".replace(
+                ",",
+                ".",
+            )
             + " TL/Ton"
         )
 
     except Exception:
+
         return str(fiyat)
 
 
@@ -241,32 +322,53 @@ def son_fiyat_degisim(
             "price_history",
             [],
         )
-        if x.get("firma_id") == firma_id
-        and x.get("kalem") == kalem
+        if x.get(
+            "firma_id"
+        ) == firma_id
+        and x.get(
+            "kalem"
+        ) == kalem
     ]
 
     if len(gecmis) < 2:
         return ""
 
-    onceki = gecmis[-2].get("fiyat")
+    onceki = gecmis[
+        -2
+    ].get(
+        "fiyat"
+    )
 
     if onceki is None:
         return ""
 
     try:
-        fark = fiyat - onceki
+
+        fark = (
+            fiyat - onceki
+        )
+
     except Exception:
+
         return ""
 
     if fark > 0:
+
         return (
-            f"+{fark:,}".replace(",", ".")
+            f"+{fark:,}".replace(
+                ",",
+                ".",
+            )
             + " TL"
         )
 
     if fark < 0:
+
         return (
-            f"{fark:,}".replace(",", ".")
+            f"{fark:,}".replace(
+                ",",
+                ".",
+            )
             + " TL"
         )
 
@@ -297,6 +399,7 @@ def verify_admin(
         correct_username
         and correct_password
     ):
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Yetkisiz erişim!",
@@ -316,7 +419,11 @@ def normalize_ads(data):
 
     result = {}
 
-    if not isinstance(data, dict):
+    if not isinstance(
+        data,
+        dict,
+    ):
+
         data = {}
 
     for key, default in DEFAULT_ADS.items():
@@ -326,7 +433,11 @@ def normalize_ads(data):
             {},
         )
 
-        if not isinstance(item, dict):
+        if not isinstance(
+            item,
+            dict,
+        ):
+
             item = {}
 
         result[key] = {
@@ -355,9 +466,13 @@ def normalize_ads(data):
 
 def load_ads():
 
-    if not os.path.exists(ADS_FILE):
+    if not os.path.exists(
+        ADS_FILE
+    ):
 
-        save_ads(DEFAULT_ADS)
+        save_ads(
+            DEFAULT_ADS
+        )
 
         return normalize_ads(
             DEFAULT_ADS
@@ -371,14 +486,22 @@ def load_ads():
             encoding="utf-8",
         ) as file:
 
-            data = json.load(file)
+            data = json.load(
+                file
+            )
 
-        if not isinstance(data, dict):
+        if not isinstance(
+            data,
+            dict,
+        ):
+
             return normalize_ads(
                 DEFAULT_ADS
             )
 
-        return normalize_ads(data)
+        return normalize_ads(
+            data
+        )
 
     except Exception:
 
@@ -389,9 +512,14 @@ def load_ads():
 
 def save_ads(data):
 
-    data = normalize_ads(data)
+    data = normalize_ads(
+        data
+    )
 
-    temporary = ADS_FILE + ".tmp"
+    temporary = (
+        ADS_FILE
+        + ".tmp"
+    )
 
     with open(
         temporary,
@@ -417,19 +545,28 @@ def ad_html(ad):
     if not ad:
         return ""
 
-    if not ad.get("active"):
+    if not ad.get(
+        "active"
+    ):
+
         return ""
 
     title = esc(
-        ad.get("title")
+        ad.get(
+            "title"
+        )
     )
 
     image_url = esc(
-        ad.get("image_url")
+        ad.get(
+            "image_url"
+        )
     )
 
     target_url = esc(
-        ad.get("target_url")
+        ad.get(
+            "target_url"
+        )
     )
 
     if not image_url:
@@ -462,7 +599,9 @@ GUNCEL_VERILER = []
 SON_GUNCELLEME = "Henüz yapılmadı"
 
 
-def firma_verisini_cek(fonksiyon):
+def firma_verisini_cek(
+    fonksiyon
+):
 
     sonuc = fonksiyon()
 
@@ -471,11 +610,19 @@ def firma_verisini_cek(fonksiyon):
     if "firms" not in data:
         data["firms"] = {}
 
-    firma = data["firms"].get(
+    firma = data[
+        "firms"
+    ].get(
         sonuc.firma_id
     )
 
     if not firma:
+
+        mevcut_firma_sayisi = len(
+            data[
+                "firms"
+            ]
+        )
 
         firma = {
             "firma_id": sonuc.firma_id,
@@ -486,9 +633,12 @@ def firma_verisini_cek(fonksiyon):
             "son_basarili_cekme": None,
             "kaynak_fiyat_tarihi": None,
             "durum": "bekliyor",
+            "sira": mevcut_firma_sayisi,
         }
 
-        data["firms"][
+        data[
+            "firms"
+        ][
             sonuc.firma_id
         ] = firma
 
@@ -565,9 +715,20 @@ def firma_verisini_cek(fonksiyon):
     if "firms" not in data:
         data["firms"] = {}
 
-    if sonuc.firma_id not in data["firms"]:
+    if (
+        sonuc.firma_id
+        not in data["firms"]
+    ):
 
-        data["firms"][
+        mevcut_firma_sayisi = len(
+            data[
+                "firms"
+            ]
+        )
+
+        data[
+            "firms"
+        ][
             sonuc.firma_id
         ] = {
             "firma_id": sonuc.firma_id,
@@ -578,33 +739,74 @@ def firma_verisini_cek(fonksiyon):
             "son_basarili_cekme": None,
             "kaynak_fiyat_tarihi": None,
             "durum": "bekliyor",
+            "sira": mevcut_firma_sayisi,
         }
 
-    data["firms"][
+    if "sira" not in data[
+        "firms"
+    ][
         sonuc.firma_id
-    ]["baslik"] = sonuc.baslik
+    ]:
 
-    data["firms"][
-        sonuc.firma_id
-    ]["url"] = sonuc.url or ""
+        data[
+            "firms"
+        ][
+            sonuc.firma_id
+        ][
+            "sira"
+        ] = len(
+            data[
+                "firms"
+            ]
+        ) - 1
 
-    data["firms"][
+    data[
+        "firms"
+    ][
         sonuc.firma_id
-    ]["son_basarili_cekme"] = (
-        now_istanbul_string()
+    ][
+        "baslik"
+    ] = sonuc.baslik
+
+    data[
+        "firms"
+    ][
+        sonuc.firma_id
+    ][
+        "url"
+    ] = sonuc.url or ""
+
+    data[
+        "firms"
+    ][
+        sonuc.firma_id
+    ][
+        "son_basarili_cekme"
+    ] = now_istanbul_string()
+
+    data[
+        "firms"
+    ][
+        sonuc.firma_id
+    ][
+        "kaynak_fiyat_tarihi"
+    ] = fiyat_tarihi
+
+    data[
+        "firms"
+    ][
+        sonuc.firma_id
+    ][
+        "durum"
+    ] = "basarili"
+
+    firma_siralarini_duzelt(
+        data
     )
 
-    data["firms"][
-        sonuc.firma_id
-    ]["kaynak_fiyat_tarihi"] = (
-        fiyat_tarihi
+    save_data(
+        data
     )
-
-    data["firms"][
-        sonuc.firma_id
-    ]["durum"] = "basarili"
-
-    save_data(data)
 
     return {
         "firma_id": sonuc.firma_id,
@@ -710,11 +912,17 @@ def verileri_guncelle():
                     {},
                 ):
 
-                    data["firms"][
+                    data[
+                        "firms"
+                    ][
                         firma_id
-                    ]["durum"] = "hata"
+                    ][
+                        "durum"
+                    ] = "hata"
 
-                    save_data(data)
+                    save_data(
+                        data
+                    )
 
                 bildirim_ekle(
                     firma_id=firma_id,
@@ -752,15 +960,22 @@ def fiyat_verilerini_olustur():
 
     sonuc = []
 
-    for firma_id, firma in data.get(
-        "firms",
-        {},
-    ).items():
+    for firma in firmalari_sirala(
+        data
+    ):
+
+        firma_id = firma.get(
+            "firma_id"
+        )
+
+        if not firma_id:
+            continue
 
         if not firma.get(
             "aktif",
             True,
         ):
+
             continue
 
         fiyatlar = data.get(
@@ -901,6 +1116,7 @@ async def lifespan(app):
     yield
 
     if scheduler.running:
+
         scheduler.shutdown(
             wait=False
         )
@@ -932,7 +1148,9 @@ app.mount(
 # FİYAT API
 # =========================================================
 
-@app.get("/prices")
+@app.get(
+    "/prices"
+)
 def get_prices():
 
     return {
@@ -946,7 +1164,9 @@ def get_prices():
 # MANIFEST
 # =========================================================
 
-@app.get("/manifest.json")
+@app.get(
+    "/manifest.json"
+)
 def get_manifest():
 
     return {
@@ -969,7 +1189,9 @@ def get_manifest():
     }
 
 
-@app.get("/favicon.ico")
+@app.get(
+    "/favicon.ico"
+)
 def favicon():
 
     return Response(
@@ -981,7 +1203,9 @@ def favicon():
 # SERVICE WORKER
 # =========================================================
 
-@app.get("/sw.js")
+@app.get(
+    "/sw.js"
+)
 def service_worker():
 
     javascript = """
@@ -1038,13 +1262,13 @@ content="width=device-width, initial-scale=1.0"
 
 </head>
 
-<body class="bg-slate-100 min-h-screen p-4">
+<body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
 <div class="max-w-2xl mx-auto">
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
-<div class="flex items-center justify-between mb-6">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
 
 <h1 class="text-2xl font-bold text-slate-900">
 Yeni Firma / Kaynak
@@ -1052,7 +1276,7 @@ Yeni Firma / Kaynak
 
 <a
 href="/admin"
-class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold"
+class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-center"
 >
 ← Geri
 </a>
@@ -1187,7 +1411,9 @@ async def admin_new_source_save(
 
     firma_id = firma_id.strip()
     baslik = baslik.strip()
-    url = (url or "").strip()
+    url = (
+        url or ""
+    ).strip()
 
     if not firma_id:
 
@@ -1208,7 +1434,9 @@ async def admin_new_source_save(
     if "firms" not in data:
         data["firms"] = {}
 
-    if firma_id in data["firms"]:
+    if firma_id in data[
+        "firms"
+    ]:
 
         raise HTTPException(
             status_code=400,
@@ -1226,7 +1454,15 @@ async def admin_new_source_save(
         and scraper_var
     )
 
-    data["firms"][
+    mevcut_firma_sayisi = len(
+        data[
+            "firms"
+        ]
+    )
+
+    data[
+        "firms"
+    ][
         firma_id
     ] = {
         "firma_id": firma_id,
@@ -1237,9 +1473,16 @@ async def admin_new_source_save(
         "son_basarili_cekme": None,
         "kaynak_fiyat_tarihi": None,
         "durum": "bekliyor",
+        "sira": mevcut_firma_sayisi,
     }
 
-    save_data(data)
+    firma_siralarini_duzelt(
+        data
+    )
+
+    save_data(
+        data
+    )
 
     if (
         otomatik == "1"
@@ -1316,11 +1559,11 @@ def admin_source_edit(
         fiyat_rows += f"""
 <div class="border border-slate-200 rounded-xl p-4">
 
-<div class="flex items-center justify-between mb-3">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
 
 <div>
 
-<div class="font-bold text-slate-900">
+<div class="font-bold text-slate-900 break-words">
 {esc(kalem)}
 </div>
 
@@ -1365,7 +1608,7 @@ Bu firma için henüz fiyat kaydı bulunmuyor.
 """
 
     yeni_manuel_fiyat = """
-<div class="mt-5 border-2 border-dashed border-indigo-200 bg-indigo-50 rounded-2xl p-5">
+<div class="mt-5 border-2 border-dashed border-indigo-200 bg-indigo-50 rounded-2xl p-4 sm:p-5">
 
 <h3 class="font-bold text-indigo-900 mb-3">
 Yeni Manuel Fiyat Ekle
@@ -1431,7 +1674,8 @@ Yeni bir fiyat kalemi oluşturmak için kalem adını ve fiyatı girin.
     scraper_var = (
         firma_scraperini_bul(
             firma_id
-        ) is not None
+        )
+        is not None
     )
 
     stale = firma_stale_mi(
@@ -1439,6 +1683,7 @@ Yeni bir fiyat kalemi oluşturmak için kalem adını ve fiyatı girin.
     )
 
     if stale:
+
         durum_text = (
             "STALE / Güncelleme eski"
         )
@@ -1463,26 +1708,26 @@ content="width=device-width, initial-scale=1.0"
 
 </head>
 
-<body class="bg-slate-100 min-h-screen p-4">
+<body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-3xl mx-auto space-y-6">
+<div class="max-w-3xl mx-auto space-y-5 sm:space-y-6">
 
-<div class="flex items-center justify-between">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
-<h1 class="text-2xl font-bold text-slate-900">
+<h1 class="text-2xl font-bold text-slate-900 break-words">
 {esc(firma.get("baslik", firma_id))}
 </h1>
 
 <a
 href="/admin"
-class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold"
+class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-center"
 >
 ← Geri
 </a>
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
 <div class="mb-6">
 
@@ -1494,7 +1739,7 @@ Durum
 {esc(durum_text)}
 </div>
 
-<div class="text-xs text-slate-500 mt-1">
+<div class="text-xs text-slate-500 mt-1 break-words">
 Son başarılı çekim:
 {esc(firma.get("son_basarili_cekme") or "-")}
 </div>
@@ -1607,7 +1852,7 @@ class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
 <h2 class="text-xl font-bold mb-5">
 Manuel Fiyatlar
@@ -1634,7 +1879,7 @@ Manuel Fiyatları Kaydet
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
 <h2 class="text-lg font-bold text-red-700 mb-3">
 Tehlikeli Bölge
@@ -1713,28 +1958,68 @@ async def admin_source_save(
             detail="Firma adı boş olamaz.",
         )
 
-    data["firms"][
+    data[
+        "firms"
+    ][
         firma_id
-    ]["baslik"] = baslik
+    ][
+        "baslik"
+    ] = baslik
 
-    data["firms"][
+    data[
+        "firms"
+    ][
         firma_id
-    ]["url"] = url
+    ][
+        "url"
+    ] = url
 
-    data["firms"][
+    data[
+        "firms"
+    ][
         firma_id
-    ]["aktif"] = (
+    ][
+        "aktif"
+    ] = (
         aktif == "1"
     )
 
-    data["firms"][
+    data[
+        "firms"
+    ][
         firma_id
-    ]["otomatik"] = (
+    ][
+        "otomatik"
+    ] = (
         otomatik == "1"
         and scraper_var
     )
 
-    save_data(data)
+    if "sira" not in data[
+        "firms"
+    ][
+        firma_id
+    ]:
+
+        data[
+            "firms"
+        ][
+            firma_id
+        ][
+            "sira"
+        ] = len(
+            data[
+                "firms"
+            ]
+        )
+
+    firma_siralarini_duzelt(
+        data
+    )
+
+    save_data(
+        data
+    )
 
     if (
         otomatik == "1"
@@ -1750,6 +2035,116 @@ async def admin_source_save(
                 "Firma manuel moda alındı."
             ),
         )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
+# FİRMA SIRALAMA
+# =========================================================
+
+@app.post(
+    "/admin/source/{firma_id}/move"
+)
+async def admin_source_move(
+    firma_id: str,
+    direction: str = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    data = load_data()
+
+    firmalar = firmalari_sirala(
+        data
+    )
+
+    mevcut_index = None
+
+    for index, firma in enumerate(
+        firmalar
+    ):
+
+        if firma.get(
+            "firma_id"
+        ) == firma_id:
+
+            mevcut_index = index
+            break
+
+    if mevcut_index is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Firma bulunamadı.",
+        )
+
+    yeni_index = mevcut_index
+
+    if direction == "up":
+
+        yeni_index = max(
+            0,
+            mevcut_index - 1,
+        )
+
+    elif direction == "down":
+
+        yeni_index = min(
+            len(firmalar) - 1,
+            mevcut_index + 1,
+        )
+
+    else:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz sıralama yönü.",
+        )
+
+    if yeni_index != mevcut_index:
+
+        firmalar[
+            mevcut_index
+        ], firmalar[
+            yeni_index
+        ] = (
+            firmalar[
+                yeni_index
+            ],
+            firmalar[
+                mevcut_index
+            ],
+        )
+
+    for index, firma in enumerate(
+        firmalar
+    ):
+
+        id_degeri = firma.get(
+            "firma_id"
+        )
+
+        if id_degeri in data.get(
+            "firms",
+            {},
+        ):
+
+            data[
+                "firms"
+            ][
+                id_degeri
+            ][
+                "sira"
+            ] = index
+
+    save_data(
+        data
+    )
 
     return RedirectResponse(
         url="/admin",
@@ -1834,7 +2229,10 @@ async def admin_manual_save_real(
 
     for kalem in existing_keys:
 
-        field_name = "manuel_" + kalem
+        field_name = (
+            "manuel_"
+            + kalem
+        )
 
         value = form.get(
             field_name
@@ -1892,7 +2290,10 @@ async def admin_manual_save_real(
         or ""
     ).strip()
 
-    if new_kalem or new_fiyat_raw:
+    if (
+        new_kalem
+        or new_fiyat_raw
+    ):
 
         if not new_kalem:
 
@@ -1932,7 +2333,9 @@ async def admin_manual_save_real(
                     "prices"
                 ]:
 
-                    data["prices"][
+                    data[
+                        "prices"
+                    ][
                         firma_id
                     ] = {}
 
@@ -1975,7 +2378,9 @@ async def admin_manual_save_real(
                         now_istanbul_string(),
                 }
 
-                save_data(data)
+                save_data(
+                    data
+                )
 
                 gecmis_ekle(
                     firma_id=firma_id,
@@ -2117,7 +2522,13 @@ async def admin_source_delete(
         ) != firma_id
     ]
 
-    save_data(data)
+    firma_siralarini_duzelt(
+        data
+    )
+
+    save_data(
+        data
+    )
 
     return RedirectResponse(
         url="/admin",
@@ -2200,11 +2611,17 @@ async def admin_source_test(
             {},
         ):
 
-            data["firms"][
+            data[
+                "firms"
+            ][
                 firma_id
-            ]["durum"] = "hata"
+            ][
+                "durum"
+            ] = "hata"
 
-            save_data(data)
+            save_data(
+                data
+            )
 
         bildirim_ekle(
             firma_id,
@@ -2214,6 +2631,51 @@ async def admin_source_test(
 
     return RedirectResponse(
         url=f"/admin/source/{firma_id}",
+        status_code=303,
+    )
+
+
+# =========================================================
+# BİLDİRİMLERİ OKUNDU
+# =========================================================
+
+@app.post(
+    "/admin/notifications/read"
+)
+async def notifications_read(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirimleri_okundu_yap()
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
+# BİLDİRİM SİL
+# =========================================================
+
+@app.post(
+    "/admin/notifications/delete"
+)
+async def notifications_delete(
+    notification_id: int = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirim_sil(
+        notification_id
+    )
+
+    return RedirectResponse(
+        url="/admin",
         status_code=303,
     )
 
@@ -2234,11 +2696,16 @@ def admin_panel(
 
     data = load_data()
 
-    firmalar = list(
-        data.get(
-            "firms",
-            {},
-        ).values()
+    firma_siralarini_duzelt(
+        data
+    )
+
+    save_data(
+        data
+    )
+
+    firmalar = firmalari_sirala(
+        data
     )
 
     notifications = data.get(
@@ -2261,8 +2728,12 @@ def admin_panel(
         [
             x
             for x in firmalar
-            if x.get("durum") == "basarili"
-            and not firma_stale_mi(x)
+            if x.get(
+                "durum"
+            ) == "basarili"
+            and not firma_stale_mi(
+                x
+            )
         ]
     )
 
@@ -2270,8 +2741,12 @@ def admin_panel(
         [
             x
             for x in firmalar
-            if x.get("durum") == "hata"
-            or firma_stale_mi(x)
+            if x.get(
+                "durum"
+            ) == "hata"
+            or firma_stale_mi(
+                x
+            )
         ]
     )
 
@@ -2299,7 +2774,9 @@ def admin_panel(
 
     firma_rows = ""
 
-    for firma in firmalar:
+    for index, firma in enumerate(
+        firmalar
+    ):
 
         firma_id = firma.get(
             "firma_id",
@@ -2366,22 +2843,32 @@ BEKLİYOR
             "son_basarili_cekme"
         ) or "-"
 
+        yukari_disabled = (
+            index == 0
+        )
+
+        asagi_disabled = (
+            index == len(
+                firmalar
+            ) - 1
+        )
+
         firma_rows += f"""
 <div class="border border-slate-200 rounded-2xl p-4">
 
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-<div>
+<div class="min-w-0 flex-1">
 
-<div class="font-bold text-slate-900">
+<div class="font-bold text-slate-900 break-words">
 {esc(baslik)}
 </div>
 
-<div class="text-xs text-slate-500 mt-1">
+<div class="text-xs text-slate-500 mt-1 break-all">
 ID: {esc(firma_id)}
 </div>
 
-<div class="text-xs text-slate-500 mt-1">
+<div class="text-xs text-slate-500 mt-1 break-words">
 Son başarılı çekim: {esc(son_cekim)}
 </div>
 
@@ -2401,7 +2888,53 @@ Son başarılı çekim: {esc(son_cekim)}
 
 </div>
 
-<div class="flex gap-2">
+<div class="flex flex-wrap gap-2 items-center">
+
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/move"
+class="inline"
+>
+
+<input
+type="hidden"
+name="direction"
+value="up"
+>
+
+<button
+type="submit"
+title="Yukarı taşı"
+{"disabled" if yukari_disabled else ""}
+class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-black text-lg {"opacity-40 cursor-not-allowed" if yukari_disabled else "hover:bg-slate-200"}"
+>
+↑
+</button>
+
+</form>
+
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/move"
+class="inline"
+>
+
+<input
+type="hidden"
+name="direction"
+value="down"
+>
+
+<button
+type="submit"
+title="Aşağı taşı"
+{"disabled" if asagi_disabled else ""}
+class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-black text-lg {"opacity-40 cursor-not-allowed" if asagi_disabled else "hover:bg-slate-200"}"
+>
+↓
+</button>
+
+</form>
 
 <a
 href="/admin/source/{esc(firma_id)}"
@@ -2443,27 +2976,29 @@ Henüz firma bulunmuyor.
     notification_rows = ""
 
     for item in reversed(
-        notifications[-30:]
+        notifications[
+            -30:
+        ]
     ):
 
         notification_rows += f"""
 <div class="border border-slate-200 rounded-xl p-4">
 
-<div class="flex justify-between gap-3">
+<div class="flex flex-col sm:flex-row sm:justify-between gap-3">
 
-<div>
+<div class="min-w-0">
 
-<div class="font-bold text-sm text-slate-900">
+<div class="font-bold text-sm text-slate-900 break-words">
 {esc(item.get("tur", "-"))}
 </div>
 
-<div class="text-sm text-slate-600 mt-1">
+<div class="text-sm text-slate-600 mt-1 break-words">
 {esc(item.get("mesaj", ""))}
 </div>
 
 </div>
 
-<div class="flex flex-col items-end gap-2">
+<div class="flex flex-row sm:flex-col items-center sm:items-end gap-2 shrink-0">
 
 <div class="text-xs text-slate-400 whitespace-nowrap">
 {esc(item.get("tarih", ""))}
@@ -2510,17 +3045,33 @@ Bildirim bulunmuyor.
     ad_form_fields = ""
 
     for key, label in [
-        ("left_top", "Sol Üst"),
-        ("left_bottom", "Sol Alt"),
-        ("right_top", "Sağ Üst"),
-        ("right_bottom", "Sağ Alt"),
+        (
+            "left_top",
+            "Sol Üst",
+        ),
+        (
+            "left_bottom",
+            "Sol Alt",
+        ),
+        (
+            "right_top",
+            "Sağ Üst",
+        ),
+        (
+            "right_bottom",
+            "Sağ Alt",
+        ),
     ]:
 
-        ad = ads[key]
+        ad = ads[
+            key
+        ]
 
         mevcut_gorsel = ""
 
-        if ad.get("image_url"):
+        if ad.get(
+            "image_url"
+        ):
 
             mevcut_gorsel = f"""
 <div class="mt-3">
@@ -2541,7 +3092,7 @@ class="w-full max-h-72 object-contain rounded-lg"
 """
 
         ad_form_fields += f"""
-<div class="border border-slate-200 rounded-2xl p-5 space-y-3">
+<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
 
 <div class="font-bold text-slate-900 text-lg">
 {label}
@@ -2623,17 +3174,37 @@ content="width=device-width, initial-scale=1.0"
 
 <script src="https://cdn.tailwindcss.com"></script>
 
+<style>
+
+html,
+body {{
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}}
+
+* {{
+    box-sizing: border-box;
+}}
+
+.break-anywhere {{
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}}
+
+</style>
+
 </head>
 
-<body class="bg-slate-100 min-h-screen p-4">
+<body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-6xl mx-auto space-y-6">
+<div class="max-w-6xl mx-auto space-y-5 sm:space-y-6">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
 
-<div>
+<div class="min-w-0">
 
-<h1 class="text-3xl font-bold text-slate-900">
+<h1 class="text-2xl sm:text-3xl font-bold text-slate-900">
 Hurda Fiyatları
 </h1>
 
@@ -2643,7 +3214,7 @@ Yönetim Paneli
 
 </div>
 
-<div class="flex gap-2">
+<div class="flex flex-wrap gap-2">
 
 <a
 href="/"
@@ -2663,7 +3234,7 @@ class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
 
 </div>
 
-<div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
 
 <div class="bg-white rounded-2xl p-4 shadow-sm">
 
@@ -2727,9 +3298,9 @@ Manuel
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
-<div class="flex items-center justify-between mb-5">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
 
 <h2 class="text-xl font-bold">
 Firmalar
@@ -2741,6 +3312,11 @@ Toplam: {len(firmalar)}
 
 </div>
 
+<div class="mb-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-sm">
+💡 Firmaların ana sayfadaki sırasını değiştirmek için
+<strong>↑</strong> ve <strong>↓</strong> butonlarını kullanın.
+</div>
+
 <div class="space-y-3">
 
 {firma_rows}
@@ -2749,15 +3325,15 @@ Toplam: {len(firmalar)}
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
-<div class="flex items-center justify-between mb-5">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
 
 <h2 class="text-xl font-bold">
 Bildirimler
 </h2>
 
-<div class="flex items-center gap-3">
+<div class="flex flex-wrap items-center gap-3">
 
 <span class="text-sm text-slate-500">
 Okunmamış: {okunmamis}
@@ -2789,7 +3365,7 @@ Tümünü Okundu Yap
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-6">
+<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-5">
 
@@ -2997,41 +3573,27 @@ async def update_ads(
                 ):
 
                     try:
+
                         os.remove(
                             eski_yol
                         )
+
                     except Exception:
+
                         pass
 
-        data[key] = {
+        data[
+            key
+        ] = {
             "title": title,
             "image_url": image_url,
             "target_url": target_url or "#",
             "active": active,
         }
 
-    save_ads(data)
-
-    return RedirectResponse(
-        url="/admin",
-        status_code=303,
+    save_ads(
+        data
     )
-
-
-# =========================================================
-# BİLDİRİMLERİ OKUNDU
-# =========================================================
-
-@app.post(
-    "/admin/notifications/read"
-)
-async def notifications_read(
-    username: str = Depends(
-        verify_admin
-    ),
-):
-
-    bildirimleri_okundu_yap()
 
     return RedirectResponse(
         url="/admin",
@@ -3088,14 +3650,24 @@ body {
     overflow-x: hidden;
 }
 
+* {
+    box-sizing: border-box;
+}
+
 body {
     background: #f1f5f9;
 }
 
 .price-card {
+    width: 100%;
+    min-width: 0;
     transition:
         transform .2s ease,
         box-shadow .2s ease;
+}
+
+.price-card * {
+    min-width: 0;
 }
 
 .price-card:hover {
@@ -3104,12 +3676,107 @@ body {
 
 .ad-box {
     width: 100%;
+    min-width: 0;
+}
+
+.ad-box a {
+    display: block;
+    width: 100%;
 }
 
 .ad-box img {
     width: 100%;
     height: auto;
+    max-width: 100%;
     display: block;
+    object-fit: contain;
+}
+
+.price-header {
+    min-width: 0;
+}
+
+.price-body {
+    min-width: 0;
+}
+
+.price-row {
+    width: 100%;
+    min-width: 0;
+}
+
+.price-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.price-value {
+    flex: 0 0 auto;
+    min-width: 0;
+    text-align: right;
+}
+
+.mobile-safe-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.mobile-ad-grid {
+    width: 100%;
+    min-width: 0;
+}
+
+.mobile-ad-grid .ad-box {
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+
+    .price-card {
+        border-radius: 1rem;
+    }
+
+    .price-card .price-header {
+        padding: 0.9rem;
+    }
+
+    .price-card .price-body {
+        padding: 0.9rem;
+    }
+
+    .price-card .price-row {
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding-top: 0.8rem;
+        padding-bottom: 0.8rem;
+    }
+
+    .price-card .price-name {
+        font-size: 0.9rem;
+        line-height: 1.25rem;
+    }
+
+    .price-card .price-value {
+        max-width: 52%;
+        font-size: 0.9rem;
+        line-height: 1.2rem;
+    }
+
+    .mobile-ad-grid {
+        gap: 0.75rem;
+    }
+
+    .mobile-ad-grid .ad-box {
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+
+    .mobile-ad-grid .ad-box img {
+        border-radius: 1rem;
+    }
+
 }
 
 </style>
@@ -3118,15 +3785,15 @@ body {
 
 <body class="min-h-screen">
 
-<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-5">
+<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-5">
 
-<header class="bg-slate-900 text-white rounded-3xl p-5 mb-5 shadow-lg">
+<header class="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-lg">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-<div>
+<div class="min-w-0">
 
-<h1 class="text-2xl md:text-3xl font-black">
+<h1 class="text-xl sm:text-2xl md:text-3xl font-black break-words">
 Cevhersan Metal
 </h1>
 
@@ -3136,9 +3803,9 @@ Güncel Hurda Fiyatları
 
 </div>
 
-<div class="flex items-center gap-3">
+<div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
 
-<div class="bg-white/10 rounded-xl px-4 py-2 text-sm">
+<div class="bg-white/10 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm">
 
 Son Güncelleme:
 
@@ -3153,7 +3820,7 @@ Yükleniyor...
 
 <a
 href="/admin"
-class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-2 rounded-xl"
+class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-2 rounded-xl text-center"
 >
 ⚙️ Admin
 </a>
@@ -3164,7 +3831,28 @@ class="text-xs bg-white hover:bg-slate-100 text-slate-900 font-semibold px-4 py-
 
 </header>
 
-<div class="grid grid-cols-1 lg:grid-cols-[150px_minmax(0,1fr)_150px] gap-4">
+
+<!-- =====================================================
+     MOBİL REKLAMLAR
+     ===================================================== -->
+
+<div
+id="mobileAds"
+class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
+>
+
+<!-- MOBILE_LEFT_TOP_AD -->
+
+<!-- MOBILE_LEFT_BOTTOM_AD -->
+
+<!-- MOBILE_RIGHT_TOP_AD -->
+
+<!-- MOBILE_RIGHT_BOTTOM_AD -->
+
+</div>
+
+
+<div class="grid grid-cols-1 lg:grid-cols-[150px_minmax(0,1fr)_150px] gap-3 sm:gap-4">
 
 <aside class="hidden lg:block space-y-4">
 
@@ -3182,18 +3870,18 @@ id="leftBottomAd"
 
 </aside>
 
-<main class="min-w-0">
+<main class="min-w-0 w-full">
 
 <div
 id="loading"
-class="bg-white rounded-2xl p-8 text-center text-slate-500"
+class="bg-white rounded-2xl p-6 sm:p-8 text-center text-slate-500"
 >
 Fiyatlar yükleniyor...
 </div>
 
 <div
 id="prices"
-class="space-y-4"
+class="space-y-3 sm:space-y-4 w-full"
 >
 </div>
 
@@ -3244,7 +3932,7 @@ function durumEtiketi(durum) {
     if (durum === "current") {
 
         return `
-        <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-bold">
+        <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-bold whitespace-nowrap">
             GÜNCEL
         </span>
         `;
@@ -3254,7 +3942,7 @@ function durumEtiketi(durum) {
     if (durum === "stale") {
 
         return `
-        <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-bold">
+        <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-bold whitespace-nowrap">
             ESKİ FİYAT
         </span>
         `;
@@ -3264,7 +3952,7 @@ function durumEtiketi(durum) {
     if (durum === "manuel") {
 
         return `
-        <span class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-bold">
+        <span class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-bold whitespace-nowrap">
             MANUEL
         </span>
         `;
@@ -3279,12 +3967,13 @@ async function fiyatlariGetir() {
 
     try {
 
-        const response = await fetch(
-            "/prices",
-            {
-                cache: "no-store"
-            }
-        );
+        const response =
+            await fetch(
+                "/prices",
+                {
+                    cache: "no-store"
+                }
+            );
 
         if (!response.ok) {
 
@@ -3302,21 +3991,17 @@ async function fiyatlariGetir() {
         ).textContent =
             result.son_guncelleme || "-";
 
-
         const container =
             document.getElementById(
                 "prices"
             );
-
 
         const loading =
             document.getElementById(
                 "loading"
             );
 
-
         container.innerHTML = "";
-
 
         if (
             !result.data ||
@@ -3331,14 +4016,11 @@ async function fiyatlariGetir() {
             );
 
             return;
-
         }
-
 
         loading.classList.add(
             "hidden"
         );
-
 
         result.data.forEach(
             function(item) {
@@ -3348,13 +4030,10 @@ async function fiyatlariGetir() {
                         "div"
                     );
 
-
                 card.className =
                     "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden price-card";
 
-
                 let rows = "";
-
 
                 item.kalemler.forEach(
                     function(kalem) {
@@ -3362,15 +4041,12 @@ async function fiyatlariGetir() {
                         const degisim =
                             kalem.degisim || "";
 
-
                         let degisimHtml = "";
-
 
                         if (degisim) {
 
                             let cls =
                                 "text-slate-500";
-
 
                             if (
                                 degisim.startsWith(
@@ -3381,9 +4057,7 @@ async function fiyatlariGetir() {
                                 cls =
                                     "text-emerald-600";
 
-                            }
-
-                            else if (
+                            } else if (
                                 degisim.startsWith(
                                     "-"
                                 )
@@ -3394,10 +4068,9 @@ async function fiyatlariGetir() {
 
                             }
 
-
                             degisimHtml = `
 
-                            <span class="text-xs ${cls} font-bold">
+                            <span class="text-xs ${cls} font-bold whitespace-nowrap">
 
                                 ${escapeHtml(
                                     degisim
@@ -3409,14 +4082,13 @@ async function fiyatlariGetir() {
 
                         }
 
-
                         rows += `
 
-                        <div class="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
+                        <div class="price-row flex items-start justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
 
-                            <div>
+                            <div class="price-name">
 
-                                <div class="font-semibold text-slate-800">
+                                <div class="font-semibold text-slate-800 break-words">
 
                                     ${escapeHtml(
                                         kalem.cins
@@ -3434,10 +4106,9 @@ async function fiyatlariGetir() {
 
                             </div>
 
+                            <div class="price-value">
 
-                            <div class="text-right">
-
-                                <div class="font-black text-slate-900">
+                                <div class="font-black text-slate-900 break-words">
 
                                     ${escapeHtml(
                                         kalem.fiyat
@@ -3456,7 +4127,6 @@ async function fiyatlariGetir() {
                     }
                 );
 
-
                 const kaynakLink =
                     item.url
 
@@ -3466,7 +4136,7 @@ async function fiyatlariGetir() {
                             href="${escapeHtml(item.url)}"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-[10px] text-indigo-600 hover:text-indigo-800 underline block mt-0.5"
+                            class="text-[10px] text-indigo-600 hover:text-indigo-800 underline block mt-0.5 break-words"
                         >
                             Resmi Kaynağa Git ↗
                         </a>
@@ -3481,16 +4151,15 @@ async function fiyatlariGetir() {
 
                         `;
 
-
                 card.innerHTML = `
 
-                <div class="bg-slate-900 text-white p-4">
+                <div class="bg-slate-900 text-white p-3 sm:p-4 price-header">
 
                     <div class="flex items-start justify-between gap-3">
 
-                        <div class="min-w-0">
+                        <div class="min-w-0 flex-1">
 
-                            <h2 class="font-black text-lg break-words">
+                            <h2 class="font-black text-base sm:text-lg break-words mobile-safe-text">
 
                                 ${escapeHtml(
                                     item.baslik
@@ -3498,8 +4167,7 @@ async function fiyatlariGetir() {
 
                             </h2>
 
-
-                            <div class="text-xs text-slate-300 mt-1">
+                            <div class="text-xs text-slate-300 mt-1 break-words">
 
                                 Fiyat tarihi:
 
@@ -3509,11 +4177,9 @@ async function fiyatlariGetir() {
 
                             </div>
 
-
                             ${kaynakLink}
 
                         </div>
-
 
                         <div class="shrink-0">
 
@@ -3527,15 +4193,13 @@ async function fiyatlariGetir() {
 
                 </div>
 
-
-                <div class="p-4">
+                <div class="p-3 sm:p-4 price-body">
 
                     ${rows}
 
                 </div>
 
                 `;
-
 
                 container.appendChild(
                     card
@@ -3615,10 +4279,18 @@ if (
     # =====================================================
 
     reklamlar = {
-        "leftTopAd": ads["left_top"],
-        "leftBottomAd": ads["left_bottom"],
-        "rightTopAd": ads["right_top"],
-        "rightBottomAd": ads["right_bottom"],
+        "leftTopAd": ads[
+            "left_top"
+        ],
+        "leftBottomAd": ads[
+            "left_bottom"
+        ],
+        "rightTopAd": ads[
+            "right_top"
+        ],
+        "rightBottomAd": ads[
+            "right_bottom"
+        ],
     }
 
     for reklam_id, reklam in reklamlar.items():
@@ -3626,14 +4298,18 @@ if (
         desen = (
             r'<div\s+'
             r'class="ad-box rounded-2xl overflow-hidden"\s+'
-            r'id="' + re.escape(reklam_id) + r'"\s*>\s*'
+            r'id="' + re.escape(
+                reklam_id
+            ) + r'"\s*>\s*'
             r'</div>'
         )
 
         icerik = (
             '<div class="ad-box rounded-2xl overflow-hidden" '
             'id="' + reklam_id + '">'
-            + ad_html(reklam)
+            + ad_html(
+                reklam
+            )
             + '</div>'
         )
 
@@ -3650,6 +4326,39 @@ if (
                 f"UYARI: {reklam_id} reklam alanı "
                 "anasayfa HTML'inde bulunamadı."
             )
+
+    # =====================================================
+    # MOBİL REKLAMLARI YERLEŞTİR
+    # =====================================================
+
+    mobile_reklamlar = [
+        (
+            "<!-- MOBILE_LEFT_TOP_AD -->",
+            ads["left_top"],
+        ),
+        (
+            "<!-- MOBILE_LEFT_BOTTOM_AD -->",
+            ads["left_bottom"],
+        ),
+        (
+            "<!-- MOBILE_RIGHT_TOP_AD -->",
+            ads["right_top"],
+        ),
+        (
+            "<!-- MOBILE_RIGHT_BOTTOM_AD -->",
+            ads["right_bottom"],
+        ),
+    ]
+
+    for placeholder, reklam in mobile_reklamlar:
+
+        page = page.replace(
+            placeholder,
+            ad_html(
+                reklam
+            ),
+            1,
+        )
 
     return page
 
@@ -3671,27 +4380,4 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=port,
-    )
-
-# =========================================================
-# BİLDİRİM SİL
-# =========================================================
-
-@app.post(
-    "/admin/notifications/delete"
-)
-async def notifications_delete(
-    notification_id: int = Form(...),
-    username: str = Depends(
-        verify_admin
-    ),
-):
-
-    bildirim_sil(
-        notification_id
-    )
-
-    return RedirectResponse(
-        url="/admin",
-        status_code=303,
     )
