@@ -2271,11 +2271,11 @@ async def admin_source_save(
             detail="Firma bulunamadı.",
         )
 
-    scraper_var = (
-        firma_scraperini_bul(
-            firma_id
+    kayitli_scraper_var = (
+        any(
+            kayit_id == firma_id
+            for kayit_id, _ in TUMU
         )
-        is not None
     )
 
     baslik = (
@@ -2373,6 +2373,57 @@ async def admin_source_save(
                 "girilmedi. Otomatik çekim yapılamaz."
             ),
         )
+
+    elif data["firms"][firma_id].get(
+        "otomatik",
+        False,
+    ):
+
+        try:
+
+            fonksiyon = firma_scraperini_bul(
+                firma_id,
+                data,
+            )
+
+            if fonksiyon is not None:
+                sonuc = firma_verisini_cek(
+                    fonksiyon
+                )
+
+                bildirim_ekle(
+                    firma_id,
+                    "basarili_guncelleme",
+                    (
+                        "Kaynak ayarları kaydedildi ve ilk "
+                        "otomatik çekim başarılı oldu. "
+                        f"{len(sonuc['kalemler'])} fiyat kalemi okundu."
+                    ),
+                )
+
+        except Exception as e:
+
+            data = load_data()
+
+            if firma_id in data.get(
+                "firms",
+                {},
+            ):
+
+                data["firms"][firma_id]["durum"] = "hata"
+
+                save_data(
+                    data
+                )
+
+            bildirim_ekle(
+                firma_id,
+                "kaynak_testi_hatasi",
+                (
+                    "Kaynak ayarları kaydedildi fakat "
+                    f"otomatik çekim başarısız oldu: {e}"
+                ),
+            )
 
     return RedirectResponse(
         url="/admin",
