@@ -5049,7 +5049,7 @@ Yükleniyor...
 
 <section
 id="currencySection"
-class="mb-4 sm:mb-5"
+class="mb-3 sm:mb-4"
 >
 
 <div class="flex items-end justify-between gap-3 mb-3 px-1">
@@ -5059,7 +5059,7 @@ class="mb-4 sm:mb-5"
 Döviz Piyasası
 </div>
 
-<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+<div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
 USD / TL · EUR / TL
 </div>
 </div>
@@ -5071,25 +5071,25 @@ Günlük referans
 
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
-<div class="relative overflow-hidden bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5">
+<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
 
-<div class="absolute right-0 top-0 w-28 h-28 rounded-full bg-slate-50 -translate-y-10 translate-x-10"></div>
+<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
 
 <div class="relative flex items-center justify-between gap-3">
 
 <div class="flex items-center gap-3">
 
-<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-xl shadow-sm">
+<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
 🇺🇸
 </div>
 
 <div>
-<div class="text-[10px] font-black uppercase tracking-wide text-slate-400">
+<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
 Amerikan Doları
 </div>
-<div class="text-base sm:text-lg font-black text-slate-900">
+<div class="text-sm sm:text-base font-black text-slate-900">
 USD / TRY
 </div>
 </div>
@@ -5102,14 +5102,14 @@ USD
 
 </div>
 
-<div class="relative mt-4">
+<div class="relative mt-3">
 <div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
 Referans Kur
 </div>
 
 <div
 id="usdAlis"
-class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 mt-0.5"
+class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
 >
 Yükleniyor...
 </div>
@@ -5119,7 +5119,7 @@ Yükleniyor...
 </div>
 </div>
 
-<div class="relative mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
 <div class="text-[10px] font-bold text-slate-400">
 Günlük oran
 </div>
@@ -5134,23 +5134,23 @@ Yükleniyor...
 
 </div>
 
-<div class="relative overflow-hidden bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5">
+<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
 
-<div class="absolute right-0 top-0 w-28 h-28 rounded-full bg-slate-50 -translate-y-10 translate-x-10"></div>
+<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
 
 <div class="relative flex items-center justify-between gap-3">
 
 <div class="flex items-center gap-3">
 
-<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-xl shadow-sm">
+<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
 🇪🇺
 </div>
 
 <div>
-<div class="text-[10px] font-black uppercase tracking-wide text-slate-400">
+<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
 Euro
 </div>
-<div class="text-base sm:text-lg font-black text-slate-900">
+<div class="text-sm sm:text-base font-black text-slate-900">
 EUR / TRY
 </div>
 </div>
@@ -5163,14 +5163,14 @@ EUR
 
 </div>
 
-<div class="relative mt-4">
+<div class="relative mt-3">
 <div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
 Referans Kur
 </div>
 
 <div
 id="eurAlis"
-class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 mt-0.5"
+class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
 >
 Yükleniyor...
 </div>
@@ -5180,7 +5180,7 @@ Yükleniyor...
 </div>
 </div>
 
-<div class="relative mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
 <div class="text-[10px] font-bold text-slate-400">
 Günlük oran
 </div>
@@ -5199,7 +5199,7 @@ Yükleniyor...
 
 <div
 id="currencyInfo"
-class="mt-2 px-1 text-[10px] sm:text-[11px] text-slate-400"
+class="mt-1.5 px-1 text-[10px] sm:text-[11px] text-slate-400"
 >
 Kur kaynağı: TCMB · Güncelleniyor...
 </div>
