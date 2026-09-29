@@ -150,54 +150,39 @@ def _lme_sayi(value):
         return None
 
 
-def lme_verilerini_cek():
+def _lme_sonraki_tarih(metin):
 
-    global _LME_CACHE
+    eslesme = re.search(
+        r"Data valid for\\s+"
+        r"(\\d{1,2})\\s+"
+        r"([A-Za-z]{3})\\s+"
+        r"(\\d{4})",
+        metin or "",
+        re.IGNORECASE,
+    )
 
-    simdi = now_istanbul()
-
-    if (
-        _LME_CACHE["veriler"]
-        and _LME_CACHE["cekilme"]
-    ):
-
-        gecen = (
-            simdi
-            - _LME_CACHE["cekilme"]
-        ).total_seconds()
-
-        if gecen < 900:
-
-            return _LME_CACHE
+    if not eslesme:
+        return None
 
     try:
-
-        cevap = requests.get(
-            LME_URL,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "Chrome/140 Safari/537.36"
-                ),
-                "Accept-Language": "en-GB,en;q=0.9",
-            },
-            timeout=25,
+        return datetime.strptime(
+            " ".join(
+                eslesme.groups()
+            ),
+            "%d %b %Y",
+        ).strftime(
+            "%d.%m.%Y"
         )
+    except ValueError:
+        return None
 
-        cevap.raise_for_status()
 
-    except requests.RequestException as exc:
-
-        raise RuntimeError(
-            f"LME sayfasına ulaşılamadı: {exc}"
-        ) from exc
+def _lme_verilerini_html(html):
 
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(
-        cevap.text,
+        html,
         "html.parser",
     )
 
@@ -212,16 +197,18 @@ def lme_verilerini_cek():
         if (
             "aluminium" in tablo_metni
             and "copper" in tablo_metni
-            and "3 month" in tablo_metni
+            and (
+                "3 month" in tablo_metni
+                or "3 months" in tablo_metni
+            )
         ):
 
             hedef_tablo = table
             break
 
     if hedef_tablo is None:
-
         raise RuntimeError(
-            "LME Official Prices tablosu bulunamadı."
+            "LME fiyat tablosu bulunamadı."
         )
 
     fiyatlar = {}
@@ -277,60 +264,393 @@ def lme_verilerini_cek():
         }
 
     if not fiyatlar:
-
         raise RuntimeError(
             "LME tablosundan fiyat okunamadı."
         )
 
-    sayfa_metni = soup.get_text(
+    return (
+        fiyatlar,
+        _lme_sonraki_tarih(
+            " ".join(
+                soup.stripped_strings
+            )
+        ),
+    )
+
+
+def _westmetall_lme_verilerini_cek():
+
+    westmetall_url = (
+        "https://www.westmetall.com/en/markdaten.php"
+    )
+
+    try:
+
+        cevap = requests.get(
+            westmetall_url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 Chrome/140 Safari/537.36"
+                ),
+                "Accept-Language": "en-GB,en;q=0.9",
+            },
+            timeout=25,
+        )
+
+        cevap.raise_for_status()
+
+    except requests.RequestException as exc:
+
+        raise RuntimeError(
+            f"Yedek LME kaynağına ulaşılamadı: {exc}"
+        ) from exc
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        cevap.text,
+        "html.parser",
+    )
+
+    page_text = soup.get_text(
         " ",
         strip=True,
     )
 
+    fiyatlar = {}
+
+    # Westmetall, LME Official Prices tablosunda
+    # metal + cash settlement + 3 months sütunlarını yayınlıyor.
+    for table in soup.find_all("table"):
+
+        rows = table.find_all("tr")
+
+        if not rows:
+            continue
+
+        tablo_metni = " ".join(
+            table.stripped_strings
+        ).casefold()
+
+        if (
+            "official lme-prices" not in tablo_metni
+            and "settlement kasse" not in tablo_metni
+        ):
+            continue
+
+        for row in rows:
+
+            cells = [
+                " ".join(
+                    cell.stripped_strings
+                ).strip()
+                for cell in row.find_all(
+                    ["th", "td"]
+                )
+            ]
+
+            if len(cells) < 3:
+                continue
+
+            metal_eslesmesi = None
+
+            for isim, turkce in LME_METALS.items():
+
+                if cells[0].casefold() == isim.casefold():
+
+                    metal_eslesmesi = (
+                        isim,
+                        turkce,
+                    )
+                    break
+
+            if metal_eslesmesi is None:
+                continue
+
+            cash = _lme_sayi(
+                cells[1]
+            )
+            three_month = _lme_sayi(
+                cells[2]
+            )
+
+            if (
+                cash is None
+                and three_month is None
+            ):
+                continue
+
+            fiyatlar[
+                metal_eslesmesi[0]
+            ] = {
+                "ad": metal_eslesmesi[1],
+                "cash_bid": cash,
+                "cash_ask": cash,
+                "three_month_bid": three_month,
+                "three_month_ask": three_month,
+            }
+
+        if fiyatlar:
+            break
+
+    if not fiyatlar:
+
+        raise RuntimeError(
+            "Westmetall LME fiyat tablosundan veri okunamadı."
+        )
+
     tarih = None
 
     tarih_eslesmesi = re.search(
-        r"Data valid for\s+"
-        r"(\d{1,2})\s+"
-        r"([A-Za-z]{3})\s+"
-        r"(\d{4})",
-        sayfa_metni,
+        r"Official LME-Prices in US Dollar\\s*"
+        r"\\|?\\s*"
+        r"(\\d{1,2})\\.\\s*"
+        r"([A-Za-z]+)\\s+"
+        r"(\\d{4})",
+        page_text,
         re.IGNORECASE,
     )
 
     if tarih_eslesmesi:
 
-        try:
+        aylar = {
+            "january": 1,
+            "february": 2,
+            "march": 3,
+            "april": 4,
+            "may": 5,
+            "june": 6,
+            "july": 7,
+            "august": 8,
+            "september": 9,
+            "october": 10,
+            "november": 11,
+            "december": 12,
+        }
 
-            tarih = datetime.strptime(
-                " ".join(
-                    tarih_eslesmesi.groups()
-                ),
-                "%d %b %Y",
-            ).strftime(
-                "%d.%m.%Y"
+        ay = aylar.get(
+            tarih_eslesmesi.group(2).casefold()
+        )
+
+        if ay:
+
+            try:
+                tarih = datetime(
+                    int(tarih_eslesmesi.group(3)),
+                    ay,
+                    int(tarih_eslesmesi.group(1)),
+                ).strftime(
+                    "%d.%m.%Y"
+                )
+            except ValueError:
+                tarih = None
+
+    if not tarih:
+
+        tarih = (
+            re.search(
+                r"Official LME-Prices.*?"
+                r"(\\d{1,2})\\.\\s*"
+                r"([A-Za-z]+)\\s+"
+                r"(\\d{4})",
+                page_text,
+                re.IGNORECASE,
+            )
+        )
+
+        if tarih:
+            ay = {
+                "january": 1,
+                "february": 2,
+                "march": 3,
+                "april": 4,
+                "may": 5,
+                "june": 6,
+                "july": 7,
+                "august": 8,
+                "september": 9,
+                "october": 10,
+                "november": 11,
+                "december": 12,
+            }.get(
+                tarih.group(2).casefold()
             )
 
-        except ValueError:
+            if ay:
+                try:
+                    tarih = datetime(
+                        int(tarih.group(3)),
+                        ay,
+                        int(tarih.group(1)),
+                    ).strftime(
+                        "%d.%m.%Y"
+                    )
+                except ValueError:
+                    tarih = None
 
-            tarih = None
+    return fiyatlar, tarih
+
+
+def lme_verilerini_cek():
+
+    global _LME_CACHE
+
+    simdi = now_istanbul()
+
+    if (
+        _LME_CACHE["veriler"]
+        and _LME_CACHE["cekilme"]
+    ):
+
+        gecen = (
+            simdi
+            - _LME_CACHE["cekilme"]
+        ).total_seconds()
+
+        if gecen < 900:
+
+            return _LME_CACHE
+
+    fiyatlar = {}
+    tarih = None
+    kaynak = None
+    lme_hatasi = None
+
+    # Önce LME resmi sayfasını dene.
+    try:
+
+        cevap = requests.get(
+            LME_URL,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 Chrome/140 Safari/537.36"
+                ),
+                "Accept-Language": "en-GB,en;q=0.9",
+            },
+            timeout=25,
+        )
+
+        cevap.raise_for_status()
+
+        fiyatlar, tarih = _lme_verilerini_html(
+            cevap.text
+        )
+
+        kaynak = "LME Official Prices"
+
+    except Exception as exc:
+
+        lme_hatasi = str(
+            exc
+        )
+
+    # LME sunucusu 403 gibi bir yanıt verirse
+    # aynı LME Official Prices verisini yayınlayan
+    # ikinci kaynağa geç.
+    if not fiyatlar:
+
+        try:
+
+            fiyatlar, tarih = _westmetall_lme_verilerini_cek()
+
+            kaynak = (
+                "Westmetall · Official LME Prices"
+            )
+
+        except Exception as exc:
+
+            raise RuntimeError(
+                "LME verisi alınamadı. "
+                f"Resmi kaynak: {lme_hatasi or '-'} | "
+                f"Yedek kaynak: {exc}"
+            ) from exc
+
+    usd_tl = None
+
+    try:
+
+        doviz = doviz_kurlarini_getir()
+
+        usd_tl = (
+            doviz.get(
+                "veriler",
+                {}
+            )
+            .get(
+                "USD",
+                {}
+            )
+            .get(
+                "alis"
+            )
+        )
+
+    except Exception:
+
+        usd_tl = None
+
+    veriler = []
+
+    for key in LME_METALS:
+
+        if key not in fiyatlar:
+            continue
+
+        item = dict(
+            fiyatlar[key]
+        )
+
+        bid = item.get(
+            "three_month_bid"
+        )
+        ask = item.get(
+            "three_month_ask"
+        )
+
+        if (
+            usd_tl is not None
+            and bid is not None
+            and ask is not None
+        ):
+
+            orta = (
+                float(bid)
+                + float(ask)
+            ) / 2
+
+            item["three_month_tl"] = (
+                round(
+                    orta * float(usd_tl),
+                    2,
+                )
+            )
+
+        else:
+
+            item["three_month_tl"] = None
+
+        veriler.append(
+            item
+        )
 
     sonuc = {
         "tarih": tarih or "-",
-        "veriler": [
-            fiyatlar[key]
-            for key in LME_METALS
-            if key in fiyatlar
-        ],
+        "veriler": veriler,
         "cekilme": simdi.strftime(
             "%d.%m.%Y %H:%M:%S"
         ),
+        "kaynak": kaynak or "-",
+        "usd_tl": usd_tl,
     }
 
     _LME_CACHE = {
         "tarih": sonuc["tarih"],
         "veriler": sonuc["veriler"],
         "cekilme": simdi,
+        "kaynak": sonuc["kaynak"],
+        "usd_tl": sonuc["usd_tl"],
     }
 
     return sonuc
@@ -4315,8 +4635,14 @@ def lme_fiyatlari():
 
         return {
             "status": "success",
-            "kaynak": "LME Official Prices",
+            "kaynak": sonuc.get(
+                "kaynak",
+                "LME Official Prices",
+            ),
             "gecikme": "Gün gecikmeli",
+            "usd_tl": sonuc.get(
+                "usd_tl"
+            ),
             "tarih": sonuc["tarih"],
             "cekilme": sonuc["cekilme"],
             "veriler": sonuc["veriler"],
@@ -4326,7 +4652,7 @@ def lme_fiyatlari():
 
         return {
             "status": "error",
-            "kaynak": "LME Official Prices",
+            "kaynak": "LME Official Prices + yedek kaynak",
             "gecikme": "Gün gecikmeli",
             "message": str(exc),
             "veriler": [],
@@ -4702,7 +5028,7 @@ LME verileri alınıyor...
 </div>
 
 <div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400">
-Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri
+Kaynak: LME Official Prices · USD / metrik ton · Gün gecikmeli veri · TL karşılığı TCMB USD alış kuru ile
 </div>
 
 </section>
@@ -4976,6 +5302,15 @@ async function lmeFiyatlariniGetir() {
                     '<div class="text-lg font-black text-slate-900 mt-1">' +
                         formatFiyat(three) +
                     "</div>" +
+                    '<div class="text-sm font-bold text-emerald-700 mt-1">' +
+                        (
+                            item.three_month_tl !== null
+                            && item.three_month_tl !== undefined
+                            ? formatFiyat(item.three_month_tl) + " TL"
+                            : "TL karşılığı alınamadı"
+                        ) +
+                    "</div>" +
+                    '<div class="text-[10px] text-slate-400 mt-1">3M ortalama × TCMB USD alış</div>' +
                     '<div class="grid grid-cols-2 gap-2 mt-3">' +
                         '<div class="bg-white rounded-lg p-2">' +
                             '<div class="text-[10px] text-slate-400">Bid</div>' +
@@ -5000,7 +5335,21 @@ async function lmeFiyatlariniGetir() {
         info.textContent =
             "Veri tarihi: "
             + (result.tarih || "-")
-            + " · Gün gecikmeli";
+            + " · Gün gecikmeli"
+            + (
+                result.usd_tl
+                ? " · TCMB USD: "
+                + Number(
+                    result.usd_tl
+                  ).toLocaleString(
+                    "tr-TR",
+                    {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 4
+                    }
+                  )
+                : ""
+            );
 
     }
     catch (error) {
