@@ -745,6 +745,12 @@ DEFAULT_ADS = {
         "target_url": "#",
         "active": True,
     },
+    "left_middle": {
+        "title": "Sol Orta Reklam",
+        "image_url": "",
+        "target_url": "#",
+        "active": True,
+    },
     "left_bottom": {
         "title": "Sol Alt Reklam",
         "image_url": "",
@@ -753,6 +759,12 @@ DEFAULT_ADS = {
     },
     "right_top": {
         "title": "Sağ Üst Reklam",
+        "image_url": "",
+        "target_url": "#",
+        "active": True,
+    },
+    "right_middle": {
+        "title": "Sağ Orta Reklam",
         "image_url": "",
         "target_url": "#",
         "active": True,
@@ -4170,12 +4182,20 @@ Bildirim bulunmuyor.
             "Sol Üst",
         ),
         (
+            "left_middle",
+            "Sol Orta",
+        ),
+        (
             "left_bottom",
             "Sol Alt",
         ),
         (
             "right_top",
             "Sağ Üst",
+        ),
+        (
+            "right_middle",
+            "Sağ Orta",
         ),
         (
             "right_bottom",
@@ -4504,13 +4524,13 @@ Banner Yönetimi
 </h2>
 
 <p class="text-sm text-slate-500 mt-1">
-Ana sayfanın sağ, sol ve sayfanın en alt orta bölümündeki bannerları buradan yönetebilirsiniz.
+Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta bölümündeki 2 bannerı buradan yönetebilirsiniz.
 </p>
 
 </div>
 
 <div class="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl font-semibold">
-6 Banner Alanı
+8 Banner Alanı
 </div>
 
 </div>
@@ -4865,19 +4885,24 @@ body {
 
 .desktop-ad-column {
     min-width: 0;
+    height: 100%;
+    display: grid;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 16px;
 }
 
 .desktop-ad-column .ad-box,
 #bottomAds .ad-box {
-    height: 270px;
+    height: 100%;
+    min-height: 0;
 }
 
 .desktop-ad-column .ad-box img,
 #bottomAds .ad-box img {
     width: 100%;
-    height: 270px;
-    min-height: 270px;
-    max-height: 270px;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
     display: block;
     object-fit: cover;
     object-position: center;
@@ -4890,8 +4915,8 @@ body {
 
 .ad-box img {
     width: 100%;
-    height: 270px;
-    min-height: 230px;
+    height: 100%;
+    min-height: 0;
     max-width: 100%;
     display: block;
     object-fit: cover;
@@ -5395,11 +5420,17 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <div class="grid grid-cols-1 lg:grid-cols-[270px_minmax(0,1fr)_270px] gap-4 sm:gap-5">
 
-<aside class="desktop-ad-column hidden lg:block space-y-6 pt-16">
+<aside class="desktop-ad-column hidden lg:grid">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
 id="leftTopAd"
+>
+</div>
+
+<div
+class="ad-box rounded-2xl overflow-hidden"
+id="leftMiddleAd"
 >
 </div>
 
@@ -5445,11 +5476,17 @@ class="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 sm:gap-4 w-full min-w-0
 
 </main>
 
-<aside class="desktop-ad-column hidden lg:block space-y-6 pt-16">
+<aside class="desktop-ad-column hidden lg:grid">
 
 <div
 class="ad-box rounded-2xl overflow-hidden"
 id="rightTopAd"
+>
+</div>
+
+<div
+class="ad-box rounded-2xl overflow-hidden"
+id="rightMiddleAd"
 >
 </div>
 
@@ -5465,7 +5502,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto mt-5"
+class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full mt-5"
 >
 
 <div
@@ -6468,11 +6505,17 @@ if (
         "leftTopAd": ads[
             "left_top"
         ],
+        "leftMiddleAd": ads[
+            "left_middle"
+        ],
         "leftBottomAd": ads[
             "left_bottom"
         ],
         "rightTopAd": ads[
             "right_top"
+        ],
+        "rightMiddleAd": ads[
+            "right_middle"
         ],
         "rightBottomAd": ads[
             "right_bottom"
