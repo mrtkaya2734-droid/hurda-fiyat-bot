@@ -4010,7 +4010,7 @@ BEKLİYOR
         )
 
         firma_rows += f"""
-<div class="border border-slate-200 rounded-2xl p-4">
+<div class="border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md rounded-2xl p-4 sm:p-5 transition">
 
 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
@@ -4094,10 +4094,23 @@ class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 f
 
 <a
 href="/admin/source/{esc(firma_id)}"
-class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold"
+class="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
 >
-Düzenle
+Düzenle / Güncelle
 </a>
+
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/test"
+class="inline"
+>
+<button
+type="submit"
+class="px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition"
+>
+Test Et
+</button>
+</form>
 
 <form
 method="post"
@@ -4138,7 +4151,7 @@ Henüz firma bulunmuyor.
     ):
 
         notification_rows += f"""
-<div class="border border-slate-200 rounded-xl p-4">
+<div class="border border-slate-200 bg-slate-50/50 rounded-xl p-4 hover:bg-white transition">
 
 <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
 
@@ -4278,7 +4291,7 @@ class="w-full max-h-72 object-contain rounded-lg"
 """
 
         ad_form_fields += f"""
-<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/40">
+<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/60 hover:bg-white hover:shadow-md transition">
 
 <form
 method="post"
@@ -4360,12 +4373,24 @@ Banner aktif
 
 </label>
 
+<div class="flex flex-col sm:flex-row gap-2">
 <button
 type="submit"
 class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl font-bold text-sm transition"
 >
 Bannerı Kaydet
 </button>
+<button
+type="submit"
+name="banner_delete"
+value="1"
+formnovalidate
+onclick="return confirm('Bu banner görselini kaldırmak istediğinizden emin misiniz?');"
+class="w-full sm:w-auto border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 px-5 py-3 rounded-xl font-bold text-sm transition"
+>
+Bannerı Kaldır
+</button>
+</div>
 
 </form>
 
@@ -4412,19 +4437,19 @@ body {{
 
 </head>
 
-<body class="bg-slate-100 min-h-screen p-3 sm:p-4">
+<body class="bg-slate-100 min-h-screen p-3 sm:p-4 text-slate-900">
 
-<div class="max-w-6xl mx-auto space-y-5 sm:space-y-6">
+<div class="max-w-7xl mx-auto space-y-5 sm:space-y-6">
 
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="bg-slate-900 rounded-3xl shadow-xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
 <div class="min-w-0">
 
-<h1 class="text-2xl sm:text-3xl font-bold text-slate-900">
+<h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
 Hurda Fiyatları
 </h1>
 
-<p class="text-sm text-slate-500 mt-1">
+<p class="text-sm text-slate-300 mt-1">
 Yönetim Paneli
 </p>
 
@@ -4434,14 +4459,14 @@ Yönetim Paneli
 
 <a
 href="/"
-class="bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold"
+class="bg-white/10 border border-white/20 text-white hover:bg-white/15 px-4 py-2.5 rounded-xl text-sm font-bold transition"
 >
 ← Ana Sayfa
 </a>
 
 <a
 href="/admin/source/new"
-class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
+class="bg-white text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl text-sm font-black transition shadow-sm"
 >
 + Yeni Kaynak
 </a>
@@ -4452,7 +4477,7 @@ class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
 
 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Toplam Firma
@@ -4464,7 +4489,7 @@ Toplam Firma
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Aktif
@@ -4476,7 +4501,7 @@ Aktif
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Başarılı
@@ -4488,7 +4513,7 @@ Başarılı
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Hata / Stale
@@ -4500,7 +4525,7 @@ Hata / Stale
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Manuel
@@ -4514,7 +4539,7 @@ Manuel
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
 
@@ -4522,8 +4547,16 @@ Manuel
 Firmalar
 </h2>
 
+<div class="flex flex-col sm:flex-row sm:items-center gap-2">
 <div class="text-sm text-slate-500">
 Toplam: {len(firmalar)}
+</div>
+<input
+id="firmaAra"
+type="search"
+placeholder="Firma ara..."
+class="w-full sm:w-64 border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-3 py-2 text-sm font-semibold transition"
+>
 </div>
 
 </div>
@@ -4541,7 +4574,7 @@ Toplam: {len(firmalar)}
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
 
@@ -4581,7 +4614,7 @@ Tümünü Okundu Yap
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-5">
 
@@ -4612,6 +4645,32 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
 </div>
 
 </div>
+
+<script>
+(function () {
+    const input = document.getElementById("firmaAra");
+    if (!input) return;
+
+    const rows = Array.from(
+        document.querySelectorAll("[data-firma-row]")
+    );
+
+    input.addEventListener("input", function () {
+        const query = String(input.value || "").trim().toLocaleLowerCase("tr-TR");
+
+        rows.forEach(function (row) {
+            const haystack = String(
+                row.getAttribute("data-firma-row") || ""
+            ).toLocaleLowerCase("tr-TR");
+
+            row.style.display =
+                !query || haystack.includes(query)
+                    ? ""
+                    : "none";
+        });
+    });
+})();
+</script>
 
 </body>
 
