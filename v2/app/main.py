@@ -4102,12 +4102,12 @@ id="leftBottomAd"
 id="loading"
 class="bg-white rounded-2xl p-6 sm:p-8 text-center text-slate-500"
 >
-Fiyatlar yükleniyor...
+Firmalar yükleniyor...
 </div>
 
 <div
-id="prices"
-class="space-y-3 sm:space-y-4 w-full"
+id="firmaListesi"
+class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full"
 >
 </div>
 
@@ -4308,9 +4308,9 @@ async function fiyatlariGetir() {
         ).textContent =
             result.son_guncelleme || "-";
 
-        const container =
+        const firmaListesi =
             document.getElementById(
-                "prices"
+                "firmaListesi"
             );
 
         const loading =
@@ -4318,7 +4318,7 @@ async function fiyatlariGetir() {
                 "loading"
             );
 
-        container.innerHTML = "";
+        firmaListesi.innerHTML = "";
 
         if (
             !result.data ||
@@ -4326,7 +4326,7 @@ async function fiyatlariGetir() {
         ) {
 
             loading.textContent =
-                "Henüz fiyat verisi bulunmuyor.";
+                "Henüz firma fiyatı bulunmuyor.";
 
             loading.classList.remove(
                 "hidden"
@@ -4339,192 +4339,92 @@ async function fiyatlariGetir() {
             "hidden"
         );
 
-        result.data.forEach(
-            function(item) {
-
-                const card =
-                    document.createElement(
-                        "div"
-                    );
-
-                card.className =
-                    "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden price-card";
-
-                let rows = "";
-
-                item.kalemler.forEach(
-                    function(kalem) {
-
-                        const degisim =
-                            kalem.degisim || "";
-
-                        let degisimHtml = "";
-
-                        if (degisim) {
-
-                            let cls =
-                                "text-slate-500";
-
-                            if (
-                                degisim.startsWith(
-                                    "+"
-                                )
-                            ) {
-
-                                cls =
-                                    "text-emerald-600";
-
-                            } else if (
-                                degisim.startsWith(
-                                    "-"
-                                )
-                            ) {
-
-                                cls =
-                                    "text-red-600";
-
-                            }
-
-                            degisimHtml = `
-
-                            <span class="text-xs ${cls} font-bold whitespace-nowrap">
-
-                                ${escapeHtml(
-                                    degisim
-                                )}
-
-                            </span>
-
-                            `;
-
-                        }
-
-                        rows += `
-
-                        <div class="price-row flex items-start justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
-
-                            <div class="price-name">
-
-                                <div class="font-semibold text-slate-800 break-words">
-
-                                    ${escapeHtml(
-                                        kalem.cins
-                                    )}
-
-                                </div>
-
-                                <div class="mt-1">
-
-                                    ${durumEtiketi(
-                                        kalem.durum
-                                    )}
-
-                                </div>
-
-                            </div>
-
-                            <div class="price-value">
-
-                                <div class="font-black text-slate-900 break-words">
-
-                                    ${escapeHtml(
-                                        kalem.fiyat
-                                    )}
-
-                                </div>
-
-                                ${degisimHtml}
-
-                            </div>
-
-                        </div>
-
-                        `;
-
-                    }
-                );
-
-                const kaynakLink =
-                    item.url
-
-                        ? `
-
-                        <a
-                            href="${escapeHtml(item.url)}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-[10px] text-indigo-600 hover:text-indigo-800 underline block mt-0.5 break-words"
-                        >
-                            Resmi Kaynağa Git ↗
-                        </a>
-
-                        `
-
-                        : `
-
-                        <span class="text-[10px] text-slate-400 block mt-0.5">
-                            Manuel fiyat kaynağı
-                        </span>
-
-                        `;
-
-                card.innerHTML = `
-
-                <div class="bg-slate-900 text-white p-3 sm:p-4 price-header">
-
-                    <div class="flex items-start justify-between gap-3">
-
-                        <div class="min-w-0 flex-1">
-
-                            <h2 class="font-black text-base sm:text-lg break-words mobile-safe-text">
-
-                                ${escapeHtml(
-                                    item.baslik
-                                )}
-
-                            </h2>
-
-                            <div class="text-xs text-slate-300 mt-1 break-words">
-
-                                Fiyat tarihi:
-
-                                ${escapeHtml(
-                                    item.tarih
-                                )}
-
-                            </div>
-
-                            ${kaynakLink}
-
-                        </div>
-
-                        <div class="shrink-0">
-
-                            ${durumEtiketi(
-                                item.durum
-                            )}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="p-3 sm:p-4 price-body">
-
-                    ${rows}
-
-                </div>
-
-                `;
-
-                container.appendChild(
-                    card
-                );
-
-            }
-        );
-
+        const firmalar = result.data;
+
+        const firmaListesi =
+            document.getElementById("firmaListesi");
+
+        firmaListesi.innerHTML = "";
+
+        firmalar.forEach(function(item, index) {
+
+            const wrapper = document.createElement("div");
+            wrapper.className =
+                "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden";
+
+            const panelId = "firma_" + index;
+            let rows = "";
+
+            item.kalemler.forEach(function(kalem) {
+
+                const degisim = kalem.degisim || "";
+                let degisimHtml = "";
+
+                if (degisim) {
+                    let cls = "text-slate-500";
+                    if (degisim.startsWith("+")) { cls = "text-emerald-600"; }
+                    else if (degisim.startsWith("-")) { cls = "text-red-600"; }
+                    degisimHtml = '<span class="text-xs ' + cls + ' font-bold whitespace-nowrap">' + escapeHtml(degisim) + "</span>";
+                }
+
+                rows +=
+                    '<div class="price-row flex items-start justify-between gap-3 py-3 border-b border-slate-100 last:border-0">' +
+                        '<div class="price-name min-w-0">' +
+                            '<div class="font-semibold text-slate-800 break-words">' + escapeHtml(kalem.cins) + "</div>" +
+                            '<div class="mt-1">' + durumEtiketi(kalem.durum) + "</div>" +
+                        "</div>" +
+                        '<div class="price-value text-right shrink-0">' +
+                            '<div class="font-black text-slate-900 break-words">' + escapeHtml(kalem.fiyat) + "</div>" +
+                            degisimHtml +
+                        "</div>" +
+                    "</div>";
+            });
+
+            const kaynakLink = item.url
+                ? '<a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer" class="text-[10px] text-indigo-600 hover:text-indigo-800 underline break-words">Resmi Kaynağa Git ↗</a>'
+                : '<span class="text-[10px] text-slate-400">Manuel fiyat kaynağı</span>';
+
+            wrapper.innerHTML =
+                '<button type="button" class="firma-toggle w-full text-left p-4 sm:p-5 hover:bg-slate-50 transition" data-panel="' + panelId + '" aria-expanded="false">' +
+                    '<div class="flex items-center justify-between gap-3">' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<div class="flex items-center gap-2 flex-wrap">' +
+                                '<h2 class="font-black text-base sm:text-lg text-slate-900 break-words">' + escapeHtml(item.baslik) + "</h2>" +
+                                durumEtiketi(item.durum) +
+                            "</div>" +
+                            '<div class="text-xs text-slate-500 mt-1 break-words">Fiyat tarihi: ' + escapeHtml(item.tarih) + "</div>" +
+                        "</div>" +
+                        '<div class="shrink-0 flex items-center gap-2">' +
+                            '<span class="text-xs font-bold text-indigo-600 hidden sm:inline">Fiyatları Gör</span>' +
+                            '<span class="firma-ok-icon text-slate-400 text-lg transition-transform">▼</span>' +
+                        "</div>" +
+                    "</div>" +
+                "</button>" +
+                '<div id="' + panelId + '" class="hidden border-t border-slate-200">' +
+                    '<div class="p-4 sm:p-5">' +
+                        '<div class="flex items-start justify-between gap-3 mb-3">' +
+                            '<div class="text-sm font-bold text-slate-700">Güncel fiyatlar</div>' +
+                            "<div>" + kaynakLink + "</div>" +
+                        "</div>" +
+                        rows +
+                    "</div>" +
+                "</div>";
+
+            firmaListesi.appendChild(wrapper);
+
+            const toggle = wrapper.querySelector(".firma-toggle");
+            toggle.addEventListener("click", function() {
+                const panel = document.getElementById(panelId);
+                const open = !panel.classList.contains("hidden");
+                panel.classList.toggle("hidden", open);
+                toggle.setAttribute("aria-expanded", String(!open));
+                const icon = toggle.querySelector(".firma-ok-icon");
+                if (icon) {
+                    icon.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
+                }
+            });
+
+        });
     }
 
     catch (error) {
