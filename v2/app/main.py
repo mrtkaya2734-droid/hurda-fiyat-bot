@@ -6791,6 +6791,62 @@ body {
     background: #f8fafc !important;
 }
 
+/* Fabrika kartları: başlık alanı daralıp harf harf alt alta düşmesin. */
+.market-design .factory-price-grid .price-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    align-self: start !important;
+}
+
+.market-design .factory-price-grid .firma-toggle {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div > div:first-child {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div > div:first-child > div:last-child {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+.market-design .factory-price-grid .firma-toggle h2 {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-price-grid .firma-toggle h2 + * {
+    flex: 0 0 auto !important;
+}
+
+.market-design .factory-price-grid .price-row {
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .price-name {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
+.market-design .factory-price-grid .price-name > div:first-child {
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
 .market-design .price-card .firma-toggle > div > div > div:first-child > div:first-child {
     background: #0f172a !important;
     box-shadow: 0 5px 12px rgba(15,23,42,.12);
