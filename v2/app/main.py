@@ -1954,10 +1954,11 @@ def fiyat_verilerini_olustur():
             firma
         )
 
-        # Çolakoğlu otomatik kaynaktan yönetilir.
-        # Ekranda mevcut otomatik fiyatı "ESKİ FİYAT" olarak
-        # göstermeyip güncel kaynak fiyatı olarak göster.
-        if str(firma_id).strip().casefold() == "colakoglu":
+        # Ana sayfada kayıtlı fiyatı bulunan firmalar "GÜNCEL" olarak
+        # gösterilir. Bu yalnızca ekrandaki etiketi değiştirir;
+        # fiyatın kendisi, son başarılı çekim tarihi ve otomatik
+        # güncelleme mekanizması değiştirilmez.
+        if fiyatlar:
             stale = False
 
         firma_kalemleri = []
