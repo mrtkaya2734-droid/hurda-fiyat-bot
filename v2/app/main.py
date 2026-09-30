@@ -162,8 +162,8 @@ def _lme_sayi(value):
 def _lme_sonraki_tarih(metin):
 
     eslesme = re.search(
-        r"Data valid for\\s+"
-        r"(\\d{1,2})\\s+"
+        r"Data valid for\s+"
+        r"(\d{1,2})\s+"
         r"([A-Za-z]{3})\\s+"
         r"(\d{4})",
         metin or "",
@@ -734,8 +734,8 @@ def _lme_official_web_verilerini_cek():
     tarih_eslesmeleri = re.findall(
         r"Data valid for\\s+"
         r"(\\d{1,2})\\s+"
-        r"([A-Za-z]{3,9})\\s+"
-        r"(\\d{4})",
+        r"([A-Za-z]{3,9})\s+"
+        r"(\d{4})",
         metin,
         re.IGNORECASE,
     )
