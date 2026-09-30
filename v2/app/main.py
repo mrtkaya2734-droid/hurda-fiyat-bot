@@ -3087,6 +3087,8 @@ async def admin_source_save(
         data
     )
 
+    # Kaynak ayarlarını kaydetmek ile fiyat çekmeyi ayır.
+    # Böylece scraper kaynaklı bir hata, ayar kayıt isteğini 500'e düşürmez.
     if (
         otomatik == "1"
         and not kayitli_scraper_var
@@ -3107,51 +3109,15 @@ async def admin_source_save(
         False,
     ):
 
-        try:
-
-            fonksiyon = firma_scraperini_bul(
-                firma_id,
-                data,
-            )
-
-            if fonksiyon is not None:
-                sonuc = firma_verisini_cek(
-                    fonksiyon
-                )
-
-                bildirim_ekle(
-                    firma_id,
-                    "basarili_guncelleme",
-                    (
-                        "Kaynak ayarları kaydedildi ve ilk "
-                        "otomatik çekim başarılı oldu. "
-                        f"{len(sonuc['kalemler'])} fiyat kalemi okundu."
-                    ),
-                )
-
-        except Exception as e:
-
-            data = load_data()
-
-            if firma_id in data.get(
-                "firms",
-                {},
-            ):
-
-                data["firms"][firma_id]["durum"] = "hata"
-
-                save_data(
-                    data
-                )
-
-            bildirim_ekle(
-                firma_id,
-                "kaynak_testi_hatasi",
-                (
-                    "Kaynak ayarları kaydedildi fakat "
-                    f"otomatik çekim başarısız oldu: {e}"
-                ),
-            )
+        bildirim_ekle(
+            firma_id,
+            "otomatik_ayar",
+            (
+                "Otomatik fiyat çekme ayarı kaydedildi. "
+                "Fiyat çekmek için Kaynağı Test Et / Şimdi Çek "
+                "butonunu kullanabilirsiniz."
+            ),
+        )
 
     return RedirectResponse(
         url="/admin",
