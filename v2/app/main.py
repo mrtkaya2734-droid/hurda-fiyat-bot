@@ -5815,36 +5815,6 @@ body {{
 }}
 
 
-/* FİRMA DURUM ETİKETİ: firma adıyla aynı satırda, taşmadan */
-@media (min-width: 1024px) {{
-    .market-design .factory-price-grid .factory-card-title-line {{
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        gap: 8px !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        position: static !important;
-    }}
-
-    .market-design .factory-price-grid .factory-card-title {{
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        white-space: nowrap !important;
-    }}
-
-    .market-design .factory-price-grid .factory-card-title-line > span {{
-        position: static !important;
-        flex: 0 0 auto !important;
-        display: inline-flex !important;
-        margin-left: 0 !important;
-        transform: none !important;
-        z-index: auto !important;
-    }}
-}}
-
 </style>
 
 </head>
@@ -9252,7 +9222,7 @@ async function fiyatlariGetir() {
                                         escapeHtml(item.baslik) +
                                     "</h2>" +
 
-                                    durumEtiketi(item.durum) +
+                                    "" +
 
                                 "</div>" +
 
