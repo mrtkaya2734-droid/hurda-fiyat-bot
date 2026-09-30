@@ -7505,6 +7505,93 @@ body {
     }
 }
 
+/* =====================================================
+   FABRİKA KARTI BAŞLIK SIKIŞMA DÜZELTMESİ
+   3-10-3 masaüstü düzeninde sağ butonların birbirine
+   girmesini engeller. HTML ve JS değiştirilmez.
+   ===================================================== */
+@media (min-width: 1024px) {
+    .market-design .factory-price-grid .price-card {
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle {
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-header {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-main {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-info {
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-title-line {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 5px !important;
+        flex-wrap: wrap !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-title {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions {
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 0 0 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-end !important;
+        justify-content: center !important;
+        gap: 5px !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions > * {
+        flex: 0 0 auto !important;
+        max-width: 100% !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions .firma-ok-icon {
+        width: 34px !important;
+        height: 34px !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions > span:not(.firma-ok-icon) {
+        white-space: nowrap !important;
+    }
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+    .market-design .factory-price-grid .factory-card-actions {
+        gap: 4px !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions > span.hidden.md\:inline-flex {
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+        font-size: 9px !important;
+    }
+}
+
 </style>
 
 </head>
