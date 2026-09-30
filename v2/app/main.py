@@ -1628,15 +1628,17 @@ def firma_verisini_cek(
         "durum"
     ] = "basarili"
 
+    # Bu fonksiyonun kendi kapsamında firma_id değişkeni yoktur.
+    # Sıralama için scraper sonucundaki gerçek firma kimliğini kullan.
     mevcut_sira = (
         data.get("firms", {})
-        .get(firma_id, {})
+        .get(sonuc.firma_id, {})
         .get("sira", 0)
     )
 
     firma_sirasini_uygula(
         data,
-        firma_id,
+        sonuc.firma_id,
         int(mevcut_sira) + 1,
     )
 
@@ -5570,19 +5572,19 @@ body {
     background:
         radial-gradient(
             circle at 12% 0%,
-            rgba(59, 130, 246, .14),
-            transparent 30%
+            rgba(125, 211, 252, .30),
+            transparent 32%
         ),
         radial-gradient(
             circle at 88% 8%,
-            rgba(16, 185, 129, .10),
-            transparent 28%
+            rgba(56, 189, 248, .22),
+            transparent 30%
         ),
         linear-gradient(
             135deg,
-            #172033 0%,
-            #203064 45%,
-            #2a384b 100%
+            #7dd3fc 0%,
+            #60a5fa 45%,
+            #38bdf8 100%
         );
     background-attachment: fixed;
 }
