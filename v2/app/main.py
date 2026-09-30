@@ -6050,6 +6050,26 @@ Ana sayfanın fabrika fiyatlarının altında tek sıra halinde gösterilen 6 ba
 </div>
 
 <script>
+
+function historyPanelAlign() {
+    const panel = document.getElementById("historySidePanel");
+    const factories = document.getElementById("firmaListesi");
+    const rightColumn = panel?.parentElement;
+    if (!panel || !factories || !rightColumn) return;
+    if (window.innerWidth < 1024) {
+        panel.style.setProperty("--history-align-top", "0px");
+        return;
+    }
+    const factoryTop = factories.getBoundingClientRect().top;
+    const columnTop = rightColumn.getBoundingClientRect().top;
+    const offset = Math.max(0, Math.round(factoryTop - columnTop));
+    panel.style.setProperty("--history-align-top", offset + "px");
+}
+
+window.addEventListener("load", historyPanelAlign);
+window.addEventListener("resize", historyPanelAlign);
+setTimeout(historyPanelAlign, 250);
+
 (function () {{
     const input = document.getElementById("firmaAra");
     if (!input) return;
@@ -8053,14 +8073,15 @@ class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-s
 >
 </div>
 
-<aside
-id="historySidePanel"
-class="w-full max-w-[320px] ml-auto mt-3"
-aria-label="Fiyat geçmişi ve grafik"
->
+
+
+</main>
+
+<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sağ piyasa araçları">
+<div id="historySidePanel" class="w-full max-w-[250px] ml-auto" aria-label="Fiyat geçmişi ve grafik">
 <div
 id="historyPanel"
-class="border border-slate-200 bg-white rounded-2xl sm:rounded-3xl shadow-sm p-3 sm:p-4"
+class="border border-slate-200 bg-white rounded-2xl shadow-sm p-2.5"
 >
 <div class="flex items-start justify-between gap-3 mb-3">
 <div>
@@ -8099,11 +8120,8 @@ Firma ve kalem seçip <strong>Grafiği Göster</strong> butonuna bas.
 </div>
 </div>
 </div>
-</aside>
 
-</main>
-
-<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sağ piyasa araçları">
+</div>
 <div id="rightFeatureTop"></div>
 <div id="rightFeatureMiddle"></div>
 <div id="rightFeatureBottom"></div>
