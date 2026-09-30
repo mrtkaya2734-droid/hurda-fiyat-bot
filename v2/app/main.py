@@ -5300,7 +5300,7 @@ Bildirim bulunmuyor.
 <div class="mt-3">
 
 <div class="text-xs font-semibold text-slate-500 mb-2">
-Mevcut Banner
+Mevcut Görsel
 </div>
 <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
 <img
@@ -6028,7 +6028,7 @@ Banner Yönetimi
 </h2>
 
 <p class="text-sm text-slate-500 mt-1">
-Ana sayfanın fabrika fiyatlarının altında tek sıra halinde gösterilen 6 bannerı buradan yönetebilirsiniz.
+Ana sayfada masaüstünde hesaplama aracının altında 3, fiyat geçmişinin altında 3 olmak üzere gösterilen 6 bannerı buradan yönetebilirsiniz. Mobilde bu bannerlar gösterilmez.
 </p>
 
 </div>
