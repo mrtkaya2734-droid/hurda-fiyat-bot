@@ -6057,13 +6057,13 @@ function historyPanelAlign() {
     const rightColumn = panel?.parentElement;
     if (!panel || !factories || !rightColumn) return;
     if (window.innerWidth < 1024) {
-        panel.style.setProperty("--history-align-top", "0px");
+        panel.style.marginTop = "0px";
         return;
     }
     const factoryTop = factories.getBoundingClientRect().top;
     const columnTop = rightColumn.getBoundingClientRect().top;
     const offset = Math.max(0, Math.round(factoryTop - columnTop));
-    panel.style.setProperty("--history-align-top", offset + "px");
+    panel.style.marginTop = offset + "px";
 }
 
 window.addEventListener("load", historyPanelAlign);
