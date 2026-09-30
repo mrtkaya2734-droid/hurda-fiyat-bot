@@ -8017,40 +8017,7 @@ Karşılaştır
 <div id="compareResult" class="mt-3"></div>
 </div>
 
-<div
-id="historyPanel"
-class="mt-3 hidden border-t border-slate-200 pt-3"
->
-<div class="flex flex-col sm:flex-row sm:items-end gap-2">
-<div class="flex-1">
-<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
-Geçmiş Fiyat
-</label>
-<select
-id="historyFirmSelect"
-class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
->
-<option value="">Firma seçin</option>
-</select>
-</div>
-<div class="flex-1">
-<select
-id="historyItemSelect"
-class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
->
-<option value="">Kalem seçin</option>
-</select>
-</div>
-<button
-type="button"
-id="historyLoadButton"
-class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition"
->
-Göster
-</button>
-</div>
-<div id="historyResult" class="mt-3"></div>
-</div>
+
 
 <div
 id="alarmPanel"
@@ -8081,9 +8048,63 @@ Firmalar yükleniyor...
 </div>
 
 <div
+class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 xl:items-start"
+>
+<div class="min-w-0">
+<div
 id="firmaListesi"
 class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
+</div>
+</div>
+
+<aside
+id="historySidePanel"
+class="min-w-0 xl:sticky xl:top-4"
+aria-label="Fiyat geçmişi ve grafik"
+>
+<div
+id="historyPanel"
+class="border border-slate-200 bg-white rounded-2xl sm:rounded-3xl shadow-sm p-3 sm:p-4"
+>
+<div class="flex items-start justify-between gap-3 mb-3">
+<div>
+<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-600">Fiyat Geçmişi</div>
+<h2 class="text-base sm:text-lg font-black text-slate-950 mt-0.5">Fiyat Geçmişi & Grafik</h2>
+<p class="text-[10px] sm:text-[11px] text-slate-500 mt-1">Seçtiğin firma ve kalemin geçmiş fiyat hareketini burada gör.</p>
+</div>
+<span class="inline-flex items-center rounded-xl bg-sky-50 border border-sky-200 px-2 py-1 text-[9px] font-black text-sky-700 whitespace-nowrap">GEÇMİŞ</span>
+</div>
+
+<div class="flex flex-col gap-2">
+<select
+id="historyFirmSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"
+>
+<option value="">Firma seçin</option>
+</select>
+<select
+id="historyItemSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+<button
+type="button"
+id="historyLoadButton"
+class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition"
+>
+Grafiği Göster
+</button>
+</div>
+
+<div id="historyResult" class="mt-3">
+<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
+Firma ve kalem seçip <strong>Grafiği Göster</strong> butonuna bas.
+</div>
+</div>
+</div>
+</aside>
 </div>
 
 </main>
@@ -8892,9 +8913,13 @@ function marketToolsInit(result) {
     const historyButton = document.getElementById("historyButton");
     if (historyButton && historyButton.dataset.bound !== "1") {
         historyButton.addEventListener("click", function(){
-            historyPanel?.classList.toggle("hidden");
             comparePanel?.classList.add("hidden");
             alarmPanel?.classList.add("hidden");
+            historyPanel?.classList.remove("hidden");
+            document.getElementById("historySidePanel")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
         });
         historyButton.dataset.bound = "1";
     }
@@ -8904,31 +8929,96 @@ function marketToolsInit(result) {
         historyLoad.addEventListener("click", function(){
             const firma = firmSelect?.value;
             const kalem = document.getElementById("historyItemSelect")?.value;
-            if (!firma || !kalem) return;
+            const box = document.getElementById("historyResult");
+
+            if (!firma || !kalem) {
+                if (box) box.innerHTML = '<div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 font-bold">Önce firma ve kalem seçin.</div>';
+                return;
+            }
+
+            historyLoad.disabled = true;
+            historyLoad.textContent = "Yükleniyor...";
 
             fetch("/history?firma_id=" + encodeURIComponent(firma) + "&kalem=" + encodeURIComponent(kalem) + "&limit=60", {cache:"no-store"})
-                .then(function(r){ return r.json(); })
+                .then(function(r){
+                    if (!r.ok) throw new Error("Geçmiş verisi alınamadı.");
+                    return r.json();
+                })
                 .then(function(payload){
-                    const rows = payload.data || [];
-                    const box = document.getElementById("historyResult");
+                    const rows = (payload.data || []).filter(function(x){
+                        return Number.isFinite(Number(x.fiyat));
+                    });
+
                     if (!rows.length) {
-                        box.innerHTML = '<div class="text-xs text-slate-500">Geçmiş kayıt bulunamadı.</div>';
+                        if (box) box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Bu firma ve kalem için geçmiş fiyat kaydı bulunamadı.</div>';
                         return;
                     }
-                    const vals = rows.map(function(x){ return Number(x.fiyat); }).filter(Number.isFinite);
+
+                    const vals = rows.map(function(x){ return Number(x.fiyat); });
                     const min = Math.min.apply(null, vals);
                     const max = Math.max.apply(null, vals);
+                    const latest = vals[vals.length - 1];
+                    const first = vals[0];
+                    const change = latest - first;
                     const range = Math.max(1, max - min);
 
+                    const width = 620;
+                    const height = 210;
+                    const padX = 28;
+                    const padY = 22;
+                    const usableW = width - padX * 2;
+                    const usableH = height - padY * 2;
+
+                    const points = rows.map(function(x, index){
+                        const px = rows.length === 1
+                            ? width / 2
+                            : padX + (index / (rows.length - 1)) * usableW;
+                        const py = padY + (1 - ((Number(x.fiyat) - min) / range)) * usableH;
+                        return {x:px, y:py, value:Number(x.fiyat), date:x.tarih || x.fiyat_tarihi || ""};
+                    });
+
+                    const polyline = points.map(function(p){
+                        return p.x.toFixed(1) + "," + p.y.toFixed(1);
+                    }).join(" ");
+
+                    const dots = points.map(function(p, index){
+                        if (index !== points.length - 1 && index !== 0) return "";
+                        return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="4" fill="currentColor"><title>' +
+                            escapeHtml(p.date) + ' · ' + p.value.toLocaleString("tr-TR") + ' TL</title></circle>';
+                    }).join("");
+
+                    const up = change > 0;
+                    const changeClass = up ? "text-emerald-700 bg-emerald-50 border-emerald-200" : (change < 0 ? "text-red-700 bg-red-50 border-red-200" : "text-slate-600 bg-slate-50 border-slate-200");
+                    const changeText = (change > 0 ? "+" : "") + change.toLocaleString("tr-TR") + " TL";
+
+                    const lastDate = rows[rows.length - 1].tarih || rows[rows.length - 1].fiyat_tarihi || "-";
+
                     box.innerHTML =
-                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3">' +
-                        '<div class="flex items-center justify-between text-xs font-black text-slate-600 mb-2"><span>Min: ' + min.toLocaleString("tr-TR") + ' TL</span><span>Max: ' + max.toLocaleString("tr-TR") + ' TL</span></div>' +
-                        '<div class="flex items-end gap-1 h-32">' +
-                        rows.map(function(x){
-                            const h = Math.max(4, ((Number(x.fiyat)-min)/range)*100);
-                            return '<div title="' + escapeHtml(x.tarih || "") + ' · ' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL" class="flex-1 min-w-[3px] rounded-t bg-sky-400" style="height:' + h + '%"></div>';
-                        }).join("") +
-                        '</div></div>';
+                        '<div class="rounded-2xl border border-slate-200 bg-slate-50/70 overflow-hidden">' +
+                            '<div class="grid grid-cols-3 gap-2 p-3 border-b border-slate-200 bg-white">' +
+                                '<div><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Son fiyat</div><div class="text-base font-black text-slate-950 mt-1">' + latest.toLocaleString("tr-TR") + ' TL</div></div>' +
+                                '<div><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Min / Max</div><div class="text-xs font-black text-slate-700 mt-1">' + min.toLocaleString("tr-TR") + ' / ' + max.toLocaleString("tr-TR") + '</div></div>' +
+                                '<div><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Değişim</div><div class="inline-flex mt-1 rounded-lg border px-2 py-1 text-[10px] font-black ' + changeClass + '">' + changeText + '</div></div>' +
+                            '</div>' +
+                            '<div class="p-2 sm:p-3">' +
+                                '<div class="text-[9px] text-slate-400 font-bold mb-1">Kayıt sayısı: ' + rows.length + ' · Son kayıt: ' + escapeHtml(lastDate) + '</div>' +
+                                '<div class="w-full overflow-hidden rounded-xl bg-white border border-slate-200">' +
+                                    '<svg viewBox="0 0 ' + width + ' ' + height + '" class="block w-full h-auto text-sky-600" role="img" aria-label="Fiyat geçmişi grafiği">' +
+                                        '<line x1="' + padX + '" y1="' + padY + '" x2="' + padX + '" y2="' + (height-padY) + '" stroke="currentColor" stroke-opacity=".12" />' +
+                                        '<line x1="' + padX + '" y1="' + (height-padY) + '" x2="' + (width-padX) + '" y2="' + (height-padY) + '" stroke="currentColor" stroke-opacity=".12" />' +
+                                        '<polyline points="' + polyline + '" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />' +
+                                        dots +
+                                    '</svg>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>';
+                })
+                .catch(function(){
+                    if (box) box.innerHTML = '<div class="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">Geçmiş fiyat verisi alınamadı.</div>';
+                })
+                .finally(function(){
+                    historyLoad.disabled = false;
+                    historyLoad.textContent = "Grafiği Göster";
                 });
         });
         historyLoad.dataset.bound = "1";
