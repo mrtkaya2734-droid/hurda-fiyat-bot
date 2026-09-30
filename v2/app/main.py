@@ -5176,7 +5176,12 @@ name="viewport"
 content="width=device-width, initial-scale=1.0"
 >
 
-<title>Hurda Fiyatları - Admin</title>
+<meta name="description" content="Güncel hurda fiyatları, fabrika fiyatları, LME, döviz ve piyasa takip ekranı.">
+<meta name="robots" content="index,follow">
+<title>Hurda Fiyatları - Güncel Piyasa Takip</title>
+<meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
+<meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
+<meta property="og:type" content="website">
 
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -5372,6 +5377,24 @@ Manuel
 
 </div>
 
+</div>
+
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+<div>
+<h2 class="text-xl font-bold">Sistem Sağlığı</h2>
+<p class="text-sm text-slate-500 mt-1">Otomatik güncelleme ve veri geçmişinin hızlı özeti.</p>
+</div>
+<div class="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-black">
+Yedekleme: AKTİF
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Fiyat kalemi</div><div class="text-xl font-black mt-1">{sum(len(x) for x in data.get("prices", {}).values() if isinstance(x, dict))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Geçmiş kaydı</div><div class="text-xl font-black mt-1">{len(data.get("history", []))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim</div><div class="text-xl font-black mt-1">{len(notifications)}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Otomatik takip</div><div class="text-xl font-black mt-1">{"AÇIK" if AUTO_UPDATE_ENABLED else "KAPALI"}</div></div>
+</div>
 </div>
 
 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
@@ -7572,6 +7595,9 @@ function marketToolsInit(result) {
     const alarmButton = document.getElementById("alarmButton");
     if (alarmButton && alarmButton.dataset.bound !== "1") {
         alarmButton.addEventListener("click", function(){
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().catch(function(){});
+            }
             alarmPanel?.classList.toggle("hidden");
             comparePanel?.classList.add("hidden");
             historyPanel?.classList.add("hidden");
