@@ -8048,19 +8048,14 @@ Firmalar yükleniyor...
 </div>
 
 <div
-class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 xl:items-start"
->
-<div class="min-w-0">
-<div
 id="firmaListesi"
 class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
-</div>
 
 <aside
 id="historySidePanel"
-class="min-w-0 xl:sticky xl:top-4"
+class="w-full max-w-[320px] ml-auto mt-3"
 aria-label="Fiyat geçmişi ve grafik"
 >
 <div
@@ -8105,7 +8100,6 @@ Firma ve kalem seçip <strong>Grafiği Göster</strong> butonuna bas.
 </div>
 </div>
 </aside>
-</div>
 
 </main>
 
