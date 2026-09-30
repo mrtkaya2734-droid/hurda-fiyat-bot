@@ -5549,32 +5549,32 @@ body {{
    PİYASA ÖZETİ — MEVCUT VERİDEN GÖRSEL ÖZET
    ===================================================== */
 
-.market-summary {
+.market-summary {{
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 14px;
-}
+}}
 
-.market-summary-card {
+.market-summary-card {{
     min-width: 0;
     background: rgba(255,255,255,.98);
     border: 1px solid #e2e8f0;
     border-radius: 18px;
     padding: 13px 14px;
     box-shadow: 0 8px 22px rgba(15,23,42,.055);
-}
+}}
 
-.market-summary-label {
+.market-summary-label {{
     color: #64748b;
     font-size: 9px;
     line-height: 1.2;
     font-weight: 900;
     letter-spacing: .10em;
     text-transform: uppercase;
-}
+}}
 
-.market-summary-value {
+.market-summary-value {{
     color: #0f172a;
     font-size: 21px;
     line-height: 1.15;
@@ -5584,79 +5584,79 @@ body {{
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
+}}
 
-.market-summary-sub {
+.market-summary-sub {{
     color: #94a3b8;
     font-size: 9px;
     font-weight: 700;
     margin-top: 4px;
-}
+}}
 
-.market-summary-card.up .market-summary-value {
+.market-summary-card.up .market-summary-value {{
     color: #059669;
-}
+}}
 
-.market-summary-card.down .market-summary-value {
+.market-summary-card.down .market-summary-value {{
     color: #dc2626;
-}
+}}
 
-.market-summary-card.update .market-summary-value {
+.market-summary-card.update .market-summary-value {{
     font-size: 13px;
     letter-spacing: -.01em;
-}
+}}
 
-.market-design #todayChanges {
+.market-design #todayChanges {{
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid #e2e8f0;
     border-radius: 18px;
     padding: 12px;
     box-shadow: 0 8px 22px rgba(15,23,42,.045);
-}
+}}
 
-.market-design #todayChanges > div:first-child {
+.market-design #todayChanges > div:first-child {{
     color: #0f172a;
     font-size: 10px;
     letter-spacing: .10em;
     margin-bottom: 9px;
-}
+}}
 
-.market-design #todayChanges .today-change-card {
+.market-design #todayChanges .today-change-card {{
     min-height: 74px;
     transition: transform .16s ease, box-shadow .16s ease;
-}
+}}
 
-.market-design #todayChanges .today-change-card:hover {
+.market-design #todayChanges .today-change-card:hover {{
     transform: translateY(-2px);
     box-shadow: 0 8px 18px rgba(15,23,42,.07);
-}
+}}
 
-@media (max-width: 900px) {
-    .market-summary {
+@media (max-width: 900px) {{
+    .market-summary {{
         grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
+    }}
+}}
 
-@media (max-width: 639px) {
-    .market-summary {
+@media (max-width: 639px) {{
+    .market-summary {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         margin-bottom: 10px;
-    }
+    }}
 
-    .market-summary-card {
+    .market-summary-card {{
         border-radius: 15px;
         padding: 11px 12px;
-    }
+    }}
 
-    .market-summary-value {
+    .market-summary-value {{
         font-size: 18px;
-    }
+    }}
 
-    .market-summary-card.update {
+    .market-summary-card.update {{
         grid-column: span 2;
-    }
-}
+    }}
+}}
 
 </style>
 
