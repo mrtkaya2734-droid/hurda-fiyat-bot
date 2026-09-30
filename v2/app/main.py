@@ -7460,6 +7460,12 @@ body {
    3 REKLAM | 10 FABRİKA | 3 REKLAM
    HTML yapısı korunur; JS veri/render mantığına dokunulmaz.
    ===================================================== */
+.market-design #calculatorSidePanel > #calculatorPanel {
+    margin-top: 0 !important;
+    border-top: 0 !important;
+    padding-top: 0 !important;
+}
+
 @media (min-width: 1024px) {
     .market-design .factory-layout {
         display: grid !important;
@@ -7908,6 +7914,32 @@ Kaynak: LME Official Prices
 <div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
 
 <aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sol piyasa araçları">
+<div id="calculatorSidePanel" class="w-full max-w-[250px] mr-auto" aria-label="Hurda değeri hesaplama">
+<div
+id="calculatorPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
+<div class="flex items-start justify-between gap-3 mb-3">
+<div>
+<div class="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">Hesaplama Aracı</div>
+<div class="text-base font-black text-slate-900 mt-0.5">Hurda Değeri Hesapla</div>
+<div class="text-[10px] sm:text-[11px] text-slate-500 mt-1">Güncel listedeki fiyatı seçtiğin ton miktarıyla çarpar.</div>
+</div>
+<span class="inline-flex items-center rounded-xl bg-white border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">TL / TON</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+<select id="calcFirm" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Firma seçin</option></select>
+<select id="calcItem" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Kalem seçin</option></select>
+<input id="calcQuantity" type="number" min="0" step="0.01" placeholder="Miktar (ton)" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+<button type="button" id="calcButton" class="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition">Hesapla</button>
+</div>
+<div id="calcResult" class="mt-3">
+<div class="rounded-xl border border-dashed border-emerald-200 bg-white/80 p-3 text-center text-xs text-slate-500">Firma, kalem ve ton miktarı seçip hesaplayın.</div>
+</div>
+</div>
+</div
+</div>
 <div id="leftFeatureTop"></div>
 <div id="leftFeatureMiddle"></div>
 <div id="leftFeatureBottom"></div>
@@ -8065,30 +8097,7 @@ Alarmı Kaydet
 <div id="alarmList" class="mt-3"></div>
 </div>
 
-<div
-id="calculatorPanel"
-class="mt-3 hidden border-t border-slate-200 pt-3"
 >
-<div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
-<div class="flex items-start justify-between gap-3 mb-3">
-<div>
-<div class="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">Hesaplama Aracı</div>
-<div class="text-base font-black text-slate-900 mt-0.5">Hurda Değeri Hesapla</div>
-<div class="text-[10px] sm:text-[11px] text-slate-500 mt-1">Güncel listedeki fiyatı seçtiğin ton miktarıyla çarpar.</div>
-</div>
-<span class="inline-flex items-center rounded-xl bg-white border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">TL / TON</span>
-</div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-<select id="calcFirm" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Firma seçin</option></select>
-<select id="calcItem" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Kalem seçin</option></select>
-<input id="calcQuantity" type="number" min="0" step="0.01" placeholder="Miktar (ton)" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
-<button type="button" id="calcButton" class="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition">Hesapla</button>
-</div>
-<div id="calcResult" class="mt-3">
-<div class="rounded-xl border border-dashed border-emerald-200 bg-white/80 p-3 text-center text-xs text-slate-500">Firma, kalem ve ton miktarı seçip hesaplayın.</div>
-</div>
-</div>
-</div>
 
 </section>
 
