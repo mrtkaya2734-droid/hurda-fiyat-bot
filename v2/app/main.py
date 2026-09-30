@@ -5815,20 +5815,33 @@ body {{
 }}
 
 
-/* FİRMA DURUM ETİKETİ: başlık üstüne binmesin */
+/* FİRMA DURUM ETİKETİ: firma adıyla aynı satırda, taşmadan */
 @media (min-width: 1024px) {{
     .market-design .factory-price-grid .factory-card-title-line {{
-        position: relative !important;
-        padding-right: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        position: static !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-title {{
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
     }}
 
     .market-design .factory-price-grid .factory-card-title-line > span {{
-        position: absolute !important;
-        right: 0 !important;
-        top: 0 !important;
+        position: static !important;
+        flex: 0 0 auto !important;
+        display: inline-flex !important;
         margin-left: 0 !important;
-        transform: translateY(-2px) !important;
-        z-index: 2 !important;
+        transform: none !important;
+        z-index: auto !important;
     }}
 }}
 
