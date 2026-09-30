@@ -6846,49 +6846,61 @@ body {
     margin-top: 18px;
 }
 
-/* Fabrika alanı tam genişlikte; yan bannerlar fabrika kartlarının altına iner. */
+/* Fabrika alanı tam genişlikte; önce 10 fabrika 5+5, sonra 6 reklam tek sıra. */
 @media (min-width: 1024px) {
     .factory-layout {
         display: grid !important;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+        grid-template-columns: minmax(0, 1fr) !important;
         gap: 18px !important;
         align-items: start;
     }
 
     .factory-layout > main {
-        grid-column: 1 / -1 !important;
+        grid-column: 1 !important;
         grid-row: 1 !important;
         width: 100% !important;
         max-width: none !important;
     }
 
-    .factory-layout > .desktop-ad-column:first-child,
-    .factory-layout > .desktop-ad-column:last-child {
-        display: grid !important;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        height: auto !important;
-        align-items: stretch;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child {
-        grid-column: 1 !important;
-        grid-row: 2 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child {
-        grid-column: 2 !important;
-        grid-row: 2 !important;
+    /* İki mevcut reklam kolonu aynı satırda birleşir. */
+    .factory-layout > .desktop-ad-column {
+        display: contents !important;
     }
 
     .factory-layout > .desktop-ad-column .ad-box {
-        width: 100%;
-        max-width: none;
-        aspect-ratio: 4 / 3;
+        width: 100% !important;
+        max-width: none !important;
+        aspect-ratio: 4 / 3 !important;
     }
 
+    .factory-layout > .desktop-ad-column:first-child .ad-box:first-child {
+        grid-column: 1;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) {
+        grid-column: 2;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) {
+        grid-column: 3;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:first-child {
+        grid-column: 4;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) {
+        grid-column: 5;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) {
+        grid-column: 6;
+    }
+
+    /* 10 fabrika: 5 + 5. */
     .factory-price-grid {
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 16px !important;
     }
 }
 
