@@ -1832,15 +1832,11 @@ def fiyat_verilerini_olustur():
 
         firma_kalemleri = []
 
-        sirali_fiyatlar = sorted(
-            fiyatlar.items(),
-            key=lambda item: str(
-                item[1].get(
-                    "guncelleme",
-                    ""
-                )
-            ),
-            reverse=True,
+        # Kaynakta gelen / kayıtlı kalem sırasını koru.
+        # Güncelleme tarihine göre sıralamak, fiyat kalemlerinin
+        # doğal sırasını bozuyordu.
+        sirali_fiyatlar = list(
+            fiyatlar.items()
         )
 
         for kalem, bilgi in sirali_fiyatlar:
