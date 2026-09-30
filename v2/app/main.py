@@ -7471,7 +7471,7 @@ id="leftBottomAd"
 
 </aside>
 
-<main class="min-w-0 w-full max-w-[760px] mx-auto">
+<main class="min-w-0 w-full mx-auto">
 
 <div class="text-center mb-3 sm:mb-4 px-1">
 <div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-cyan-300">
