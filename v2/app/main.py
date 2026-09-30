@@ -1291,6 +1291,33 @@ def ad_html(ad):
     """
 
 
+def mobile_ad_html(ad, slot_title):
+    """
+    Mobilde 6 reklam slotunu korur.
+    Görseli olmayan yönetim paneli slotları da yer tutucu olarak görünür.
+    """
+
+    icerik = ad_html(ad)
+
+    if icerik.strip():
+        return (
+            '<div class="mobile-ad-slot ad-box rounded-2xl overflow-hidden">'
+            + icerik
+            + "</div>"
+        )
+
+    return (
+        '<div class="mobile-ad-slot ad-box rounded-2xl overflow-hidden '
+        'border border-dashed border-slate-300 bg-slate-50 '
+        'flex items-center justify-center min-h-[120px]">'
+        '<span class="text-[9px] font-black uppercase tracking-[0.12em] '
+        'text-slate-400">'
+        + esc(slot_title)
+        + "</span>"
+        "</div>"
+    )
+
+
 # =========================================================
 # FİYAT VERİLERİ
 # =========================================================
@@ -5494,6 +5521,79 @@ body {
     overflow: hidden;
 }
 
+.mobile-ad-slot {
+    min-height: 120px;
+}
+
+.mobile-ad-slot img {
+    width: 100%;
+    height: 100%;
+    min-height: 120px;
+    object-fit: cover;
+}
+
+/* LME, döviz bandının hemen altında kayan kompakt bant. */
+.lme-ticker-shell {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.lme-ticker-label {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    background: #020617;
+    border-right: 1px solid rgba(148,163,184,.18);
+}
+
+.lme-ticker-track {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.lme-ticker-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    min-width: max-content;
+    padding: 5px 14px;
+    animation: lmeTicker 28s linear infinite;
+}
+
+.lme-ticker-shell:hover .lme-ticker-content {
+    animation-play-state: paused;
+}
+
+.lme-ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.lme-ticker-metal {
+    color: #e2e8f0;
+}
+
+.lme-ticker-value {
+    color: #fcd34d;
+    font-weight: 900;
+}
+
+.lme-ticker-separator {
+    color: #475569;
+    font-size: 8px;
+}
+
+@keyframes lmeTicker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-42%); }
+}
+
 /* Kompakt kayan döviz bandı */
 .currency-ticker-shell {
     min-height: 48px;
@@ -5802,14 +5902,32 @@ Kur kaynağı: TCMB · Güncelleniyor...
 
 <section
 id="lmeSection"
-class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 mb-4 sm:mb-5"
+class="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-5"
 >
+
+<div
+id="lmeTicker"
+class="lme-ticker-shell mb-3 rounded-xl border border-slate-200 bg-slate-950"
+>
+<div class="lme-ticker-label">
+<span class="text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+LME
+</span>
+</div>
+<div class="lme-ticker-track">
+<div id="lmeTickerContent" class="lme-ticker-content">
+<span class="text-[10px] font-bold text-slate-400">
+LME verileri alınıyor...
+</span>
+</div>
+</div>
+</div>
 
 <button
 type="button"
 id="lmeToggle"
 class="w-full text-left flex items-center justify-between gap-3 mb-0 hover:bg-slate-50 rounded-2xl p-2 -m-2 transition"
-aria-expanded="false"
+aria-expanded="true"
 aria-controls="lmeContent"
 >
 
@@ -5874,8 +5992,8 @@ LME verisi yükleniyor...
 
 <div
 id="lmeContent"
-class="hidden mt-4"
-aria-hidden="true"
+class="mt-4"
+aria-hidden="false"
 >
 
 <div
@@ -5947,9 +6065,15 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <!-- MOBILE_LEFT_TOP_AD -->
 
+<!-- MOBILE_LEFT_MIDDLE_AD -->
+
 <!-- MOBILE_LEFT_BOTTOM_AD -->
 
 <!-- MOBILE_RIGHT_TOP_AD -->
+
+<!-- MOBILE_RIGHT_MIDDLE_AD -->
+
+<!-- MOBILE_RIGHT_BOTTOM_AD -->
 
 </div>
 
@@ -6182,20 +6306,41 @@ function lmeAcKapat() {
 
 
 async function lmeFiyatlariniGetir() {
-    
+
     const lmeToggle =
         document.getElementById(
             "lmeToggle"
         );
 
-    if (lmeToggle) {
+    const lmeContent =
+        document.getElementById(
+            "lmeContent"
+        );
+
+    if (lmeContent && lmeToggle) {
+        lmeContent.classList.remove(
+            "hidden"
+        );
+        lmeContent.setAttribute(
+            "aria-hidden",
+            "false"
+        );
+        lmeToggle.setAttribute(
+            "aria-expanded",
+            "true"
+        );
+    }
+
+    if (
+        lmeToggle
+        && lmeToggle.dataset.bound !== "1"
+    ) {
         lmeToggle.addEventListener(
             "click",
             lmeAcKapat
         );
+        lmeToggle.dataset.bound = "1";
     }
-
-    
 
     const tableBody =
         document.getElementById(
@@ -6261,6 +6406,46 @@ async function lmeFiyatlariniGetir() {
             };
 
         tableBody.innerHTML = "";
+
+        const ticker =
+            document.getElementById(
+                "lmeTickerContent"
+            );
+
+        if (ticker) {
+            const tickerItems =
+                result.veriler.map(
+                    function(item) {
+                        const deger =
+                            item.three_month_tl !== null
+                            && item.three_month_tl !== undefined
+                                ? formatFiyat(
+                                    item.three_month_tl
+                                  ) + " TL"
+                                : "-";
+
+                        return (
+                            '<span class="lme-ticker-item">' +
+                                '<span class="lme-ticker-metal">' +
+                                    escapeHtml(
+                                        item.ad || "-"
+                                    ) +
+                                "</span>" +
+                                '<span class="lme-ticker-value">' +
+                                    escapeHtml(deger) +
+                                "</span>" +
+                            "</span>"
+                        );
+                    }
+                ).join(
+                    '<span class="lme-ticker-separator">◆</span>'
+                );
+
+            ticker.innerHTML =
+                tickerItems +
+                '<span class="lme-ticker-separator">◆</span>' +
+                tickerItems;
+        }
 
         result.veriler.forEach(
             function(item, index) {
@@ -7144,10 +7329,26 @@ if (
 
     for placeholder, reklam in mobile_reklamlar:
 
+        slot_title = "Reklam Alanı"
+
+        if "LEFT_TOP" in placeholder:
+            slot_title = "Sol Üst Reklam"
+        elif "LEFT_MIDDLE" in placeholder:
+            slot_title = "Sol Orta Reklam"
+        elif "LEFT_BOTTOM" in placeholder:
+            slot_title = "Sol Alt Reklam"
+        elif "RIGHT_TOP" in placeholder:
+            slot_title = "Sağ Üst Reklam"
+        elif "RIGHT_MIDDLE" in placeholder:
+            slot_title = "Sağ Orta Reklam"
+        elif "RIGHT_BOTTOM" in placeholder:
+            slot_title = "Sağ Alt Reklam"
+
         page = page.replace(
             placeholder,
-            ad_html(
-                reklam
+            mobile_ad_html(
+                reklam,
+                slot_title,
             ),
             1,
         )
