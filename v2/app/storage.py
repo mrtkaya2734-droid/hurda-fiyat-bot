@@ -73,14 +73,23 @@ def _supabase_headers(content_type=None):
     return headers
 
 
-def _supabase_object_url(object_name):
+def _supabase_object_url(
+    object_name,
+    authenticated=False,
+):
     object_name = str(
         object_name or ""
     ).strip().lstrip("/")
 
+    prefix = (
+        "authenticated/"
+        if authenticated
+        else ""
+    )
+
     return (
         f"{SUPABASE_URL}/storage/v1/object/"
-        f"{SUPABASE_BUCKET}/{object_name}"
+        f"{prefix}{SUPABASE_BUCKET}/{object_name}"
     )
 
 
@@ -90,7 +99,10 @@ def supabase_storage_download(object_name):
 
     try:
         response = requests.get(
-            _supabase_object_url(object_name),
+            _supabase_object_url(
+                object_name,
+                authenticated=True,
+            ),
             headers=_supabase_headers(),
             timeout=20,
         )
