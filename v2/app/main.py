@@ -1804,16 +1804,25 @@ def verileri_guncelle():
                 f"({len(sonuc['kalemler'])} kalem)"
             )
 
-            bildirim_ekle(
-                firma_id,
-                "basarili_guncelleme",
-                (
-                    f"{sonuc['baslik']} başarıyla "
-                    f"güncellendi. "
-                    f"{len(sonuc['kalemler'])} "
-                    "fiyat kalemi okundu."
-                ),
+            # Başarılı güncelleme bildirimi yalnızca gerçekten
+            # fiyat değişikliği olduğunda oluşturulur. Böylece dakika
+            # başına aynı "başarılı" bildiriminin birikmesi engellenir.
+            fiyat_degisti = any(
+                str(kalem.get("degisim", "")).strip()
+                not in {"", "0 TL"}
+                for kalem in sonuc.get("kalemler", [])
             )
+
+            if fiyat_degisti:
+                bildirim_ekle(
+                    firma_id,
+                    "basarili_guncelleme",
+                    (
+                        f"{sonuc['baslik']} fiyatları değişti. "
+                        f"{len(sonuc['kalemler'])} "
+                        "fiyat kalemi güncellendi."
+                    ),
+                )
 
         except Exception as e:
 
