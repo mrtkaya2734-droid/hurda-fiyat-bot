@@ -5816,21 +5816,21 @@ body {{
 
 
 /* FİRMA DURUM ETİKETİ: başlık üstüne binmesin */
-@media (min-width: 1024px) {
-    .market-design .factory-price-grid .factory-card-title-line {
+@media (min-width: 1024px) {{
+    .market-design .factory-price-grid .factory-card-title-line {{
         position: relative !important;
         padding-right: 0 !important;
-    }
+    }}
 
-    .market-design .factory-price-grid .factory-card-title-line > span {
+    .market-design .factory-price-grid .factory-card-title-line > span {{
         position: absolute !important;
         right: 0 !important;
         top: 0 !important;
         margin-left: 0 !important;
         transform: translateY(-2px) !important;
         z-index: 2 !important;
-    }
-}
+    }}
+}}
 
 </style>
 
