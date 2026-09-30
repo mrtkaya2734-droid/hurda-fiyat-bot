@@ -1958,14 +1958,13 @@ def fiyat_verilerini_olustur():
 
 scheduler = BackgroundScheduler()
 
-# Mevcut fiyatları otomatik olarak değiştirmek istemediğimiz için
-# otomatik güncelleme varsayılan olarak KAPALIDIR.
-# İleride istenirse Render ortam değişkeni AUTO_UPDATE_ENABLED=1
-# yapılarak tekrar açılabilir.
+# Otomatik fiyat çekimi aktiftir.
+# AUTO_UPDATE_ENABLED=0 verilirse tamamen kapatılabilir.
+# Mevcut manuel fiyatlar fiyat_kaydet() tarafından korunur.
 AUTO_UPDATE_ENABLED = (
     os.getenv(
         "AUTO_UPDATE_ENABLED",
-        "0",
+        "1",
     ).strip().lower()
     in {"1", "true", "yes", "on"}
 )
