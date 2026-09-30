@@ -784,18 +784,7 @@ DEFAULT_ADS = {
         "target_url": "#",
         "active": True,
     },
-    "bottom_left": {
-        "title": "Alt Orta Sol Reklam",
-        "image_url": "",
-        "target_url": "#",
-        "active": True,
-    },
-    "bottom_right": {
-        "title": "Alt Orta Sağ Reklam",
-        "image_url": "",
-        "target_url": "#",
-        "active": True,
-    },
+
 }
 
 
@@ -5272,38 +5261,12 @@ Bildirim bulunmuyor.
     ad_form_fields = ""
 
     for key, label in [
-        (
-            "left_top",
-            "Sol Üst",
-        ),
-        (
-            "left_middle",
-            "Sol Orta",
-        ),
-        (
-            "left_bottom",
-            "Sol Alt",
-        ),
-        (
-            "right_top",
-            "Sağ Üst",
-        ),
-        (
-            "right_middle",
-            "Sağ Orta",
-        ),
-        (
-            "right_bottom",
-            "Sağ Alt",
-        ),
-        (
-            "bottom_left",
-            "Alt Orta Sol",
-        ),
-        (
-            "bottom_right",
-            "Alt Orta Sağ",
-        ),
+        ("left_top", "Alt Banner 1"),
+        ("left_middle", "Alt Banner 2"),
+        ("left_bottom", "Alt Banner 3"),
+        ("right_top", "Alt Banner 4"),
+        ("right_middle", "Alt Banner 5"),
+        ("right_bottom", "Alt Banner 6"),
     ]:
 
         ad = ads[
@@ -6528,53 +6491,29 @@ body {
     display: none;
 }
 
-.desktop-ad-column {
-    min-width: 0;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 16px;
-    align-self: stretch;
-}
 
-.desktop-ad-column .ad-box {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: 250px;
-    aspect-ratio: 4 / 3;
-    min-height: 0;
-    height: auto;
-    overflow: hidden;
-}
 
 
 
 #bottomAds {
     width: 100%;
-    max-width: 1120px;
+    max-width: 1400px;
     margin-left: auto;
     margin-right: auto;
 }
 
 #bottomAds .ad-box {
-    aspect-ratio: 16 / 5;
+    aspect-ratio: 4 / 3;
     height: auto;
     min-height: 0;
     overflow: hidden;
+    background: #f8fafc;
 }
+
 #bottomAds .ad-box a {
     height: 100%;
 }
 
-#bottomAds .ad-box img {
-    width: 100%;    height: 100%;
-    object-fit: cover;
-    object-position: center;
-}
-
-.desktop-ad-column .ad-box img,
 #bottomAds .ad-box img {
     width: 100%;
     height: 100%;
@@ -6631,34 +6570,9 @@ body {
     word-break: break-word;
 }
 
-.mobile-ad-grid {
-    width: 100%;
-    min-width: 0;
-}
 
-.mobile-ad-grid .ad-box {
-    min-width: 0;
-    width: 100%;
-    overflow: hidden;
-}
 
-/* Mobilde reklamlar tamamen gizli; masaüstü reklam sistemi aynen korunur. */
-@media (max-width: 1023px) {
-    #mobileAds {
-        display: none !important;
-    }
-}
 
-.mobile-ad-slot {
-    min-height: 120px;
-}
-
-.mobile-ad-slot img {
-    width: 100%;
-    height: 100%;
-    min-height: 120px;
-    object-fit: cover;
-}
 
 /* LME, döviz bandının hemen altında kayan kompakt bant. */
 .lme-ticker-shell {
@@ -7893,51 +7807,7 @@ Kaynak: LME Official Prices
      MOBİL REKLAMLAR
      ===================================================== -->
 
-<div
-id="mobileAds"
-class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
->
-
-<!-- MOBILE_LEFT_TOP_AD -->
-
-<!-- MOBILE_LEFT_MIDDLE_AD -->
-
-<!-- MOBILE_LEFT_BOTTOM_AD -->
-
-<!-- MOBILE_RIGHT_TOP_AD -->
-
-<!-- MOBILE_RIGHT_MIDDLE_AD -->
-
-<!-- MOBILE_RIGHT_BOTTOM_AD -->
-
-</div>
-
-
-
-
 <div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
-
-<aside class="desktop-ad-column hidden lg:grid">
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="leftTopAd"
->
-</div>
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="leftMiddleAd"
->
-</div>
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="leftBottomAd"
->
-</div>
-
-</aside>
 
 <main class="min-w-0 w-full mx-auto">
 
@@ -8134,51 +8004,21 @@ class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-s
 
 </main>
 
-<aside class="desktop-ad-column hidden lg:grid">
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="rightTopAd"
->
-</div>
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="rightMiddleAd"
->
-</div>
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="rightBottomAd"
->
-</div>
-
-</aside>
-
 </div>
 
 <div
 id="bottomAds"
-class="hidden lg:grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
+class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-stretch gap-3 sm:gap-4 w-full mt-5"
 >
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="bottomLeftAd"
->
-</div>
-
-<div
-class="ad-box rounded-2xl overflow-hidden"
-id="bottomRightAd"
->
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd1"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd2"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd3"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd4"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd5"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd6"></div>
 </div>
 
 </div>
-
-</div>
-
 <script>
 
 function escapeHtml(value) {
@@ -9594,30 +9434,12 @@ if (
     # =====================================================
 
     reklamlar = {
-        "leftTopAd": ads[
-            "left_top"
-        ],
-        "leftMiddleAd": ads[
-            "left_middle"
-        ],
-        "leftBottomAd": ads[
-            "left_bottom"
-        ],
-        "rightTopAd": ads[
-            "right_top"
-        ],
-        "rightMiddleAd": ads[
-            "right_middle"
-        ],
-        "rightBottomAd": ads[
-            "right_bottom"
-        ],
-        "bottomLeftAd": ads[
-            "bottom_left"
-        ],
-        "bottomRightAd": ads[
-            "bottom_right"
-        ],
+        "bottomAd1": ads["left_top"],
+        "bottomAd2": ads["left_middle"],
+        "bottomAd3": ads["left_bottom"],
+        "bottomAd4": ads["right_top"],
+        "bottomAd5": ads["right_middle"],
+        "bottomAd6": ads["right_bottom"],
     }
 
     for reklam_id, reklam in reklamlar.items():
@@ -9653,63 +9475,6 @@ if (
                 f"UYARI: {reklam_id} reklam alanı "
                 "anasayfa HTML'inde bulunamadı."
             )
-
-    # =====================================================
-    # MOBİL REKLAMLARI YERLEŞTİR
-    # =====================================================
-
-    mobile_reklamlar = [
-        (
-            "<!-- MOBILE_LEFT_TOP_AD -->",
-            ads["left_top"],
-        ),
-        (
-            "<!-- MOBILE_LEFT_MIDDLE_AD -->",
-            ads["left_middle"],
-        ),
-        (
-            "<!-- MOBILE_LEFT_BOTTOM_AD -->",
-            ads["left_bottom"],
-        ),
-        (
-            "<!-- MOBILE_RIGHT_TOP_AD -->",
-            ads["right_top"],
-        ),
-        (
-            "<!-- MOBILE_RIGHT_MIDDLE_AD -->",
-            ads["right_middle"],
-        ),
-        (
-            "<!-- MOBILE_RIGHT_BOTTOM_AD -->",
-            ads["right_bottom"],
-        ),
-    ]
-
-    for placeholder, reklam in mobile_reklamlar:
-
-        slot_title = "Reklam Alanı"
-
-        if "LEFT_TOP" in placeholder:
-            slot_title = "Sol Üst Reklam"
-        elif "LEFT_MIDDLE" in placeholder:
-            slot_title = "Sol Orta Reklam"
-        elif "LEFT_BOTTOM" in placeholder:
-            slot_title = "Sol Alt Reklam"
-        elif "RIGHT_TOP" in placeholder:
-            slot_title = "Sağ Üst Reklam"
-        elif "RIGHT_MIDDLE" in placeholder:
-            slot_title = "Sağ Orta Reklam"
-        elif "RIGHT_BOTTOM" in placeholder:
-            slot_title = "Sağ Alt Reklam"
-
-        page = page.replace(
-            placeholder,
-            mobile_ad_html(
-                reklam,
-                slot_title,
-            ),
-            1,
-        )
 
     return page
 
