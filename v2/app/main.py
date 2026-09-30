@@ -8008,6 +8008,13 @@ class="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font
 <div class="flex flex-wrap gap-2">
 <button
 type="button"
+id="compareToggle"
+class="h-11 px-4 rounded-xl bg-sky-600 text-white text-xs font-black hover:bg-sky-700 transition"
+>
+🔎 Firma Karşılaştır
+</button>
+<button
+type="button"
 id="alarmButton"
 class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition"
 >
@@ -8851,6 +8858,16 @@ function marketToolsInit(result) {
     const comparePanel = document.getElementById("comparePanel");
     const historyPanel = document.getElementById("historyPanel");
     const alarmPanel = document.getElementById("alarmPanel");
+
+    const compareToggle = document.getElementById("compareToggle");
+    if (compareToggle && compareToggle.dataset.bound !== "1") {
+        compareToggle.addEventListener("click", function(){
+            comparePanel?.classList.toggle("hidden");
+            historyPanel?.classList.add("hidden");
+            alarmPanel?.classList.add("hidden");
+        });
+        compareToggle.dataset.bound = "1";
+    }
 
     const compareButton = document.getElementById("compareButton");
     if (compareButton && compareButton.dataset.bound !== "1") {
