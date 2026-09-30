@@ -6051,20 +6051,20 @@ Ana sayfanın fabrika fiyatlarının altında tek sıra halinde gösterilen 6 ba
 
 <script>
 
-function historyPanelAlign() {{
+function historyPanelAlign() {
     const panel = document.getElementById("historySidePanel");
     const factories = document.getElementById("firmaListesi");
     const rightColumn = panel?.parentElement;
     if (!panel || !factories || !rightColumn) return;
-    if (window.innerWidth < 1024) {{
+    if (window.innerWidth < 1024) {
         panel.style.marginTop = "0px";
         return;
-    }}
+    }
     const factoryTop = factories.getBoundingClientRect().top;
     const columnTop = rightColumn.getBoundingClientRect().top;
     const offset = Math.max(0, Math.round(factoryTop - columnTop));
     panel.style.marginTop = offset + "px";
-}}
+}
 
 window.addEventListener("load", historyPanelAlign);
 window.addEventListener("resize", historyPanelAlign);
@@ -8001,6 +8001,13 @@ class="h-11 px-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs
 >
 📈 Geçmiş
 </button>
+<button
+type="button"
+id="calculatorToggle"
+class="h-11 px-4 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition"
+>
+🧮 Hesapla
+</button>
 </div>
 
 </div>
@@ -8056,6 +8063,31 @@ Alarmı Kaydet
 </button>
 </div>
 <div id="alarmList" class="mt-3"></div>
+</div>
+
+<div
+id="calculatorPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
+<div class="flex items-start justify-between gap-3 mb-3">
+<div>
+<div class="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">Hesaplama Aracı</div>
+<div class="text-base font-black text-slate-900 mt-0.5">Hurda Değeri Hesapla</div>
+<div class="text-[10px] sm:text-[11px] text-slate-500 mt-1">Güncel listedeki fiyatı seçtiğin ton miktarıyla çarpar.</div>
+</div>
+<span class="inline-flex items-center rounded-xl bg-white border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">TL / TON</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+<select id="calcFirm" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Firma seçin</option></select>
+<select id="calcItem" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Kalem seçin</option></select>
+<input id="calcQuantity" type="number" min="0" step="0.01" placeholder="Miktar (ton)" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+<button type="button" id="calcButton" class="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition">Hesapla</button>
+</div>
+<div id="calcResult" class="mt-3">
+<div class="rounded-xl border border-dashed border-emerald-200 bg-white/80 p-3 text-center text-xs text-slate-500">Firma, kalem ve ton miktarı seçip hesaplayın.</div>
+</div>
+</div>
 </div>
 
 </section>
@@ -8740,6 +8772,10 @@ function marketToolsInit(result) {
     const firmSelect = document.getElementById("historyFirmSelect");
     const alarmFirm = document.getElementById("alarmFirm");
     const compareSelect = document.getElementById("compareSelect");
+    const calcFirm = document.getElementById("calcFirm");
+    const calcItem = document.getElementById("calcItem");
+    const calcButton = document.getElementById("calcButton");
+    const calcResult = document.getElementById("calcResult");
 
     const firmsForSelect = firmalar.map(function(f) {
         return '<option value="' + escapeHtml(f.firma_id) + '">' + escapeHtml(f.baslik) + '</option>';
@@ -8747,6 +8783,7 @@ function marketToolsInit(result) {
 
     if (firmSelect) firmSelect.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
     if (alarmFirm) alarmFirm.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+    if (calcFirm) calcFirm.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
 
     const itemMap = {};
     firmalar.forEach(function(f) {
@@ -8778,11 +8815,67 @@ function marketToolsInit(result) {
         select.innerHTML = '<option value="">Kalem seçin</option>' + options;
     }
 
+    if (calcFirm && calcFirm.dataset.bound !== "1") {
+        calcFirm.addEventListener("change", function() {
+            firmaKalemleriniDoldur("calcItem", calcFirm.value);
+        });
+        calcFirm.dataset.bound = "1";
+    }
+
+    if (calcButton && calcButton.dataset.bound !== "1") {
+        calcButton.addEventListener("click", function() {
+            const firma = firmalar.find(function(f) { return f.firma_id === (calcFirm ? calcFirm.value : ""); });
+            const kalem = firma && Array.isArray(firma.kalemler)
+                ? firma.kalemler.find(function(k) { return k.cins === (calcItem ? calcItem.value : ""); })
+                : null;
+            const miktar = Number(document.getElementById("calcQuantity")?.value || 0);
+
+            if (!firma || !kalem || !Number.isFinite(miktar) || miktar <= 0) {
+                if (calcResult) calcResult.innerHTML = '<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-700 font-bold">Firma, kalem ve 0’dan büyük bir ton miktarı seçin.</div>';
+                return;
+            }
+
+            const rawPrice = kalem.manuel_fiyat !== null && kalem.manuel_fiyat !== undefined
+                ? Number(kalem.manuel_fiyat)
+                : Number(kalem.otomatik_fiyat);
+
+            if (!Number.isFinite(rawPrice) || rawPrice <= 0) {
+                if (calcResult) calcResult.innerHTML = '<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-xs text-red-700 font-bold">Seçilen kalemin geçerli bir fiyatı bulunamadı.</div>';
+                return;
+            }
+
+            const toplam = rawPrice * miktar;
+            const fiyatText = rawPrice.toLocaleString("tr-TR", {minimumFractionDigits: 0, maximumFractionDigits: 2});
+            const toplamText = toplam.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            if (calcResult) {
+                calcResult.innerHTML =
+                    '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
+                        '<div class="rounded-xl bg-white border border-slate-200 p-3"><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Seçilen fiyat</div><div class="text-lg font-black text-slate-900 mt-1">' + fiyatText + ' TL / ton</div></div>' +
+                        '<div class="rounded-xl bg-white border border-slate-200 p-3"><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Miktar</div><div class="text-lg font-black text-slate-900 mt-1">' + miktar.toLocaleString("tr-TR", {maximumFractionDigits: 2}) + ' ton</div></div>' +
+                        '<div class="rounded-xl bg-emerald-600 p-3 text-white"><div class="text-[9px] uppercase tracking-wide font-black text-emerald-100">Tahmini toplam</div><div class="text-lg font-black mt-1">' + toplamText + ' TL</div></div>' +
+                    '</div>' +
+                    '<div class="text-[9px] text-slate-500 mt-2">Hesaplama: seçilen fiyat × ton miktarı. Taşıma, fire, kesinti ve diğer ticari şartlar dahil değildir.</div>';
+            }
+        });
+        calcButton.dataset.bound = "1";
+    }
+
     if (firmSelect && firmSelect.dataset.bound !== "1") {
         firmSelect.addEventListener("change", function() {
             firmaKalemleriniDoldur("historyItemSelect", firmSelect.value);
         });
         firmSelect.dataset.bound = "1";
+    }
+
+    const calculatorToggle = document.getElementById("calculatorToggle");
+    const calculatorPanel = document.getElementById("calculatorPanel");
+    if (calculatorToggle && calculatorPanel && calculatorToggle.dataset.bound !== "1") {
+        calculatorToggle.addEventListener("click", function() {
+            const hidden = calculatorPanel.classList.toggle("hidden");
+            calculatorToggle.setAttribute("aria-expanded", String(!hidden));
+        });
+        calculatorToggle.dataset.bound = "1";
     }
 
     if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
