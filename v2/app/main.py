@@ -9086,13 +9086,6 @@ function marketToolsInit(result) {
     });
     localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
 
-    const compareToggle = document.getElementById("compareSelect");
-    if (compareToggle && compareToggle.dataset.bound !== "1") {
-        compareToggle.addEventListener("change", function(){
-            comparePanel?.classList.remove("hidden");
-        });
-        compareToggle.dataset.bound = "1";
-    }
 }
 
 
