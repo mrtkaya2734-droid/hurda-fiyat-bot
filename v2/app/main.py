@@ -6674,6 +6674,132 @@ Fabrika Fiyatları
 </div>
 </div>
 
+<section
+id="marketTools"
+class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
+>
+
+<div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+
+<div>
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Fiyat / Firma Ara
+</label>
+<input
+id="fiyatArama"
+type="search"
+placeholder="Örn. DKP, Çolakoğlu..."
+class="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+>
+</div>
+
+<div class="flex flex-wrap gap-2">
+<button
+type="button"
+id="alarmButton"
+class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition"
+>
+🔔 Fiyat Alarmı
+</button>
+<button
+type="button"
+id="historyButton"
+class="h-11 px-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-black hover:bg-sky-100 transition"
+>
+📈 Geçmiş
+</button>
+</div>
+
+</div>
+
+<div
+id="todayChanges"
+class="mt-3 hidden"
+></div>
+
+<div
+id="comparePanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Firma Karşılaştırma
+</label>
+<select
+id="compareSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="compareButton"
+class="h-10 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black transition"
+>
+Karşılaştır
+</button>
+</div>
+<div id="compareResult" class="mt-3"></div>
+</div>
+
+<div
+id="historyPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Geçmiş Fiyat
+</label>
+<select
+id="historyFirmSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Firma seçin</option>
+</select>
+</div>
+<div class="flex-1">
+<select
+id="historyItemSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="historyLoadButton"
+class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition"
+>
+Göster
+</button>
+</div>
+<div id="historyResult" class="mt-3"></div>
+</div>
+
+<div
+id="alarmPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+<select id="alarmFirm" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmItem" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmDirection" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<option value="above">Şu fiyata çıkınca</option>
+<option value="below">Şu fiyatın altına inince</option>
+</select>
+<input id="alarmValue" type="number" step="0.01" min="0" placeholder="Hedef TL" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<button type="button" id="alarmSaveButton" class="h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black">
+Alarmı Kaydet
+</button>
+</div>
+<div id="alarmList" class="mt-3"></div>
+</div>
+
+</section>
+
 <div
 id="loading"
 class="bg-white rounded-2xl p-6 sm:p-8 text-center text-slate-500"
@@ -7277,6 +7403,262 @@ async function manuelFiyatSil(button) {
 }
 
 
+function marketToolsInit(result) {
+
+    const firmalar = Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    const search = document.getElementById("fiyatArama");
+    if (search && search.dataset.bound !== "1") {
+        search.addEventListener("input", function() {
+            const needle = String(search.value || "").trim().toLocaleLowerCase("tr-TR");
+
+            document.querySelectorAll("#firmaListesi .price-card").forEach(function(card) {
+                const text = String(card.textContent || "").toLocaleLowerCase("tr-TR");
+                card.style.display = !needle || text.includes(needle) ? "" : "none";
+            });
+        });
+        search.dataset.bound = "1";
+    }
+
+    const firmSelect = document.getElementById("historyFirmSelect");
+    const alarmFirm = document.getElementById("alarmFirm");
+    const compareSelect = document.getElementById("compareSelect");
+
+    const firmsForSelect = firmalar.map(function(f) {
+        return '<option value="' + escapeHtml(f.firma_id) + '">' + escapeHtml(f.baslik) + '</option>';
+    }).join("");
+
+    if (firmSelect) firmSelect.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+    if (alarmFirm) alarmFirm.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+
+    const itemMap = {};
+    firmalar.forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            itemMap[k.cins] = true;
+        });
+    });
+
+    const itemOptions = Object.keys(itemMap)
+        .sort(function(a,b) { return a.localeCompare(b, "tr"); })
+        .map(function(k) {
+            return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + '</option>';
+        }).join("");
+
+    const alarmItem = document.getElementById("alarmItem");
+    if (alarmItem) alarmItem.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    if (compareSelect) compareSelect.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    function firmaKalemleriniDoldur(selectId, firmaId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const firma = firmalar.find(function(f) { return f.firma_id === firmaId; });
+        const options = firma && Array.isArray(firma.kalemler)
+            ? firma.kalemler.map(function(k) {
+                return '<option value="' + escapeHtml(k.cins) + '">' + escapeHtml(k.cins) + '</option>';
+            }).join("")
+            : "";
+        select.innerHTML = '<option value="">Kalem seçin</option>' + options;
+    }
+
+    if (firmSelect && firmSelect.dataset.bound !== "1") {
+        firmSelect.addEventListener("change", function() {
+            firmaKalemleriniDoldur("historyItemSelect", firmSelect.value);
+        });
+        firmSelect.dataset.bound = "1";
+    }
+
+    if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
+        fetch("/today-changes", {cache:"no-store"})
+            .then(function(r){ return r.json(); })
+            .then(function(payload){
+                const box = document.getElementById("todayChanges");
+                if (!box) return;
+                box.dataset.loaded = "1";
+                const rows = payload.data || [];
+                if (!rows.length) {
+                    box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte kayda değer fiyat değişimi yok.</div>';
+                } else {
+                    box.innerHTML =
+                        '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
+                        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
+                        rows.map(function(x){
+                            const up = Number(x.fark) > 0;
+                            return '<div class="rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
+                                '<div class="text-xs font-black text-slate-800">' + escapeHtml(x.firma) + ' · ' + escapeHtml(x.kalem) + '</div>' +
+                                '<div class="mt-1 text-sm font-black ' + (up ? 'text-emerald-700' : 'text-red-700') + '">' +
+                                    (up ? '▲ +' : '▼ ') + Number(x.fark).toLocaleString("tr-TR") + ' TL' +
+                                    ' <span class="text-slate-500 font-bold">(' + Number(x.yeni).toLocaleString("tr-TR") + ' TL)</span>' +
+                                '</div></div>';
+                        }).join("") +
+                        '</div>';
+                    box.classList.remove("hidden");
+                }
+            })
+            .catch(function(){});
+    }
+
+    const comparePanel = document.getElementById("comparePanel");
+    const historyPanel = document.getElementById("historyPanel");
+    const alarmPanel = document.getElementById("alarmPanel");
+
+    const compareButton = document.getElementById("compareButton");
+    if (compareButton && compareButton.dataset.bound !== "1") {
+        compareButton.addEventListener("click", function() {
+            const kalem = document.getElementById("compareSelect")?.value;
+            if (!kalem) return;
+            fetch("/compare?kalem=" + encodeURIComponent(kalem), {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const box = document.getElementById("compareResult");
+                    const rows = payload.data || [];
+                    box.innerHTML = rows.length
+                        ? '<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-200"><th class="text-left py-2">Firma</th><th class="text-right py-2">Fiyat</th></tr></thead><tbody>' +
+                          rows.map(function(x){ return '<tr class="border-b border-slate-100"><td class="py-2 font-bold">' + escapeHtml(x.firma) + '</td><td class="py-2 text-right font-black">' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL</td></tr>'; }).join("") +
+                          '</tbody></table></div>'
+                        : '<div class="text-xs text-slate-500">Bu kalem için kayıt bulunamadı.</div>';
+                });
+        });
+        compareButton.dataset.bound = "1";
+    }
+
+    const historyButton = document.getElementById("historyButton");
+    if (historyButton && historyButton.dataset.bound !== "1") {
+        historyButton.addEventListener("click", function(){
+            historyPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            alarmPanel?.classList.add("hidden");
+        });
+        historyButton.dataset.bound = "1";
+    }
+
+    const historyLoad = document.getElementById("historyLoadButton");
+    if (historyLoad && historyLoad.dataset.bound !== "1") {
+        historyLoad.addEventListener("click", function(){
+            const firma = firmSelect?.value;
+            const kalem = document.getElementById("historyItemSelect")?.value;
+            if (!firma || !kalem) return;
+
+            fetch("/history?firma_id=" + encodeURIComponent(firma) + "&kalem=" + encodeURIComponent(kalem) + "&limit=60", {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const rows = payload.data || [];
+                    const box = document.getElementById("historyResult");
+                    if (!rows.length) {
+                        box.innerHTML = '<div class="text-xs text-slate-500">Geçmiş kayıt bulunamadı.</div>';
+                        return;
+                    }
+                    const vals = rows.map(function(x){ return Number(x.fiyat); }).filter(Number.isFinite);
+                    const min = Math.min.apply(null, vals);
+                    const max = Math.max.apply(null, vals);
+                    const range = Math.max(1, max - min);
+
+                    box.innerHTML =
+                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3">' +
+                        '<div class="flex items-center justify-between text-xs font-black text-slate-600 mb-2"><span>Min: ' + min.toLocaleString("tr-TR") + ' TL</span><span>Max: ' + max.toLocaleString("tr-TR") + ' TL</span></div>' +
+                        '<div class="flex items-end gap-1 h-32">' +
+                        rows.map(function(x){
+                            const h = Math.max(4, ((Number(x.fiyat)-min)/range)*100);
+                            return '<div title="' + escapeHtml(x.tarih || "") + ' · ' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL" class="flex-1 min-w-[3px] rounded-t bg-sky-400" style="height:' + h + '%"></div>';
+                        }).join("") +
+                        '</div></div>';
+                });
+        });
+        historyLoad.dataset.bound = "1";
+    }
+
+    const alarmButton = document.getElementById("alarmButton");
+    if (alarmButton && alarmButton.dataset.bound !== "1") {
+        alarmButton.addEventListener("click", function(){
+            alarmPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            historyPanel?.classList.add("hidden");
+        });
+        alarmButton.dataset.bound = "1";
+    }
+
+    const alarmSave = document.getElementById("alarmSaveButton");
+    if (alarmSave && alarmSave.dataset.bound !== "1") {
+        alarmSave.addEventListener("click", function(){
+            const firm = document.getElementById("alarmFirm")?.value;
+            const item = document.getElementById("alarmItem")?.value;
+            const direction = document.getElementById("alarmDirection")?.value;
+            const value = Number(document.getElementById("alarmValue")?.value);
+
+            if (!firm || !item || !Number.isFinite(value) || value <= 0) return;
+
+            const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+            alarms.push({
+                id: Date.now(),
+                firma_id: firm,
+                kalem: item,
+                direction: direction,
+                value: value,
+                fired: false
+            });
+            localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+            renderAlarms();
+        });
+        alarmSave.dataset.bound = "1";
+    }
+
+    function renderAlarms() {
+        const box = document.getElementById("alarmList");
+        if (!box) return;
+        const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+        box.innerHTML = alarms.length
+            ? alarms.map(function(a, index){
+                return '<div class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs">' +
+                    '<span class="font-bold">' + escapeHtml(a.kalem) + ' · ' + Number(a.value).toLocaleString("tr-TR") + ' TL</span>' +
+                    '<button type="button" data-alarm-delete="' + index + '" class="text-red-600 font-black">Sil</button></div>';
+            }).join("")
+            : '<div class="text-xs text-slate-500">Kayıtlı fiyat alarmı yok.</div>';
+
+        box.querySelectorAll("[data-alarm-delete]").forEach(function(btn){
+            btn.addEventListener("click", function(){
+                const list = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+                list.splice(Number(btn.dataset.alarmDelete), 1);
+                localStorage.setItem("hurdaPriceAlarms", JSON.stringify(list));
+                renderAlarms();
+            });
+        });
+    }
+
+    renderAlarms();
+
+    // Fiyat alarmı tarayıcı açıkken çalışır; izin verilirse sistem bildirimi de verir.
+    const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+    alarms.forEach(function(a){
+        const firma = firmalar.find(function(f){ return f.firma_id === a.firma_id; });
+        const kalem = firma && (firma.kalemler || []).find(function(k){ return k.cins === a.kalem; });
+        if (!kalem) return;
+
+        const fiyat = Number(String(kalem.fiyat).replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", "."));
+        const oldu = a.direction === "above" ? fiyat >= a.value : fiyat <= a.value;
+
+        if (oldu && !a.fired) {
+            a.fired = true;
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Hurda fiyat alarmı", {
+                    body: a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
+                });
+            }
+        }
+    });
+    localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+
+    const compareToggle = document.getElementById("compareSelect");
+    if (compareToggle && compareToggle.dataset.bound !== "1") {
+        compareToggle.addEventListener("change", function(){
+            comparePanel?.classList.remove("hidden");
+        });
+        compareToggle.dataset.bound = "1";
+    }
+}
+
+
 async function fiyatlariGetir() {
 
     try {
@@ -7337,6 +7719,8 @@ async function fiyatlariGetir() {
         );
 
         const firmalar = result.data;
+
+        marketToolsInit(result);
 
         firmalar.forEach(function(item, index) {
 
