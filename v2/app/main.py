@@ -6768,6 +6768,110 @@ body {
     gap: 16px;
 }
 
+/* FABRİKA KARTLARI — ayrı sınıflar, iç içe flex/grid selector yok */
+.market-design .factory-card-header {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.market-design .factory-card-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.market-design .factory-card-info {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-card-title-line {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.market-design .factory-card-title {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    display: block !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-card-meta {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-card-actions {
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.market-design .factory-price-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-list {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(105px, auto) !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.market-design .factory-price-name {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-price-value {
+    min-width: 105px !important;
+    width: auto !important;
+    justify-self: end !important;
+}
+
+@media (max-width: 639px) {
+    .market-design .factory-card-header {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+
+    .market-design .factory-card-actions {
+        justify-content: flex-end !important;
+    }
+
+    .market-design .factory-price-row {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+    }
+}
+
 /* Fabrika bölümü kendi 760px sınırında kalmasın; 5+5 düzende tam alanı kullansın. */
 @media (min-width: 1024px) {
     .market-design .factory-layout > main {
@@ -8756,9 +8860,9 @@ async function fiyatlariGetir() {
                 }
 
                 rows +=
-                    '<div class="price-row flex items-center justify-between gap-3 py-3.5 sm:py-4 border-b border-slate-100 last:border-0">' +
+                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-3.5 sm:py-4">' +
 
-                        '<div class="price-name min-w-0 pr-2">' +
+                        '<div class="factory-price-name pr-2">' +
 
                             '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
                                 escapeHtml(kalem.cins) +
@@ -8780,7 +8884,7 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="price-value text-right shrink-0 min-w-[105px] sm:min-w-[125px]">' +
+                        '<div class="factory-price-value text-right sm:min-w-[125px]">' +
 
                             '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
@@ -8815,76 +8919,72 @@ async function fiyatlariGetir() {
                     panelId +
                     '" aria-expanded="false">' +
 
-                    '<div class="flex items-center justify-between gap-3 sm:gap-4">' +
+                    '<div class="factory-card-header">' +
 
-                        '<div class="min-w-0 flex-1">' +
+                        '<div class="factory-card-main">' +
 
-                            '<div class="flex items-center gap-2.5">' +
+                            '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
+                                String(index + 1).padStart(2, "0") +
+                            "</div>" +
 
-                                '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
-                                    String(index + 1).padStart(2, "0") +
+                            '<div class="factory-card-info">' +
+
+                                '<div class="factory-card-title-line">' +
+
+                                    '<h2 class="factory-card-title font-black text-[15px] sm:text-lg text-slate-950 leading-5">' +
+                                        escapeHtml(item.baslik) +
+                                    "</h2>" +
+
+                                    durumEtiketi(item.durum) +
+
                                 "</div>" +
 
-                                '<div class="min-w-0">' +
-
-                                    '<div class="flex items-center gap-2 flex-wrap">' +
-
-                                        '<h2 class="font-black text-[15px] sm:text-lg text-slate-950 leading-5 break-words">' +
-                                            escapeHtml(item.baslik) +
-                                        "</h2>" +
-
-                                        durumEtiketi(item.durum) +
-
-                                    "</div>" +
-
-                                    '<div class="flex items-center gap-1.5 mt-1">' +
-                                        '<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>' +
-                                        '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold break-words">' +
-                                            "Fiyat tarihi: " +
-                                            escapeHtml(item.tarih || "-") +
-                                        "</span>" +
-                                        '<span class="text-slate-300">•</span>' +
-                                        '<span class="text-[10px] text-slate-400 font-bold">' +
-                                            kalemSayisi +
-                                            " kalem" +
-                                        "</span>" +
-                                    "</div>" +
-
+                                '<div class="factory-card-meta mt-1">' +
+                                    '<span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>' +
+                                    '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold">' +
+                                        "Fiyat tarihi: " +
+                                        escapeHtml(item.tarih || "-") +
+                                    "</span>" +
+                                    '<span class="text-slate-300 shrink-0">•</span>' +
+                                    '<span class="text-[10px] text-slate-400 font-bold whitespace-nowrap">' +
+                                        kalemSayisi +
+                                        " kalem" +
+                                    "</span>" +
                                 "</div>" +
 
                             "</div>" +
 
                         "</div>" +
 
-                        (
-                            artisSayisi || dususSayisi
-                                ? '<div class="hidden sm:flex items-center gap-2 text-[10px] font-black mr-1">' +
-                                    (
-                                        artisSayisi
-                                            ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
-                                            : ""
-                                    ) +
-                                    (
-                                        artisSayisi && dususSayisi
-                                            ? '<span class="text-slate-300">•</span>'
-                                            : ""
-                                    ) +
-                                    (
-                                        dususSayisi
-                                            ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
-                                            : ""
-                                    ) +
-                                  "</div>"
-                                : ""
-                        ) +
+                        '<div class="factory-card-actions">' +
 
-                        '<div class="shrink-0 flex items-center gap-2">' +
+                            (
+                                artisSayisi || dususSayisi
+                                    ? '<span class="hidden sm:inline-flex items-center gap-2 text-[10px] font-black mr-1 whitespace-nowrap">' +
+                                        (
+                                            artisSayisi
+                                                ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
+                                                : ""
+                                        ) +
+                                        (
+                                            artisSayisi && dususSayisi
+                                                ? '<span class="text-slate-300">•</span>'
+                                                : ""
+                                        ) +
+                                        (
+                                            dususSayisi
+                                                ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
+                                                : ""
+                                        ) +
+                                      "</span>"
+                                    : ""
+                            ) +
 
-                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500">' +
+                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500 whitespace-nowrap">' +
                                 "Fiyatları Gör" +
                             "</span>" +
 
-                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm">' +
+                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
                                 "▼" +
                             "</span>" +
 
@@ -8896,9 +8996,9 @@ async function fiyatlariGetir() {
 
                 '<div id="' +
                     panelId +
-                    '" class="hidden border-t border-slate-200 bg-slate-50/60">' +
+                    '" class="factory-price-panel hidden border-t border-slate-200 bg-slate-50/60">' +
 
-                    '<div class="p-3 sm:p-4">' +
+                    '<div class="factory-price-panel p-3 sm:p-4">' +
 
                         '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">' +
 
@@ -8913,7 +9013,7 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
+                        '<div class="factory-price-list bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
                             rows +
                         "</div>" +
 
