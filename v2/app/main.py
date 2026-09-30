@@ -5658,6 +5658,162 @@ body {{
     }}
 }}
 
+/* =========================================================
+   FABRİKA KARTLARI — SON VE TEK LAYOUT KURALI
+   Bu blok önceki fabrika flex kurallarını bilinçli olarak ezer.
+   ========================================================= */
+.market-design .factory-price-grid > .price-card {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.market-design .factory-price-grid .firma-toggle {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 132px !important;
+    padding: 16px !important;
+    text-align: left !important;
+}
+
+.market-design .factory-price-grid .factory-card-header {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .factory-card-main {
+    display: grid !important;
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 10px !important;
+    align-items: center !important;
+}
+
+.market-design .factory-price-grid .factory-card-info {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .factory-card-title-line {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    line-height: 1.25 !important;
+}
+
+.market-design .factory-price-grid .factory-card-title {
+    display: inline !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    line-height: 1.25 !important;
+}
+
+.market-design .factory-price-grid .factory-card-title-line > span {
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-left: 6px !important;
+}
+
+.market-design .factory-price-grid .factory-card-meta {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin-top: 6px !important;
+}
+
+.market-design .factory-price-grid .factory-card-actions {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid #f1f5f9 !important;
+}
+
+.market-design .factory-price-grid .factory-card-actions > * {
+    flex: 0 0 auto !important;
+}
+
+.market-design .factory-price-grid .factory-price-panel:not(.hidden) {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.market-design .factory-price-grid .factory-price-panel:not(.hidden) > .factory-price-panel {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.market-design .factory-price-grid .factory-price-list {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.market-design .factory-price-grid .factory-price-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    column-gap: 10px !important;
+}
+
+.market-design .factory-price-grid .factory-price-name {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .factory-price-value {
+    display: block !important;
+    width: auto !important;
+    min-width: 105px !important;
+    max-width: none !important;
+    justify-self: end !important;
+    text-align: right !important;
+}
+
+@media (max-width: 639px) {
+    .market-design .factory-price-grid .firma-toggle {
+        min-height: 0 !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions {
+        justify-content: space-between !important;
+    }
+
+    .market-design .factory-price-grid .factory-price-row {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+    }
+
+    .market-design .factory-price-grid .factory-price-value {
+        min-width: 88px !important;
+    }
+}
+
 </style>
 
 </head>
