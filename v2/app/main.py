@@ -7506,101 +7506,74 @@ body {
 }
 
 /* =====================================================
-   FABRİKA KARTI DAR EKRAN SON DÜZENLEME
-   Sadece CSS: HTML ve JS değiştirilmez.
+   FABRİKA KARTI SON GENİŞLİK AYARI
+   Yan reklamlar biraz daraltılır, orta piyasa alanı eşit
+   şekilde genişletilir. Sadece CSS.
    ===================================================== */
-@media (min-width: 1024px) and (max-width: 1399px) {
+@media (min-width: 1024px) {
+    .market-design .factory-layout {
+        grid-template-columns: 220px minmax(0, 1fr) 220px !important;
+        gap: 14px !important;
+    }
+
+    .market-design .factory-layout > aside.desktop-ad-column {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .market-design .factory-layout > main {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .market-design .factory-price-grid {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .market-design .factory-price-grid .price-card {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
     .market-design .factory-price-grid .factory-card-header {
-        gap: 6px !important;
+        min-width: 0 !important;
+        width: 100% !important;
         grid-template-columns: minmax(0, 1fr) auto !important;
     }
 
     .market-design .factory-price-grid .factory-card-main,
     .market-design .factory-price-grid .factory-card-info,
-    .market-design .factory-price-grid .factory-card-title-line {
-        min-width: 0 !important;
-        max-width: 100% !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-actions {
-        gap: 3px !important;
-        max-width: 92px !important;
-        min-width: 0 !important;
-        flex: 0 0 auto !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-actions > span:not(.firma-ok-icon) {
-        font-size: 8px !important;
-        line-height: 1.15 !important;
-        white-space: nowrap !important;
-        max-width: 100% !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-actions .firma-ok-icon {
-        width: 30px !important;
-        height: 30px !important;
-        min-width: 30px !important;
-        flex: 0 0 30px !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-title-line {
-        gap: 4px !important;
-        flex-wrap: wrap !important;
-    }
-
+    .market-design .factory-price-grid .factory-card-title-line,
     .market-design .factory-price-grid .factory-card-title {
         min-width: 0 !important;
         max-width: 100% !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-title {
+        white-space: normal !important;
         overflow-wrap: normal !important;
         word-break: normal !important;
     }
 
-    .market-design .factory-price-grid .factory-card-title-line > * {
-        min-width: 0 !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-meta {
-        min-width: 0 !important;
-        max-width: 100% !important;
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 4px !important;
-    }
-}
-
-@media (min-width: 1024px) and (max-width: 1149px) {
     .market-design .factory-price-grid .factory-card-actions {
-        max-width: 38px !important;
-        width: 38px !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-actions > span.hidden.md\\:inline-flex,
-    .market-design .factory-price-grid .factory-card-actions > span.hidden.sm\\:inline-flex {
-        display: none !important;
-    }
-
-    .market-design .factory-price-grid .factory-card-actions .firma-ok-icon {
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
-        flex-basis: 32px !important;
+        min-width: 0 !important;
+        flex: 0 0 auto !important;
     }
 }
 
-/* 1200px ve üzeri: mevcut butonlar korunur, sadece taşma engellenir. */
-@media (min-width: 1200px) {
-    .market-design .factory-price-grid .factory-card-actions > * {
-        max-width: 100% !important;
-        flex-shrink: 0 !important;
+@media (min-width: 1024px) and (max-width: 1199px) {
+    .market-design .factory-layout {
+        grid-template-columns: 205px minmax(0, 1fr) 205px !important;
+        gap: 12px !important;
     }
+}
 
-    .market-design .factory-price-grid .factory-card-title,
-    .market-design .factory-price-grid .factory-card-meta {
-        min-width: 0 !important;
+@media (min-width: 1200px) and (max-width: 1399px) {
+    .market-design .factory-layout {
+        grid-template-columns: 215px minmax(0, 1fr) 215px !important;
+        gap: 14px !important;
     }
 }
 </style>
