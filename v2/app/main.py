@@ -6846,6 +6846,58 @@ body {
     margin-top: 18px;
 }
 
+/* Fabrika alanı tam genişlikte; yan bannerlar fabrika kartlarının altına iner. */
+@media (min-width: 1024px) {
+    .factory-layout {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+        gap: 18px !important;
+        align-items: start;
+    }
+
+    .factory-layout > main {
+        grid-column: 1 / -1 !important;
+        grid-row: 1 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child,
+    .factory-layout > .desktop-ad-column:last-child {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        height: auto !important;
+        align-items: stretch;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child {
+        grid-column: 1 !important;
+        grid-row: 2 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child {
+        grid-column: 2 !important;
+        grid-row: 2 !important;
+    }
+
+    .factory-layout > .desktop-ad-column .ad-box {
+        width: 100%;
+        max-width: none;
+        aspect-ratio: 4 / 3;
+    }
+
+    .factory-price-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+    .factory-price-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
 @media (max-width: 639px) {
     .market-design > .w-full.max-w-7xl {
         padding-top: 8px;
@@ -6859,7 +6911,7 @@ body {
     }
 
     .market-design .factory-price-grid {
-        gap: 12px;
+        gap: 14px;
     }
 
     .market-design .price-card {
@@ -7205,7 +7257,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
+<div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
@@ -7411,7 +7463,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full min-w-0"
+class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
 
@@ -8376,17 +8428,6 @@ async function fiyatlariGetir() {
             const wrapper = document.createElement("div");
             wrapper.className =
                 "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all duration-200";
-
-            if (
-                index === firmalar.length - 1
-                && firmalar.length % 2 === 1
-            ) {
-                wrapper.classList.add(
-                    "sm:col-span-2",
-                    "sm:w-[calc(50%-0.5rem)]",
-                    "sm:justify-self-center"
-                );
-            }
 
             const panelId = "firma_" + index;
             let rows = "";
