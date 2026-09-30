@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -34,6 +35,244 @@ DATA_FILE = os.getenv(
         "data.json"
     )
 )
+
+
+
+# =========================================================
+# SUPABASE KALICI DEPOLAMA
+# =========================================================
+# Render Free yerel dosya sistemi kalıcı değildir. Supabase Storage
+# ayarlanmışsa uygulamanın JSON verilerini ve medya dosyalarını
+# güvenli sunucu tarafında kalıcı olarak saklarız.
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+SUPABASE_BUCKET = os.getenv(
+    "SUPABASE_BUCKET",
+    "hurda-data",
+).strip()
+
+_SUPABASE_DATA_SYNCED = False
+
+
+def _supabase_enabled():
+    return bool(
+        SUPABASE_URL
+        and SUPABASE_SECRET_KEY
+        and SUPABASE_BUCKET
+    )
+
+
+def _supabase_headers(content_type=None):
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+    }
+
+    if content_type:
+        headers["Content-Type"] = content_type
+
+    return headers
+
+
+def _supabase_object_url(object_name):
+    object_name = str(
+        object_name or ""
+    ).strip().lstrip("/")
+
+    return (
+        f"{SUPABASE_URL}/storage/v1/object/"
+        f"{SUPABASE_BUCKET}/{object_name}"
+    )
+
+
+def supabase_storage_download(object_name):
+    if not _supabase_enabled():
+        return None
+
+    try:
+        response = requests.get(
+            _supabase_object_url(object_name),
+            headers=_supabase_headers(),
+            timeout=20,
+        )
+
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+
+        return response.content
+
+    except Exception as exc:
+        print(
+            "SUPABASE İNDİRME HATASI: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
+def supabase_storage_upload(
+    local_path,
+    object_name,
+    content_type=None,
+):
+    if not _supabase_enabled():
+        return False
+
+    if not os.path.exists(local_path):
+        return False
+
+    try:
+        with open(
+            local_path,
+            "rb",
+        ) as file:
+            response = requests.post(
+                _supabase_object_url(object_name),
+                headers={
+                    **_supabase_headers(content_type),
+                    "x-upsert": "true",
+                },
+                data=file,
+                timeout=30,
+            )
+
+        response.raise_for_status()
+
+        return True
+
+    except Exception as exc:
+        print(
+            "SUPABASE YÜKLEME HATASI: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def supabase_restore_file(
+    local_path,
+    object_name,
+):
+    content = supabase_storage_download(
+        object_name
+    )
+
+    if content is None:
+        return False
+
+    try:
+        os.makedirs(
+            os.path.dirname(local_path),
+            exist_ok=True,
+        )
+
+        temporary = (
+            local_path
+            + ".supabase.tmp"
+        )
+
+        with open(
+            temporary,
+            "wb",
+        ) as file:
+            file.write(content)
+
+        os.replace(
+            temporary,
+            local_path,
+        )
+
+        return True
+
+    except Exception as exc:
+        print(
+            "SUPABASE YEREL KOPYA HATASI: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def _supabase_sync_data_once():
+    global _SUPABASE_DATA_SYNCED
+
+    if _SUPABASE_DATA_SYNCED:
+        return
+
+    _SUPABASE_DATA_SYNCED = True
+
+    if not _supabase_enabled():
+        return
+
+    try:
+        remote = supabase_storage_download(
+            "data.json"
+        )
+
+        if remote is not None:
+            parsed = json.loads(
+                remote.decode("utf-8")
+            )
+
+            if isinstance(parsed, dict):
+                os.makedirs(
+                    os.path.dirname(DATA_FILE),
+                    exist_ok=True,
+                )
+
+                temporary = (
+                    DATA_FILE
+                    + ".supabase.tmp"
+                )
+
+                with open(
+                    temporary,
+                    "w",
+                    encoding="utf-8",
+                ) as file:
+                    json.dump(
+                        parsed,
+                        file,
+                        ensure_ascii=False,
+                        indent=4,
+                    )
+
+                os.replace(
+                    temporary,
+                    DATA_FILE,
+                )
+
+                print(
+                    "SUPABASE: data.json geri yüklendi."
+                )
+
+                return
+
+        if os.path.exists(DATA_FILE):
+            supabase_storage_upload(
+                DATA_FILE,
+                "data.json",
+                "application/json",
+            )
+
+            print(
+                "SUPABASE: mevcut data.json ilk kez yüklendi."
+            )
+
+    except Exception as exc:
+        print(
+            "SUPABASE VERİ SENKRON HATASI: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+
+def supabase_upload_json(
+    local_path,
+    object_name,
+):
+    return supabase_storage_upload(
+        local_path,
+        object_name,
+        "application/json",
+    )
 
 
 # =========================================================
@@ -166,6 +405,8 @@ def now_string():
 # =========================================================
 
 def load_data():
+
+    _supabase_sync_data_once()
 
     if not os.path.exists(DATA_FILE):
 
@@ -378,6 +619,14 @@ def save_data(data):
         temporary_file,
         DATA_FILE
     )
+
+    # Render Free yerel dosyası kalıcı olmadığından,
+    # her başarılı veri kaydından sonra Supabase'i güncelle.
+    if _supabase_enabled():
+        supabase_upload_json(
+            DATA_FILE,
+            "data.json",
+        )
 
 
 # =========================================================
