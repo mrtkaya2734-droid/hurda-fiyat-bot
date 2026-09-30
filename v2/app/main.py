@@ -7989,9 +7989,11 @@ class="mt-0 border-t border-slate-200 pt-0"
 </div>
 </div
 </div>
-<div id="leftFeatureTop"></div>
-<div id="leftFeatureMiddle"></div>
-<div id="leftFeatureBottom"></div>
+<div class="feature-ad-stack grid gap-3 mt-1" aria-label="Piyasa görselleri">
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd1"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd2"></div>
+<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd3"></div>
+</div>
 </aside>
 
 <main class="min-w-0 w-full mx-auto">
@@ -8212,24 +8214,16 @@ Firma ve kalem seçip <strong>Grafiği Göster</strong> butonuna bas.
 </div>
 
 </div>
-<div id="rightFeatureTop"></div>
-<div id="rightFeatureMiddle"></div>
-<div id="rightFeatureBottom"></div>
-</aside>
-
-</div>
-
-<div
-id="bottomAds"
-class="hidden lg:grid grid-cols-6 items-stretch gap-3 w-full mt-5"
->
-<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd1"></div>
-<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd2"></div>
-<div class="ad-box rounded-2xl overflow-hidden" id="bottomAd3"></div>
+<div class="feature-ad-stack grid gap-3 mt-1" aria-label="Piyasa görselleri">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd4"></div>
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd5"></div>
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd6"></div>
 </div>
+</aside>
+
+</div>
+
+
 
 </div>
 
@@ -9231,9 +9225,16 @@ function marketToolsInit(result) {
         const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
         box.innerHTML = alarms.length
             ? alarms.map(function(a, index){
+                const firma = firmalar.find(function(f){ return f.firma_id === a.firma_id; });
+                const firmaAdi = firma ? firma.baslik : a.firma_id;
+                const yon = a.direction === "above" ? "Yükselince" : "Altına inince";
+                const durum = a.fired ? "Tetiklendi" : "Aktif";
                 return '<div class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs">' +
-                    '<span class="font-bold">' + escapeHtml(a.kalem) + ' · ' + Number(a.value).toLocaleString("tr-TR") + ' TL</span>' +
-                    '<button type="button" data-alarm-delete="' + index + '" class="text-red-600 font-black">Sil</button></div>';
+                    '<div class="min-w-0">' +
+                        '<div class="font-bold text-slate-800 truncate">' + escapeHtml(firmaAdi) + ' · ' + escapeHtml(a.kalem) + '</div>' +
+                        '<div class="mt-0.5 text-[10px] font-semibold text-slate-500">' + escapeHtml(yon) + ' ' + Number(a.value).toLocaleString("tr-TR") + ' TL · ' + escapeHtml(durum) + '</div>' +
+                    '</div>' +
+                    '<button type="button" data-alarm-delete="' + index + '" class="text-red-600 font-black shrink-0">Sil</button></div>';
             }).join("")
             : '<div class="text-xs text-slate-500">Kayıtlı fiyat alarmı yok.</div>';
 
@@ -9256,14 +9257,17 @@ function marketToolsInit(result) {
         const kalem = firma && (firma.kalemler || []).find(function(k){ return k.cins === a.kalem; });
         if (!kalem) return;
 
-        const fiyat = Number(String(kalem.fiyat).replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", "."));
+        const fiyat = kalem.manuel_fiyat !== null && kalem.manuel_fiyat !== undefined
+            ? Number(kalem.manuel_fiyat)
+            : Number(kalem.otomatik_fiyat);
+        if (!Number.isFinite(fiyat)) return;
         const oldu = a.direction === "above" ? fiyat >= a.value : fiyat <= a.value;
 
         if (oldu && !a.fired) {
             a.fired = true;
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification("Hurda fiyat alarmı", {
-                    body: a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
+                    body: (firma ? firma.baslik + " · " : "") + a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
                 });
             }
         }
