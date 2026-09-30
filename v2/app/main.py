@@ -49,6 +49,10 @@ from app.storage import (
     sistem_ozeti,
     DATA_FILE,
     BACKUP_DIR,
+    supabase_storage_download,
+    supabase_storage_upload,
+    supabase_restore_file,
+    supabase_upload_json,
 )
 
 
@@ -94,6 +98,8 @@ os.makedirs(
     ADS_UPLOAD_DIR,
     exist_ok=True,
 )
+
+_ADS_SUPABASE_SYNCED = False
 
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
@@ -1240,6 +1246,50 @@ def normalize_ads(data):
 
 def load_ads():
 
+    global _ADS_SUPABASE_SYNCED
+
+    if not _ADS_SUPABASE_SYNCED:
+        _ADS_SUPABASE_SYNCED = True
+
+        remote = supabase_storage_download(
+            "ads.json"
+        )
+
+        if remote is not None:
+            try:
+                remote_data = json.loads(
+                    remote.decode("utf-8")
+                )
+
+                if isinstance(remote_data, dict):
+                    temporary = (
+                        ADS_FILE
+                        + ".supabase.tmp"
+                    )
+
+                    with open(
+                        temporary,
+                        "w",
+                        encoding="utf-8",
+                    ) as file:
+                        json.dump(
+                            remote_data,
+                            file,
+                            ensure_ascii=False,
+                            indent=4,
+                        )
+
+                    os.replace(
+                        temporary,
+                        ADS_FILE,
+                    )
+
+            except Exception as exc:
+                print(
+                    "SUPABASE REKLAM VERİSİ HATASI: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
     if not os.path.exists(
         ADS_FILE
     ):
@@ -1273,9 +1323,35 @@ def load_ads():
                 DEFAULT_ADS
             )
 
-        return normalize_ads(
+        data = normalize_ads(
             data
         )
+
+        # Supabase private bucket'taki reklam görsellerini
+        # yerel statik klasöre geri getir.
+        for item in data.values():
+            image_url = str(
+                item.get("image_url", "")
+                if isinstance(item, dict)
+                else ""
+            ).strip()
+
+            if not image_url.startswith("/static/ads/"):
+                continue
+
+            filename = os.path.basename(image_url)
+            local_image = os.path.join(
+                ADS_UPLOAD_DIR,
+                filename,
+            )
+
+            if not os.path.exists(local_image):
+                supabase_restore_file(
+                    local_image,
+                    f"ads/{filename}",
+                )
+
+        return data
 
     except Exception:
 
@@ -1313,6 +1389,33 @@ def save_ads(data):
         ADS_FILE,
     )
 
+    # Reklam ayarlarını ve kullanılan görselleri kalıcı depoya gönder.
+    if supabase_upload_json(
+        ADS_FILE,
+        "ads.json",
+    ):
+
+        for item in data.values():
+            image_url = str(
+                item.get("image_url", "")
+                if isinstance(item, dict)
+                else ""
+            ).strip()
+
+            if not image_url.startswith("/static/ads/"):
+                continue
+
+            filename = os.path.basename(image_url)
+            local_image = os.path.join(
+                ADS_UPLOAD_DIR,
+                filename,
+            )
+
+            if os.path.exists(local_image):
+                supabase_storage_upload(
+                    local_image,
+                    f"ads/{filename}",
+                )
 
 def ad_html(ad):
 
