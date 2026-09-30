@@ -169,15 +169,53 @@ def load_data():
                     continue
 
                 if canonical not in normalized:
-                    normalized[canonical] = value
+                    if isinstance(value, dict):
+                        normalized[canonical] = dict(value)
+                    elif isinstance(value, list):
+                        normalized[canonical] = list(value)
+                    else:
+                        normalized[canonical] = value
                     continue
 
                 existing = normalized[canonical]
 
                 if isinstance(existing, dict) and isinstance(value, dict):
+                    # Aynı firma farklı harf kullanımıyla iki kez kayıtlıysa
+                    # firma/fiyat alt kayıtlarını tek tek birleştir.
+                    # Böylece bir kaydın diğerinin kalemlerini ezmesi önlenir.
                     merged = dict(existing)
-                    merged.update(value)
+
+                    for sub_key, sub_value in value.items():
+                        if (
+                            sub_key in merged
+                            and isinstance(merged[sub_key], dict)
+                            and isinstance(sub_value, dict)
+                        ):
+                            item = dict(merged[sub_key])
+                            item.update(sub_value)
+                            merged[sub_key] = item
+                        elif (
+                            sub_key in merged
+                            and isinstance(merged[sub_key], list)
+                            and isinstance(sub_value, list)
+                        ):
+                            combined = list(merged[sub_key])
+                            for item in sub_value:
+                                if item not in combined:
+                                    combined.append(item)
+                            merged[sub_key] = combined
+                        else:
+                            merged[sub_key] = sub_value
+
                     normalized[canonical] = merged
+
+                elif isinstance(existing, list) and isinstance(value, list):
+                    combined = list(existing)
+                    for item in value:
+                        if item not in combined:
+                            combined.append(item)
+                    normalized[canonical] = combined
+
                 elif not existing:
                     normalized[canonical] = value
 
