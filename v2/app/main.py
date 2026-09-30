@@ -5572,19 +5572,19 @@ body {
     background:
         radial-gradient(
             circle at 12% 0%,
-            rgba(125, 211, 252, .30),
-            transparent 32%
+            rgba(255, 255, 255, .28),
+            transparent 34%
         ),
         radial-gradient(
             circle at 88% 8%,
-            rgba(56, 189, 248, .22),
-            transparent 30%
+            rgba(135, 206, 250, .20),
+            transparent 32%
         ),
         linear-gradient(
             135deg,
-            #7dd3fc 0%,
-            #60a5fa 45%,
-            #38bdf8 100%
+            #87CEFA 0%,
+            #87CEFA 50%,
+            #80DAEB 100%
         );
     background-attachment: fixed;
 }
