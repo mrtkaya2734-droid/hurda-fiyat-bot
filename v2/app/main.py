@@ -5466,19 +5466,18 @@ body {
 }
 
 .factory-price-grid {
-    align-items: stretch;
-    grid-auto-rows: minmax(0, 1fr);
+    align-items: start;
 }
 
 .factory-price-grid .price-card {
-    height: 100%;
-    min-height: 100%;
+    height: auto;
+    align-self: start;
 }
 
 .price-card {
     width: 100%;
     min-width: 0;
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
     transition:
