@@ -154,7 +154,9 @@ DEFAULT_DATA = {
 # =========================================================
 
 def now_string():
-    return datetime.now().strftime(
+    return datetime.now(
+        ZoneInfo("Europe/Istanbul")
+    ).strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
