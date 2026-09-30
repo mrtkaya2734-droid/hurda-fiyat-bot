@@ -5176,12 +5176,7 @@ name="viewport"
 content="width=device-width, initial-scale=1.0"
 >
 
-<meta name="description" content="Güncel hurda fiyatları, fabrika fiyatları, LME, döviz ve piyasa takip ekranı.">
-<meta name="robots" content="index,follow">
-<title>Hurda Fiyatları - Güncel Piyasa Takip</title>
-<meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
-<meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
-<meta property="og:type" content="website">
+<title>Hurda Fiyatları - Admin</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 
