@@ -1958,30 +1958,48 @@ def fiyat_verilerini_olustur():
 
 scheduler = BackgroundScheduler()
 
+# Mevcut fiyatları otomatik olarak değiştirmek istemediğimiz için
+# otomatik güncelleme varsayılan olarak KAPALIDIR.
+# İleride istenirse Render ortam değişkeni AUTO_UPDATE_ENABLED=1
+# yapılarak tekrar açılabilir.
+AUTO_UPDATE_ENABLED = (
+    os.getenv(
+        "AUTO_UPDATE_ENABLED",
+        "0",
+    ).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+
 
 @asynccontextmanager
 async def lifespan(app):
 
     load_ads()
 
-    print(
-        "İlk fiyat güncellemesi başlıyor..."
-    )
+    if AUTO_UPDATE_ENABLED:
+        print(
+            "İlk fiyat güncellemesi başlıyor..."
+        )
 
-    verileri_guncelle()
+        verileri_guncelle()
 
-    scheduler.add_job(
-        verileri_guncelle,
-        "interval",
-        minutes=1,
-        id="fiyat_guncelleme",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=30,
-    )
+        scheduler.add_job(
+            verileri_guncelle,
+            "interval",
+            minutes=1,
+            id="fiyat_guncelleme",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=30,
+        )
 
-    scheduler.start()
+        scheduler.start()
+    else:
+        print(
+            "Otomatik fiyat güncellemesi kapalı. "
+            "Mevcut fiyatlar korunuyor."
+        )
 
     yield
 
@@ -3759,10 +3777,10 @@ async def admin_source_delete(
     # FİRMAYA AİT GEÇMİŞ FİYATLARI SİL
     # =====================================================
 
-    data["price_history"] = [
+    data["history"] = [
         item
         for item in data.get(
-            "price_history",
+            "history",
             [],
         )
         if item.get(
@@ -4002,14 +4020,8 @@ def admin_panel(
 
     data = load_data()
 
-    firma_siralarini_duzelt(
-        data
-    )
-
-    save_data(
-        data
-    )
-
+    # Admin panelini açmak mevcut fiyat/veri dosyasını değiştirmemelidir.
+    # Sıralama yalnızca ekranda uygulanır.
     firmalar = firmalari_sirala(
         data
     )
