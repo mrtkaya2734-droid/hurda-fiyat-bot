@@ -6768,6 +6768,25 @@ body {
     gap: 16px;
 }
 
+/* Fabrika bölümü kendi 760px sınırında kalmasın; 5+5 düzende tam alanı kullansın. */
+@media (min-width: 1024px) {
+    .market-design .factory-layout > main {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        grid-column: 1 / -1 !important;
+    }
+
+    .market-design .factory-layout .factory-price-grid {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+}
+
 .market-design .price-card {
     border-color: #e2e8f0 !important;
     border-radius: 22px !important;
