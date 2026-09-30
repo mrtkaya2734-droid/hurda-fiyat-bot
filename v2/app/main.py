@@ -6866,37 +6866,80 @@ body {
     white-space: normal !important;
 }
 
-/* Fabrika kartının iç iskeleti: numara + firma + kontroller net kolonlara ayrılır. */
+/* Fabrika kartları: içeriği gerçek genişlikte tut, dar kolonlara sıkıştırma. */
 @media (min-width: 1024px) {
-    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child {
-        display: grid !important;
-        grid-template-columns: 40px minmax(0, 1fr) !important;
+    .market-design .factory-price-grid > .price-card {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle {
+        display: flex !important;
         align-items: center !important;
-        column-gap: 10px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        flex: 1 1 auto !important;
         width: 100% !important;
         min-width: 0 !important;
     }
 
     .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child > div:nth-child(2) {
+        flex: 1 1 auto !important;
+        width: auto !important;
         min-width: 0 !important;
-        width: 100% !important;
     }
 
-    .market-design .factory-price-grid .firma-toggle > div {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) auto auto !important;
-        align-items: center !important;
-        column-gap: 10px !important;
+    .market-design .factory-price-grid .price-card > div:not(.firma-toggle),
+    .market-design .factory-price-grid .price-card > div:not(.firma-toggle) > div {
         width: 100% !important;
         min-width: 0 !important;
+        max-width: none !important;
     }
 
     .market-design .factory-price-grid .price-row {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) minmax(105px, auto) !important;
+        display: flex !important;
         align-items: center !important;
-        column-gap: 12px !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
         width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-row .price-name {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-row .price-value {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 105px !important;
     }
 }
 
