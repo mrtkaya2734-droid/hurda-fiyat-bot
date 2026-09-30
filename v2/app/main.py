@@ -5629,6 +5629,13 @@ body {
     overflow: hidden;
 }
 
+/* Mobilde reklamlar tamamen gizli; masaüstü reklam sistemi aynen korunur. */
+@media (max-width: 1023px) {
+    #mobileAds {
+        display: none !important;
+    }
+}
+
 .mobile-ad-slot {
     min-height: 120px;
 }
