@@ -1333,6 +1333,13 @@ def firma_verisini_cek(
 
     sonuc = fonksiyon()
 
+    # Kaynak boş/eksik cevap döndürürse mevcut son kayıt korunur.
+    # Böylece başarısız veya geçici boş cevaplar eski fiyatları silmez.
+    if not sonuc.kalemler:
+        raise RuntimeError(
+            "Kaynak fiyat döndürmedi; mevcut son kayıt korundu."
+        )
+
     data = load_data()
 
     if "firms" not in data:
@@ -2426,6 +2433,50 @@ class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-sl
 <div>
 
 <label class="block text-sm font-bold mb-2">
+Ana Sayfa Sıra Numarası
+</label>
+
+<input
+type="number"
+name="sira"
+value="{esc(firma.get("sira", 0) + 1)}"
+min="1"
+step="1"
+required
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
+>
+
+<p class="text-xs text-slate-500 mt-1">
+1 = ilk firma. Aynı numara verilirse mevcut sıraya göre yerleştirilir.
+</p>
+
+</div>
+
+<div>
+
+<label class="block text-sm font-bold mb-2">
+Ana Sayfa Sıra Numarası
+</label>
+
+<input
+type="number"
+name="sira"
+value="{len(data.get("firms", {})) + 1 if False else 1}"
+min="1"
+step="1"
+required
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
+>
+
+<p class="text-xs text-slate-500 mt-1">
+1 = ilk firma. İstediğiniz numarayı yazarak ana sayfadaki yeri belirleyin.
+</p>
+
+</div>
+
+<div>
+
+<label class="block text-sm font-bold mb-2">
 Kaynak URL
 </label>
 
@@ -2501,6 +2552,7 @@ async def admin_new_source_save(
     url: str = Form(""),
     aktif: str = Form(None),
     otomatik: str = Form(None),
+    sira: int = Form(1),
     username: str = Depends(
         verify_admin
     ),
@@ -2555,6 +2607,14 @@ async def admin_new_source_save(
         )
     )
 
+    try:
+        yeni_sira = max(
+            1,
+            int(sira),
+        )
+    except (TypeError, ValueError):
+        yeni_sira = 1
+
     mevcut_firma_sayisi = len(
         data[
             "firms"
@@ -2574,7 +2634,7 @@ async def admin_new_source_save(
         "son_basarili_cekme": None,
         "kaynak_fiyat_tarihi": None,
         "durum": "bekliyor",
-        "sira": mevcut_firma_sayisi,
+        "sira": yeni_sira - 1,
     }
 
     firma_siralarini_duzelt(
@@ -3070,6 +3130,7 @@ async def admin_source_save(
     url: str = Form(""),
     aktif: str = Form(None),
     otomatik: str = Form(None),
+    sira: int = Form(1),
     username: str = Depends(
         verify_admin
     ),
@@ -3162,6 +3223,22 @@ async def admin_source_save(
             or bool(url)
         )
     )
+
+    try:
+        yeni_sira = max(
+            1,
+            int(sira),
+        )
+    except (TypeError, ValueError):
+        yeni_sira = 1
+
+    data[
+        "firms"
+    ][
+        firma_id
+    ][
+        "sira"
+    ] = yeni_sira - 1
 
     if "sira" not in data[
         "firms"
@@ -4290,6 +4367,10 @@ ID: {esc(firma_id)}
 Son başarılı çekim: {esc(son_cekim)}
 </div>
 
+<div class="text-xs text-indigo-700 font-black mt-1">
+Ana Sayfa Sırası: {index + 1}
+</div>
+
 <div class="flex flex-wrap gap-2 mt-3">
 
 {durum_html}
@@ -4898,8 +4979,9 @@ class="w-full sm:w-64 border border-slate-200 bg-slate-50 focus:bg-white focus:b
 </div>
 
 <div class="mb-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-sm">
-💡 Firmaların ana sayfadaki sırasını değiştirmek için
-<strong>↑</strong> ve <strong>↓</strong> butonlarını kullanın.
+💡 Ana sayfadaki firma sırasını artık her firmanın düzenleme ekranındaki
+<strong>1, 2, 3...</strong> sıra numarasıyla doğrudan belirleyebilirsiniz.
+<strong>↑</strong> ve <strong>↓</strong> butonları da çalışmaya devam eder.
 </div>
 
 <div class="space-y-3">
@@ -5363,7 +5445,34 @@ body {
 }
 
 body {
-    background: #f1f5f9;
+    background:
+        radial-gradient(
+            circle at 12% 0%,
+            rgba(59, 130, 246, .12),
+            transparent 30%
+        ),
+        radial-gradient(
+            circle at 88% 8%,
+            rgba(16, 185, 129, .08),
+            transparent 28%
+        ),
+        linear-gradient(
+            135deg,
+            #0f172a 0%,
+            #172554 45%,
+            #1e293b 100%
+        );
+    background-attachment: fixed;
+}
+
+.factory-price-grid {
+    align-items: stretch;
+    grid-auto-rows: minmax(0, 1fr);
+}
+
+.factory-price-grid .price-card {
+    height: 100%;
+    min-height: 100%;
 }
 
 .price-card {
@@ -6132,7 +6241,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full min-w-0"
+class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
 
@@ -6791,7 +6900,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card self-start bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-fit hover:shadow-md transition-all duration-200";
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-full hover:shadow-md transition-all duration-200";
 
             if (
                 index === firmalar.length - 1
