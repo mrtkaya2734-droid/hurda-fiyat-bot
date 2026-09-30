@@ -6560,7 +6560,26 @@ body {
     width: 100%;
 }
 
+.feature-ad-stack {
+    width: 100%;
+    max-width: 250px;
+    margin-left: auto;
+    margin-right: auto;
+}
 
+.feature-ad-stack .ad-box {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+}
+
+.feature-ad-stack .ad-box img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center;
+}
 
 #bottomAds {
     width: 100%;
