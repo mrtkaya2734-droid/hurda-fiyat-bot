@@ -6051,20 +6051,20 @@ Ana sayfanın fabrika fiyatlarının altında tek sıra halinde gösterilen 6 ba
 
 <script>
 
-function historyPanelAlign() {
+function historyPanelAlign() {{
     const panel = document.getElementById("historySidePanel");
     const factories = document.getElementById("firmaListesi");
     const rightColumn = panel?.parentElement;
     if (!panel || !factories || !rightColumn) return;
-    if (window.innerWidth < 1024) {
+    if (window.innerWidth < 1024) {{
         panel.style.marginTop = "0px";
         return;
-    }
+    }}
     const factoryTop = factories.getBoundingClientRect().top;
     const columnTop = rightColumn.getBoundingClientRect().top;
     const offset = Math.max(0, Math.round(factoryTop - columnTop));
     panel.style.marginTop = offset + "px";
-}
+}}
 
 window.addEventListener("load", historyPanelAlign);
 window.addEventListener("resize", historyPanelAlign);
