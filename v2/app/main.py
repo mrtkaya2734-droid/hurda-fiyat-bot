@@ -6919,6 +6919,108 @@ body {
     }
 }
 
+/* Piyasa özeti — ana sayfa */
+.market-design .market-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.market-design .market-summary-card {
+    min-width: 0;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 13px 14px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.055);
+}
+
+.market-design .market-summary-label {
+    color: #64748b;
+    font-size: 9px;
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+}
+
+.market-design .market-summary-value {
+    color: #0f172a;
+    font-size: 21px;
+    line-height: 1.15;
+    font-weight: 900;
+    letter-spacing: -.025em;
+    margin-top: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.market-design .market-summary-sub {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.market-design .market-summary-card.up .market-summary-value {
+    color: #059669;
+}
+
+.market-design .market-summary-card.down .market-summary-value {
+    color: #dc2626;
+}
+
+.market-design .market-summary-card.update .market-summary-value {
+    font-size: 13px;
+    letter-spacing: -.01em;
+}
+
+/* 10 fabrika kartısında başlık alanının sıkışmasını engelle */
+.market-design .firma-toggle > div > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.market-design .firma-toggle h2 {
+    min-width: 0;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal;
+}
+
+.market-design .firma-toggle h2 + * {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 1100px) {
+    .market-design .market-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 639px) {
+    .market-design .market-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .market-design .market-summary-card {
+        border-radius: 15px;
+        padding: 11px 12px;
+    }
+
+    .market-design .market-summary-value {
+        font-size: 18px;
+    }
+
+    .market-design .market-summary-card.update {
+        grid-column: span 2;
+    }
+}
+
 </style>
 
 </head>
