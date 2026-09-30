@@ -47,6 +47,8 @@ from app.storage import (
     bildirimleri_sil,
     gecmis_ekle,
     sistem_ozeti,
+    DATA_FILE,
+    BACKUP_DIR,
 )
 
 
@@ -2344,6 +2346,417 @@ def get_prices():
 def get_currency():
 
     return doviz_kurlarini_getir()
+
+
+# =========================================================
+# PİYASA GEÇMİŞİ / KARŞILAŞTIRMA / DURUM
+# =========================================================
+
+@app.get(
+    "/history"
+)
+def get_history(
+    firma_id: str = None,
+    kalem: str = None,
+    limit: int = 90,
+):
+    data = load_data()
+
+    kayitlar = data.get(
+        "history",
+        [],
+    )
+
+    if firma_id:
+        hedef = firma_id.strip().lower()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("firma_id", "")).strip().lower() == hedef
+        ]
+
+    if kalem:
+        hedef_kalem = kalem.strip().casefold()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("kalem", "")).strip().casefold() == hedef_kalem
+        ]
+
+    # Aynı fiyatın dakika dakika tekrar yazıldığı kayıtları grafik için
+    # gereksiz yere çoğaltma. Sonraki farklı fiyatları koru.
+    ters = list(reversed(kayitlar))
+    benzersiz = []
+    son_deger = object()
+
+    for item in ters:
+        deger = item.get("fiyat")
+        if deger == son_deger:
+            continue
+        benzersiz.append(item)
+        son_deger = deger
+
+    benzersiz.reverse()
+
+    try:
+        limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit = 90
+
+    return {
+        "status": "success",
+        "data": benzersiz[-limit:],
+    }
+
+
+@app.get(
+    "/today-changes"
+)
+def get_today_changes():
+    data = load_data()
+    now = datetime.now()
+    sonuc = []
+
+    # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
+    gruplar = {}
+
+    for item in data.get("history", []):
+        firma_id = str(item.get("firma_id", "")).strip().lower()
+        kalem = str(item.get("kalem", "")).strip()
+
+        if not firma_id or not kalem:
+            continue
+
+        anahtar = (firma_id, kalem)
+        gruplar.setdefault(anahtar, []).append(item)
+
+    for (firma_id, kalem), kayitlar in gruplar.items():
+        sonlar = list(reversed(kayitlar))
+        bulunan = []
+
+        for item in sonlar:
+            try:
+                zaman = datetime.fromisoformat(
+                    str(item.get("tarih", "")).replace("Z", "")
+                )
+            except Exception:
+                continue
+
+            if (
+                now.replace(tzinfo=None) - zaman
+            ).total_seconds() > 24 * 60 * 60:
+                break
+
+            fiyat = item.get("fiyat")
+            if fiyat is None:
+                continue
+
+            if not bulunan or bulunan[-1].get("fiyat") != fiyat:
+                bulunan.append(item)
+
+            if len(bulunan) >= 2:
+                break
+
+        if len(bulunan) < 2:
+            continue
+
+        yeni = bulunan[0].get("fiyat")
+        eski = bulunan[1].get("fiyat")
+
+        try:
+            fark = float(yeni) - float(eski)
+        except (TypeError, ValueError):
+            continue
+
+        if fark == 0:
+            continue
+
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        sonuc.append({
+            "firma_id": firma_id,
+            "firma": firma.get("baslik", firma_id),
+            "kalem": kalem,
+            "eski": eski,
+            "yeni": yeni,
+            "fark": fark,
+            "tarih": bulunan[0].get("tarih"),
+        })
+
+    sonuc.sort(
+        key=lambda item: str(item.get("tarih", "")),
+        reverse=True,
+    )
+
+    return {
+        "status": "success",
+        "data": sonuc[:30],
+    }
+
+
+@app.get(
+    "/compare"
+)
+def get_compare(
+    kalem: str = None,
+):
+    data = load_data()
+
+    mevcut = {}
+    kalemler = set()
+
+    for firma_id, fiyatlar in data.get("prices", {}).items():
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        for ad, bilgi in fiyatlar.items():
+            kalemler.add(ad)
+
+            if kalem and ad.casefold() != kalem.strip().casefold():
+                continue
+
+            manuel = bilgi.get("manuel_fiyat")
+            otomatik = bilgi.get("otomatik_fiyat")
+            fiyat = manuel if manuel is not None else otomatik
+
+            if fiyat is None:
+                continue
+
+            mevcut.setdefault(firma_id, {
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+                "kalem": ad,
+            })
+
+    rows = []
+
+    if kalem:
+        for firma_id, fiyatlar in data.get("prices", {}).items():
+            firma = data.get("firms", {}).get(firma_id, {})
+            bilgi = None
+
+            for ad, kayit in fiyatlar.items():
+                if ad.casefold() == kalem.strip().casefold():
+                    bilgi = kayit
+                    break
+
+            if bilgi is None:
+                continue
+
+            fiyat = (
+                bilgi.get("manuel_fiyat")
+                if bilgi.get("manuel_fiyat") is not None
+                else bilgi.get("otomatik_fiyat")
+            )
+
+            if fiyat is None:
+                continue
+
+            rows.append({
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+            })
+
+        rows.sort(key=lambda x: str(x.get("firma", "")).casefold())
+
+    return {
+        "status": "success",
+        "kalemler": sorted(
+            kalemler,
+            key=lambda x: x.casefold(),
+        ),
+        "kalem": kalem,
+        "data": rows,
+    }
+
+
+@app.get(
+    "/admin/data-backups",
+    response_class=HTMLResponse,
+)
+def admin_data_backups(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        backups = sorted(
+            [
+                os.path.join(BACKUP_DIR, isim)
+                for isim in os.listdir(BACKUP_DIR)
+                if isim.endswith(".json")
+            ],
+            key=lambda yol: os.path.getmtime(yol),
+            reverse=True,
+        )
+    except Exception:
+        backups = []
+
+    rows = "".join(
+        f"""
+<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+<div>
+<div class="text-xs font-black text-slate-800">{esc(os.path.basename(yol))}</div>
+<div class="text-[10px] text-slate-500">{esc(datetime.fromtimestamp(os.path.getmtime(yol)).strftime("%Y-%m-%d %H:%M:%S"))}</div>
+</div>
+</div>
+"""
+        for yol in backups[:10]
+    ) or '<div class="text-sm text-slate-500">Henüz otomatik yedek oluşmadı.</div>'
+
+    return f"""
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veri Yedekleri</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4">
+<div class="max-w-3xl mx-auto space-y-4">
+<div class="bg-slate-900 text-white rounded-3xl p-5">
+<h1 class="text-2xl font-black">Veri Yedekleri</h1>
+<p class="text-sm text-slate-300 mt-1">Mevcut fiyat/firma verisi korunarak son otomatik yedeğe dönülebilir.</p>
+</div>
+<div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+<form method="post" action="/admin/data-rollback" onsubmit="return confirm('Mevcut veri dosyası son otomatik yedekle değiştirilecek. Devam edilsin mi?');">
+<button type="submit" class="w-full rounded-xl bg-red-600 hover:bg-red-700 text-white py-3 font-black">
+Son Yedeğe Geri Dön
+</button>
+</form>
+<div class="mt-4 space-y-2">{rows}</div>
+</div>
+<a href="/admin" class="inline-block rounded-xl bg-slate-900 text-white px-4 py-2 font-bold">← Admin</a>
+</div>
+</body>
+</html>
+"""
+
+
+@app.post(
+    "/admin/data-rollback"
+)
+async def admin_data_rollback(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    os.makedirs(
+        BACKUP_DIR,
+        exist_ok=True,
+    )
+
+    backups = sorted(
+        [
+            os.path.join(BACKUP_DIR, isim)
+            for isim in os.listdir(BACKUP_DIR)
+            if isim.endswith(".json")
+        ],
+        key=lambda yol: os.path.getmtime(yol),
+        reverse=True,
+    )
+
+    if not backups:
+        raise HTTPException(
+            status_code=404,
+            detail="Henüz geri dönülebilecek otomatik yedek yok.",
+        )
+
+    shutil.copy2(
+        backups[0],
+        DATA_FILE,
+    )
+
+    bildirim_ekle(
+        "sistem",
+        "veri_rollback",
+        "Mevcut veri dosyası son otomatik yedeğe geri döndürüldü.",
+    )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+@app.get(
+    "/system-status"
+)
+def get_system_status():
+    data = load_data()
+
+    firmalar = list(
+        data.get("firms", {}).values()
+    )
+
+    fiyat_sayisi = sum(
+        len(x)
+        for x in data.get("prices", {}).values()
+        if isinstance(x, dict)
+    )
+
+    return {
+        "status": "success",
+        "otomatik_guncelleme": AUTO_UPDATE_ENABLED,
+        "son_fiyat_guncellemesi": SON_GUNCELLEME,
+        "firma_sayisi": len(firmalar),
+        "aktif_firma": len([
+            x for x in firmalar
+            if x.get("aktif", True)
+        ]),
+        "otomatik_firma": len([
+            x for x in firmalar
+            if x.get("otomatik", True)
+        ]),
+        "manuel_firma": len([
+            x for x in firmalar
+            if not x.get("otomatik", True)
+        ]),
+        "fiyat_kalemi": fiyat_sayisi,
+        "gecmis_kaydi": len(data.get("history", [])),
+        "bildirim": len(data.get("notifications", [])),
+    }
+
+
+@app.get(
+    "/robots.txt"
+)
+def robots_txt():
+    return Response(
+        content=(
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /admin\n"
+            "Disallow: /system-status\n"
+            "Disallow: /history\n"
+            "Disallow: /compare\n"
+        ),
+        media_type="text/plain",
+    )
+
+
+@app.get(
+    "/sitemap.xml"
+)
+def sitemap_xml(
+    request: Request,
+):
+    base = str(
+        request.base_url
+    ).rstrip("/")
+
+    return Response(
+        content=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            f'<url><loc>{esc(base)}/</loc></url>'
+            '</urlset>'
+        ),
+        media_type="application/xml",
+    )
 
 
 # =========================================================
@@ -5012,6 +5425,13 @@ class="bg-white text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl text-sm
 + Yeni Kaynak
 </a>
 
+<a
+href="/admin/data-backups"
+class="bg-amber-400 text-slate-950 hover:bg-amber-300 px-4 py-2.5 rounded-xl text-sm font-black transition shadow-sm"
+>
+↩ Veri Yedekleri
+</a>
+
 </div>
 
 </div>
@@ -5078,6 +5498,24 @@ Manuel
 
 </div>
 
+</div>
+
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+<div>
+<h2 class="text-xl font-bold">Sistem Sağlığı</h2>
+<p class="text-sm text-slate-500 mt-1">Otomatik güncelleme ve veri geçmişinin hızlı özeti.</p>
+</div>
+<div class="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-black">
+Yedekleme: AKTİF
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Fiyat kalemi</div><div class="text-xl font-black mt-1">{sum(len(x) for x in data.get("prices", {}).values() if isinstance(x, dict))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Geçmiş kaydı</div><div class="text-xl font-black mt-1">{len(data.get("history", []))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim</div><div class="text-xl font-black mt-1">{len(notifications)}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Otomatik takip</div><div class="text-xl font-black mt-1">{"AÇIK" if AUTO_UPDATE_ENABLED else "KAPALI"}</div></div>
+</div>
 </div>
 
 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
@@ -5551,7 +5989,12 @@ name="description"
 content="Güncel hurda ve demir çelik fiyatları."
 >
 
-<title>Hurda Fiyatları</title>
+<title>Hurda Fiyatları - Güncel Piyasa Takip</title>
+<meta name="description" content="Güncel hurda fiyatları, fabrika fiyatları, LME, döviz ve piyasa takip ekranı.">
+<meta name="robots" content="index,follow">
+<meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
+<meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
+<meta property="og:type" content="website">
 
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -6380,6 +6823,132 @@ Fabrika Fiyatları
 </div>
 </div>
 
+<section
+id="marketTools"
+class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
+>
+
+<div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+
+<div>
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Fiyat / Firma Ara
+</label>
+<input
+id="fiyatArama"
+type="search"
+placeholder="Örn. DKP, Çolakoğlu..."
+class="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+>
+</div>
+
+<div class="flex flex-wrap gap-2">
+<button
+type="button"
+id="alarmButton"
+class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition"
+>
+🔔 Fiyat Alarmı
+</button>
+<button
+type="button"
+id="historyButton"
+class="h-11 px-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-black hover:bg-sky-100 transition"
+>
+📈 Geçmiş
+</button>
+</div>
+
+</div>
+
+<div
+id="todayChanges"
+class="mt-3 hidden"
+></div>
+
+<div
+id="comparePanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Firma Karşılaştırma
+</label>
+<select
+id="compareSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="compareButton"
+class="h-10 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black transition"
+>
+Karşılaştır
+</button>
+</div>
+<div id="compareResult" class="mt-3"></div>
+</div>
+
+<div
+id="historyPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Geçmiş Fiyat
+</label>
+<select
+id="historyFirmSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Firma seçin</option>
+</select>
+</div>
+<div class="flex-1">
+<select
+id="historyItemSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="historyLoadButton"
+class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition"
+>
+Göster
+</button>
+</div>
+<div id="historyResult" class="mt-3"></div>
+</div>
+
+<div
+id="alarmPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+<select id="alarmFirm" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmItem" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmDirection" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<option value="above">Şu fiyata çıkınca</option>
+<option value="below">Şu fiyatın altına inince</option>
+</select>
+<input id="alarmValue" type="number" step="0.01" min="0" placeholder="Hedef TL" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<button type="button" id="alarmSaveButton" class="h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black">
+Alarmı Kaydet
+</button>
+</div>
+<div id="alarmList" class="mt-3"></div>
+</div>
+
+</section>
+
 <div
 id="loading"
 class="bg-white rounded-2xl p-6 sm:p-8 text-center text-slate-500"
@@ -6983,6 +7552,265 @@ async function manuelFiyatSil(button) {
 }
 
 
+function marketToolsInit(result) {
+
+    const firmalar = Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    const search = document.getElementById("fiyatArama");
+    if (search && search.dataset.bound !== "1") {
+        search.addEventListener("input", function() {
+            const needle = String(search.value || "").trim().toLocaleLowerCase("tr-TR");
+
+            document.querySelectorAll("#firmaListesi .price-card").forEach(function(card) {
+                const text = String(card.textContent || "").toLocaleLowerCase("tr-TR");
+                card.style.display = !needle || text.includes(needle) ? "" : "none";
+            });
+        });
+        search.dataset.bound = "1";
+    }
+
+    const firmSelect = document.getElementById("historyFirmSelect");
+    const alarmFirm = document.getElementById("alarmFirm");
+    const compareSelect = document.getElementById("compareSelect");
+
+    const firmsForSelect = firmalar.map(function(f) {
+        return '<option value="' + escapeHtml(f.firma_id) + '">' + escapeHtml(f.baslik) + '</option>';
+    }).join("");
+
+    if (firmSelect) firmSelect.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+    if (alarmFirm) alarmFirm.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+
+    const itemMap = {};
+    firmalar.forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            itemMap[k.cins] = true;
+        });
+    });
+
+    const itemOptions = Object.keys(itemMap)
+        .sort(function(a,b) { return a.localeCompare(b, "tr"); })
+        .map(function(k) {
+            return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + '</option>';
+        }).join("");
+
+    const alarmItem = document.getElementById("alarmItem");
+    if (alarmItem) alarmItem.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    if (compareSelect) compareSelect.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    function firmaKalemleriniDoldur(selectId, firmaId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const firma = firmalar.find(function(f) { return f.firma_id === firmaId; });
+        const options = firma && Array.isArray(firma.kalemler)
+            ? firma.kalemler.map(function(k) {
+                return '<option value="' + escapeHtml(k.cins) + '">' + escapeHtml(k.cins) + '</option>';
+            }).join("")
+            : "";
+        select.innerHTML = '<option value="">Kalem seçin</option>' + options;
+    }
+
+    if (firmSelect && firmSelect.dataset.bound !== "1") {
+        firmSelect.addEventListener("change", function() {
+            firmaKalemleriniDoldur("historyItemSelect", firmSelect.value);
+        });
+        firmSelect.dataset.bound = "1";
+    }
+
+    if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
+        fetch("/today-changes", {cache:"no-store"})
+            .then(function(r){ return r.json(); })
+            .then(function(payload){
+                const box = document.getElementById("todayChanges");
+                if (!box) return;
+                box.dataset.loaded = "1";
+                const rows = payload.data || [];
+                if (!rows.length) {
+                    box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte kayda değer fiyat değişimi yok.</div>';
+                } else {
+                    box.innerHTML =
+                        '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
+                        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
+                        rows.map(function(x){
+                            const up = Number(x.fark) > 0;
+                            return '<div class="rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
+                                '<div class="text-xs font-black text-slate-800">' + escapeHtml(x.firma) + ' · ' + escapeHtml(x.kalem) + '</div>' +
+                                '<div class="mt-1 text-sm font-black ' + (up ? 'text-emerald-700' : 'text-red-700') + '">' +
+                                    (up ? '▲ +' : '▼ ') + Number(x.fark).toLocaleString("tr-TR") + ' TL' +
+                                    ' <span class="text-slate-500 font-bold">(' + Number(x.yeni).toLocaleString("tr-TR") + ' TL)</span>' +
+                                '</div></div>';
+                        }).join("") +
+                        '</div>';
+                    box.classList.remove("hidden");
+                }
+            })
+            .catch(function(){});
+    }
+
+    const comparePanel = document.getElementById("comparePanel");
+    const historyPanel = document.getElementById("historyPanel");
+    const alarmPanel = document.getElementById("alarmPanel");
+
+    const compareButton = document.getElementById("compareButton");
+    if (compareButton && compareButton.dataset.bound !== "1") {
+        compareButton.addEventListener("click", function() {
+            const kalem = document.getElementById("compareSelect")?.value;
+            if (!kalem) return;
+            fetch("/compare?kalem=" + encodeURIComponent(kalem), {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const box = document.getElementById("compareResult");
+                    const rows = payload.data || [];
+                    box.innerHTML = rows.length
+                        ? '<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-200"><th class="text-left py-2">Firma</th><th class="text-right py-2">Fiyat</th></tr></thead><tbody>' +
+                          rows.map(function(x){ return '<tr class="border-b border-slate-100"><td class="py-2 font-bold">' + escapeHtml(x.firma) + '</td><td class="py-2 text-right font-black">' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL</td></tr>'; }).join("") +
+                          '</tbody></table></div>'
+                        : '<div class="text-xs text-slate-500">Bu kalem için kayıt bulunamadı.</div>';
+                });
+        });
+        compareButton.dataset.bound = "1";
+    }
+
+    const historyButton = document.getElementById("historyButton");
+    if (historyButton && historyButton.dataset.bound !== "1") {
+        historyButton.addEventListener("click", function(){
+            historyPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            alarmPanel?.classList.add("hidden");
+        });
+        historyButton.dataset.bound = "1";
+    }
+
+    const historyLoad = document.getElementById("historyLoadButton");
+    if (historyLoad && historyLoad.dataset.bound !== "1") {
+        historyLoad.addEventListener("click", function(){
+            const firma = firmSelect?.value;
+            const kalem = document.getElementById("historyItemSelect")?.value;
+            if (!firma || !kalem) return;
+
+            fetch("/history?firma_id=" + encodeURIComponent(firma) + "&kalem=" + encodeURIComponent(kalem) + "&limit=60", {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const rows = payload.data || [];
+                    const box = document.getElementById("historyResult");
+                    if (!rows.length) {
+                        box.innerHTML = '<div class="text-xs text-slate-500">Geçmiş kayıt bulunamadı.</div>';
+                        return;
+                    }
+                    const vals = rows.map(function(x){ return Number(x.fiyat); }).filter(Number.isFinite);
+                    const min = Math.min.apply(null, vals);
+                    const max = Math.max.apply(null, vals);
+                    const range = Math.max(1, max - min);
+
+                    box.innerHTML =
+                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3">' +
+                        '<div class="flex items-center justify-between text-xs font-black text-slate-600 mb-2"><span>Min: ' + min.toLocaleString("tr-TR") + ' TL</span><span>Max: ' + max.toLocaleString("tr-TR") + ' TL</span></div>' +
+                        '<div class="flex items-end gap-1 h-32">' +
+                        rows.map(function(x){
+                            const h = Math.max(4, ((Number(x.fiyat)-min)/range)*100);
+                            return '<div title="' + escapeHtml(x.tarih || "") + ' · ' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL" class="flex-1 min-w-[3px] rounded-t bg-sky-400" style="height:' + h + '%"></div>';
+                        }).join("") +
+                        '</div></div>';
+                });
+        });
+        historyLoad.dataset.bound = "1";
+    }
+
+    const alarmButton = document.getElementById("alarmButton");
+    if (alarmButton && alarmButton.dataset.bound !== "1") {
+        alarmButton.addEventListener("click", function(){
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().catch(function(){});
+            }
+            alarmPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            historyPanel?.classList.add("hidden");
+        });
+        alarmButton.dataset.bound = "1";
+    }
+
+    const alarmSave = document.getElementById("alarmSaveButton");
+    if (alarmSave && alarmSave.dataset.bound !== "1") {
+        alarmSave.addEventListener("click", function(){
+            const firm = document.getElementById("alarmFirm")?.value;
+            const item = document.getElementById("alarmItem")?.value;
+            const direction = document.getElementById("alarmDirection")?.value;
+            const value = Number(document.getElementById("alarmValue")?.value);
+
+            if (!firm || !item || !Number.isFinite(value) || value <= 0) return;
+
+            const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+            alarms.push({
+                id: Date.now(),
+                firma_id: firm,
+                kalem: item,
+                direction: direction,
+                value: value,
+                fired: false
+            });
+            localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+            renderAlarms();
+        });
+        alarmSave.dataset.bound = "1";
+    }
+
+    function renderAlarms() {
+        const box = document.getElementById("alarmList");
+        if (!box) return;
+        const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+        box.innerHTML = alarms.length
+            ? alarms.map(function(a, index){
+                return '<div class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs">' +
+                    '<span class="font-bold">' + escapeHtml(a.kalem) + ' · ' + Number(a.value).toLocaleString("tr-TR") + ' TL</span>' +
+                    '<button type="button" data-alarm-delete="' + index + '" class="text-red-600 font-black">Sil</button></div>';
+            }).join("")
+            : '<div class="text-xs text-slate-500">Kayıtlı fiyat alarmı yok.</div>';
+
+        box.querySelectorAll("[data-alarm-delete]").forEach(function(btn){
+            btn.addEventListener("click", function(){
+                const list = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+                list.splice(Number(btn.dataset.alarmDelete), 1);
+                localStorage.setItem("hurdaPriceAlarms", JSON.stringify(list));
+                renderAlarms();
+            });
+        });
+    }
+
+    renderAlarms();
+
+    // Fiyat alarmı tarayıcı açıkken çalışır; izin verilirse sistem bildirimi de verir.
+    const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+    alarms.forEach(function(a){
+        const firma = firmalar.find(function(f){ return f.firma_id === a.firma_id; });
+        const kalem = firma && (firma.kalemler || []).find(function(k){ return k.cins === a.kalem; });
+        if (!kalem) return;
+
+        const fiyat = Number(String(kalem.fiyat).replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", "."));
+        const oldu = a.direction === "above" ? fiyat >= a.value : fiyat <= a.value;
+
+        if (oldu && !a.fired) {
+            a.fired = true;
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Hurda fiyat alarmı", {
+                    body: a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
+                });
+            }
+        }
+    });
+    localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+
+    const compareToggle = document.getElementById("compareSelect");
+    if (compareToggle && compareToggle.dataset.bound !== "1") {
+        compareToggle.addEventListener("change", function(){
+            comparePanel?.classList.remove("hidden");
+        });
+        compareToggle.dataset.bound = "1";
+    }
+}
+
+
 async function fiyatlariGetir() {
 
     try {
@@ -7043,6 +7871,8 @@ async function fiyatlariGetir() {
         );
 
         const firmalar = result.data;
+
+        marketToolsInit(result);
 
         firmalar.forEach(function(item, index) {
 

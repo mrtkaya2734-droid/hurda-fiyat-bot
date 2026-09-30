@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -33,6 +34,100 @@ DATA_FILE = os.getenv(
         "data.json"
     )
 )
+
+
+# =========================================================
+# OTOMATİK VERİ YEDEĞİ
+# =========================================================
+# Render /var/data kalıcı disk kullanıyorsa, veri dosyasının
+# üzerine yazılmadan önce periyodik bir geri dönüş kopyası tutulur.
+# Mevcut veri yapısı değiştirilmez; yalnızca yedek dosyası oluşturulur.
+BACKUP_ENABLED = (
+    os.getenv(
+        "DATA_BACKUP_ENABLED",
+        "1",
+    ).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+
+BACKUP_DIR = os.path.join(
+    os.path.dirname(DATA_FILE),
+    "backups",
+)
+
+BACKUP_INTERVAL_SECONDS = 6 * 60 * 60
+
+
+def _periyodik_veri_yedegi():
+
+    if not BACKUP_ENABLED:
+        return
+
+    if not os.path.exists(DATA_FILE):
+        return
+
+    try:
+        os.makedirs(
+            BACKUP_DIR,
+            exist_ok=True,
+        )
+
+        yedekler = [
+            os.path.join(BACKUP_DIR, isim)
+            for isim in os.listdir(BACKUP_DIR)
+            if isim.endswith(".json")
+        ]
+
+        simdi = datetime.now().timestamp()
+
+        if yedekler:
+            son_yedek = max(
+                yedekler,
+                key=lambda yol: os.path.getmtime(yol),
+            )
+
+            if (
+                simdi - os.path.getmtime(son_yedek)
+                < BACKUP_INTERVAL_SECONDS
+            ):
+                return
+
+        damga = datetime.now().strftime(
+            "%Y%m%d-%H%M%S"
+        )
+
+        hedef = os.path.join(
+            BACKUP_DIR,
+            f"data-{damga}.json",
+        )
+
+        shutil.copy2(
+            DATA_FILE,
+            hedef,
+        )
+
+        # Disk alanını gereksiz tüketmemesi için son 10 yedeği tut.
+        yedekler = sorted(
+            [
+                os.path.join(BACKUP_DIR, isim)
+                for isim in os.listdir(BACKUP_DIR)
+                if isim.endswith(".json")
+            ],
+            key=lambda yol: os.path.getmtime(yol),
+            reverse=True,
+        )
+
+        for eski in yedekler[10:]:
+            try:
+                os.remove(eski)
+            except OSError:
+                pass
+
+    except Exception as exc:
+        print(
+            "VERİ YEDEK HATASI: "
+            f"{type(exc).__name__}: {exc}"
+        )
 
 if DATA_FILE != BUNDLED_DATA_FILE:
     os.makedirs(
@@ -259,6 +354,8 @@ def save_data(data):
         os.path.dirname(DATA_FILE),
         exist_ok=True,
     )
+
+    _periyodik_veri_yedegi()
 
     temporary_file = DATA_FILE + ".tmp"
 
