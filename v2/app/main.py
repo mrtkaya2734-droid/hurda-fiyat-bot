@@ -609,6 +609,128 @@ def _lme_api_verilerini_cek():
     return fiyatlar, tarih
 
 
+
+def _smm_lme_3m_verilerini_cek():
+
+    # SMM/Metal.com, LMEselect 3-month kotasyonunu 15 dakika
+    # gecikmeli olarak yayınlıyor.
+    metal_url = {
+        "Aluminium": "https://www-old.metal.com/Aluminum/",
+        "Copper": "https://www-old.metal.com/Copper/",
+        "Zinc": "https://www-old.metal.com/Zinc",
+        "Nickel": "https://www-old.metal.com/Nickel/",
+        "Lead": "https://www-old.metal.com/Lead",
+        "Tin": "https://www-old.metal.com/Tin/",
+        "Cobalt": "https://www-old.metal.com/Cobalt/",
+    }
+
+    from bs4 import BeautifulSoup
+
+    fiyatlar = {}
+    tarihler = []
+
+    for isim, turkce in LME_METALS.items():
+
+        url = metal_url.get(isim)
+
+        if not url:
+            continue
+
+        try:
+            cevap = requests.get(
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 Chrome/140 Safari/537.36"
+                    ),
+                    "Accept-Language": "en-GB,en;q=0.9",
+                },
+                timeout=15,
+            )
+            cevap.raise_for_status()
+
+            soup = BeautifulSoup(
+                cevap.text,
+                "html.parser",
+            )
+
+            metin = " ".join(
+                soup.stripped_strings
+            )
+
+            desen = (
+                r"LMEselect\s+"
+                + re.escape(isim)
+                + r"\s+3\s+Month,\s*USD/mt\s+"
+                r"([0-9][0-9,]*(?:\.[0-9]+)?)"
+            )
+
+            eslesme = re.search(
+                desen,
+                metin,
+                re.IGNORECASE,
+            )
+
+            if not eslesme:
+                continue
+
+            fiyat = _lme_sayi(
+                eslesme.group(1)
+            )
+
+            if fiyat is None:
+                continue
+
+            tarih_eslesmesi = re.search(
+                r"(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+                r"\s+\d{1,2},\s+\d{4})\b",
+                metin,
+                re.IGNORECASE,
+            )
+
+            if tarih_eslesmesi:
+                try:
+                    tarihler.append(
+                        datetime.strptime(
+                            tarih_eslesmesi.group(1),
+                            "%b %d, %Y",
+                        )
+                    )
+                except ValueError:
+                    pass
+
+            fiyatlar[isim] = {
+                "ad": turkce,
+                "cash_bid": None,
+                "cash_ask": None,
+                "three_month_bid": fiyat,
+                "three_month_ask": fiyat,
+            }
+
+        except (
+            requests.RequestException,
+            ValueError,
+            RuntimeError,
+        ):
+            continue
+
+    if not fiyatlar:
+        raise RuntimeError(
+            "SMM/Metal.com LMEselect 3M verisi okunamadı."
+        )
+
+    tarih = None
+
+    if tarihler:
+        tarih = max(
+            tarihler
+        ).strftime(
+            "%d.%m.%Y"
+        )
+
+    return fiyatlar, tarih
+
 def lme_verilerini_cek():
     global _LME_CACHE
 
@@ -628,39 +750,53 @@ def lme_verilerini_cek():
 
     hatalar = []
 
-    # Birincil kaynak: LME'nin kendi gün gecikmeli JSON
-    # veri servisi. HTML sayfasındaki 403 kısıtından bağımsızdır.
+    # Birincil kaynak: SMM/Metal.com LMEselect 3M,
+    # 15 dakika gecikmeli güncel kotasyon.
     try:
         fiyatlar, tarih = (
-            _lme_api_verilerini_cek()
+            _smm_lme_3m_verilerini_cek()
         )
 
-        kaynak = "LME Official Prices · day-delayed API"
+        kaynak = (
+            "SMM/Metal.com · LMEselect 3M · 15 dk gecikmeli"
+        )
 
     except Exception as exc:
         hatalar.append(
-            f"LME API: {exc}"
+            f"SMM LMEselect: {exc}"
         )
 
-        # Resmi API erişilemezse mevcut yedek kaynağı dene.
+        # SMM erişilemezse resmi LME day-delayed API'ye dön.
         try:
             fiyatlar, tarih = (
-                _westmetall_lme_verilerini_cek()
+                _lme_api_verilerini_cek()
             )
 
-            kaynak = (
-                "Westmetall · Official LME Prices"
-            )
+            kaynak = "LME Official Prices · day-delayed API"
 
-        except Exception as yedek_exc:
+        except Exception as lme_exc:
             hatalar.append(
-                f"Westmetall: {yedek_exc}"
+                f"LME API: {lme_exc}"
             )
 
-            raise RuntimeError(
-                "LME verisi alınamadı. "
-                + " | ".join(hatalar)
-            ) from yedek_exc
+            try:
+                fiyatlar, tarih = (
+                    _westmetall_lme_verilerini_cek()
+                )
+
+                kaynak = (
+                    "Westmetall · Official LME Prices"
+                )
+
+            except Exception as yedek_exc:
+                hatalar.append(
+                    f"Westmetall: {yedek_exc}"
+                )
+
+                raise RuntimeError(
+                    "LME verisi alınamadı. "
+                    + " | ".join(hatalar)
+                ) from yedek_exc
 
     usd_tl = None
 
@@ -6066,9 +6202,31 @@ function historyPanelAlign() {{
     panel.style.marginTop = offset + "px";
 }}
 
+
+function featureAdStacksAlign() {
+    const left = document.querySelector("#calculatorSidePanel + .feature-ad-stack");
+    const right = document.querySelector("#historySidePanel + .feature-ad-stack");
+
+    if (!left || !right) return;
+
+    if (window.innerWidth < 1024) {
+        left.style.marginTop = "0px";
+        return;
+    }
+
+    const rightTop = right.getBoundingClientRect().top;
+    const leftTop = left.getBoundingClientRect().top;
+    const offset = Math.round(rightTop - leftTop);
+
+    left.style.marginTop = Math.max(0, offset) + "px";
+}
+
 window.addEventListener("load", historyPanelAlign);
 window.addEventListener("resize", historyPanelAlign);
+window.addEventListener("resize", featureAdStacksAlign);
 setTimeout(historyPanelAlign, 250);
+setTimeout(featureAdStacksAlign, 300);
+setTimeout(featureAdStacksAlign, 800);
 
 (function () {{
     const input = document.getElementById("firmaAra");
