@@ -7466,6 +7466,55 @@ body {
     padding-top: 0 !important;
 }
 
+/* Sol hesaplama paneli: dış kalıp sabit, içerik dar ekrana göre kompakt. */
+.market-design #calculatorSidePanel #calculatorPanel > div {
+    padding: 10px !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel .calc-title {
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel .calc-description {
+    font-size: 9px !important;
+    line-height: 1.3 !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel .calc-form-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel .calc-form-grid select,
+.market-design #calculatorSidePanel #calculatorPanel .calc-form-grid input,
+.market-design #calculatorSidePanel #calculatorPanel .calc-form-grid button {
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 9px !important;
+    border-radius: 9px !important;
+    font-size: 10px !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel #calcResult {
+    margin-top: 7px !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel #calcResult > div {
+    padding: 8px !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel #calcResult .text-lg {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+}
+
+.market-design #calculatorSidePanel #calculatorPanel #calcResult .text-xs {
+    font-size: 9px !important;
+}
+
 @media (min-width: 1024px) {
     .market-design .factory-layout {
         display: grid !important;
@@ -7917,18 +7966,18 @@ Kaynak: LME Official Prices
 <div id="calculatorSidePanel" class="w-full max-w-[250px] mr-auto" aria-label="Hurda değeri hesaplama">
 <div
 id="calculatorPanel"
-class="mt-3 hidden border-t border-slate-200 pt-3"
+class="mt-0 border-t border-slate-200 pt-0"
 >
 <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 sm:p-4">
-<div class="flex items-start justify-between gap-3 mb-3">
+<div class="flex items-start justify-between gap-2 mb-2">
 <div>
-<div class="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">Hesaplama Aracı</div>
-<div class="text-base font-black text-slate-900 mt-0.5">Hurda Değeri Hesapla</div>
-<div class="text-[10px] sm:text-[11px] text-slate-500 mt-1">Güncel listedeki fiyatı seçtiğin ton miktarıyla çarpar.</div>
+<div class="text-[9px] uppercase tracking-[0.10em] font-black text-emerald-700">Hesaplama Aracı</div>
+<div class="calc-title text-[13px] font-black text-slate-900 mt-0.5">Hurda Değeri Hesapla</div>
+<div class="calc-description text-[9px] text-slate-500 mt-1">Güncel listedeki fiyatı ton miktarıyla çarpar.</div>
 </div>
 <span class="inline-flex items-center rounded-xl bg-white border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">TL / TON</span>
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+<div class="calc-form-grid grid grid-cols-1 gap-1.5">
 <select id="calcFirm" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Firma seçin</option></select>
 <select id="calcItem" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"><option value="">Kalem seçin</option></select>
 <input id="calcQuantity" type="number" min="0" step="0.01" placeholder="Miktar (ton)" class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
