@@ -44,8 +44,15 @@ from app.storage import (
     bildirim_okundu,
     bildirim_sil,
     bildirimleri_okundu_yap,
+    bildirimleri_sil,
     gecmis_ekle,
     sistem_ozeti,
+    DATA_FILE,
+    BACKUP_DIR,
+    supabase_storage_download,
+    supabase_storage_upload,
+    supabase_restore_file,
+    supabase_upload_json,
 )
 
 
@@ -91,6 +98,8 @@ os.makedirs(
     ADS_UPLOAD_DIR,
     exist_ok=True,
 )
+
+_ADS_SUPABASE_SYNCED = False
 
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
@@ -896,27 +905,96 @@ def firmalari_sirala(data):
 
 
 def firma_siralarini_duzelt(data):
-
-    firmalar = firmalari_sirala(
-        data
-    )
-
-    for index, firma in enumerate(
-        firmalar
-    ):
-
-        firma_id = firma.get(
-            "firma_id"
-        )
-
-        if firma_id in data.get(
+    """
+    Mevcut sıralamayı korur.
+    Sadece sırası bulunmayan/geçersiz kayıtları mevcut listenin sonuna yerleştirir.
+    Kullanıcının elle verdiği sıra numarasını yeniden yazmaz.
+    """
+    firmalar = list(
+        data.get(
             "firms",
             {},
-        ):
+        ).values()
+    )
 
-            data["firms"][
-                firma_id
-            ]["sira"] = index
+    if not firmalar:
+        return data
+
+    try:
+        firmalar.sort(
+            key=lambda firma: (
+                int(firma.get("sira")),
+                str(firma.get("firma_id", "")).lower(),
+            )
+        )
+    except Exception:
+        firmalar = firmalari_sirala(data)
+
+    sonraki_sira = len(firmalar)
+
+    for firma in firmalar:
+        firma_id = firma.get("firma_id")
+        if firma_id not in data.get("firms", {}):
+            continue
+
+        try:
+            int(firma.get("sira"))
+        except (TypeError, ValueError):
+            data["firms"][firma_id]["sira"] = sonraki_sira
+            sonraki_sira += 1
+
+    return data
+
+
+def firma_sirasini_uygula(data, firma_id, istenen_sira):
+    """
+    Admin panelindeki 'Ana Sayfa Sıra Numarası' alanını gerçek bir
+    konumlandırma komutu olarak uygular.
+
+    Örn. 5 firmada bir firmaya 2 yazılırsa firma 2. sıraya gelir;
+    diğer firmalar otomatik olarak bir basamak aşağı kayar.
+    """
+    firmalar = firmalari_sirala(data)
+
+    hedef = None
+
+    for firma in firmalar:
+        if firma.get("firma_id") == firma_id:
+            hedef = firma
+            break
+
+    if hedef is None:
+        return data
+
+    try:
+        hedef_index = max(
+            0,
+            int(istenen_sira) - 1,
+        )
+    except (TypeError, ValueError):
+        hedef_index = 0
+
+    firmalar = [
+        firma
+        for firma in firmalar
+        if firma.get("firma_id") != firma_id
+    ]
+
+    hedef_index = min(
+        hedef_index,
+        len(firmalar),
+    )
+
+    firmalar.insert(
+        hedef_index,
+        hedef,
+    )
+
+    for index, firma in enumerate(firmalar):
+        kayit_id = firma.get("firma_id")
+
+        if kayit_id in data.get("firms", {}):
+            data["firms"][kayit_id]["sira"] = index
 
     return data
 
@@ -1168,6 +1246,96 @@ def normalize_ads(data):
 
 def load_ads():
 
+    global _ADS_SUPABASE_SYNCED
+
+    if not _ADS_SUPABASE_SYNCED:
+        _ADS_SUPABASE_SYNCED = True
+
+        remote = supabase_storage_download(
+            "ads.json"
+        )
+
+        if remote is not None:
+            try:
+                remote_data = json.loads(
+                    remote.decode("utf-8")
+                )
+
+                if isinstance(remote_data, dict):
+                    temporary = (
+                        ADS_FILE
+                        + ".supabase.tmp"
+                    )
+
+                    with open(
+                        temporary,
+                        "w",
+                        encoding="utf-8",
+                    ) as file:
+                        json.dump(
+                            remote_data,
+                            file,
+                            ensure_ascii=False,
+                            indent=4,
+                        )
+
+                    os.replace(
+                        temporary,
+                        ADS_FILE,
+                    )
+
+            except Exception as exc:
+                print(
+                    "SUPABASE REKLAM VERİSİ HATASI: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+        elif os.path.exists(ADS_FILE):
+            # İlk Supabase çalıştırmasında repodaki mevcut reklamları
+            # kalıcı depoya seed et.
+            supabase_upload_json(
+                ADS_FILE,
+                "ads.json",
+            )
+
+            try:
+                with open(
+                    ADS_FILE,
+                    "r",
+                    encoding="utf-8",
+                ) as file:
+                    seed_ads = normalize_ads(
+                        json.load(file)
+                    )
+
+                for item in seed_ads.values():
+                    image_url = str(
+                        item.get("image_url", "")
+                        if isinstance(item, dict)
+                        else ""
+                    ).strip()
+
+                    if not image_url.startswith("/static/ads/"):
+                        continue
+
+                    filename = os.path.basename(image_url)
+                    local_image = os.path.join(
+                        ADS_UPLOAD_DIR,
+                        filename,
+                    )
+
+                    if os.path.exists(local_image):
+                        supabase_storage_upload(
+                            local_image,
+                            f"ads/{filename}",
+                        )
+
+            except Exception as exc:
+                print(
+                    "SUPABASE REKLAM SEED HATASI: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
     if not os.path.exists(
         ADS_FILE
     ):
@@ -1201,9 +1369,35 @@ def load_ads():
                 DEFAULT_ADS
             )
 
-        return normalize_ads(
+        data = normalize_ads(
             data
         )
+
+        # Supabase private bucket'taki reklam görsellerini
+        # yerel statik klasöre geri getir.
+        for item in data.values():
+            image_url = str(
+                item.get("image_url", "")
+                if isinstance(item, dict)
+                else ""
+            ).strip()
+
+            if not image_url.startswith("/static/ads/"):
+                continue
+
+            filename = os.path.basename(image_url)
+            local_image = os.path.join(
+                ADS_UPLOAD_DIR,
+                filename,
+            )
+
+            if not os.path.exists(local_image):
+                supabase_restore_file(
+                    local_image,
+                    f"ads/{filename}",
+                )
+
+        return data
 
     except Exception:
 
@@ -1241,6 +1435,33 @@ def save_ads(data):
         ADS_FILE,
     )
 
+    # Reklam ayarlarını ve kullanılan görselleri kalıcı depoya gönder.
+    if supabase_upload_json(
+        ADS_FILE,
+        "ads.json",
+    ):
+
+        for item in data.values():
+            image_url = str(
+                item.get("image_url", "")
+                if isinstance(item, dict)
+                else ""
+            ).strip()
+
+            if not image_url.startswith("/static/ads/"):
+                continue
+
+            filename = os.path.basename(image_url)
+            local_image = os.path.join(
+                ADS_UPLOAD_DIR,
+                filename,
+            )
+
+            if os.path.exists(local_image):
+                supabase_storage_upload(
+                    local_image,
+                    f"ads/{filename}",
+                )
 
 def ad_html(ad):
 
@@ -1292,6 +1513,33 @@ def ad_html(ad):
     """
 
 
+def mobile_ad_html(ad, slot_title):
+    """
+    Mobilde 6 reklam slotunu korur.
+    Görseli olmayan yönetim paneli slotları da yer tutucu olarak görünür.
+    """
+
+    icerik = ad_html(ad)
+
+    if icerik.strip():
+        return (
+            '<div class="mobile-ad-slot ad-box rounded-2xl overflow-hidden">'
+            + icerik
+            + "</div>"
+        )
+
+    return (
+        '<div class="mobile-ad-slot ad-box rounded-2xl overflow-hidden '
+        'border border-dashed border-slate-300 bg-slate-50 '
+        'flex items-center justify-center min-h-[120px]">'
+        '<span class="text-[9px] font-black uppercase tracking-[0.12em] '
+        'text-slate-400">'
+        + esc(slot_title)
+        + "</span>"
+        "</div>"
+    )
+
+
 # =========================================================
 # FİYAT VERİLERİ
 # =========================================================
@@ -1306,6 +1554,13 @@ def firma_verisini_cek(
 ):
 
     sonuc = fonksiyon()
+
+    # Kaynak boş/eksik cevap döndürürse mevcut son kayıt korunur.
+    # Böylece başarısız veya geçici boş cevaplar eski fiyatları silmez.
+    if not sonuc.kalemler:
+        raise RuntimeError(
+            "Kaynak fiyat döndürmedi; mevcut son kayıt korundu."
+        )
 
     data = load_data()
 
@@ -1524,8 +1779,18 @@ def firma_verisini_cek(
         "durum"
     ] = "basarili"
 
-    firma_siralarini_duzelt(
-        data
+    # Bu fonksiyonun kendi kapsamında firma_id değişkeni yoktur.
+    # Sıralama için scraper sonucundaki gerçek firma kimliğini kullan.
+    mevcut_sira = (
+        data.get("firms", {})
+        .get(sonuc.firma_id, {})
+        .get("sira", 0)
+    )
+
+    firma_sirasini_uygula(
+        data,
+        sonuc.firma_id,
+        int(mevcut_sira) + 1,
     )
 
     save_data(
@@ -1590,6 +1855,12 @@ def verileri_guncelle():
         ):
             continue
 
+        if firma_id in data_baslangic.get(
+            "silinen_firmalar",
+            [],
+        ):
+            continue
+
         if not firma.get(
             "otomatik",
             False,
@@ -1617,6 +1888,15 @@ def verileri_guncelle():
         try:
 
             data = load_data()
+
+            if firma_id in data.get(
+                "silinen_firmalar",
+                [],
+            ):
+                print(
+                    f"SİLİNMİŞ: {firma_id}"
+                )
+                continue
 
             firma = data.get(
                 "firms",
@@ -1673,16 +1953,25 @@ def verileri_guncelle():
                 f"({len(sonuc['kalemler'])} kalem)"
             )
 
-            bildirim_ekle(
-                firma_id,
-                "basarili_guncelleme",
-                (
-                    f"{sonuc['baslik']} başarıyla "
-                    f"güncellendi. "
-                    f"{len(sonuc['kalemler'])} "
-                    "fiyat kalemi okundu."
-                ),
+            # Başarılı güncelleme bildirimi yalnızca gerçekten
+            # fiyat değişikliği olduğunda oluşturulur. Böylece dakika
+            # başına aynı "başarılı" bildiriminin birikmesi engellenir.
+            fiyat_degisti = any(
+                str(kalem.get("degisim", "")).strip()
+                not in {"", "0 TL"}
+                for kalem in sonuc.get("kalemler", [])
             )
+
+            if fiyat_degisti:
+                bildirim_ekle(
+                    firma_id,
+                    "basarili_guncelleme",
+                    (
+                        f"{sonuc['baslik']} fiyatları değişti. "
+                        f"{len(sonuc['kalemler'])} "
+                        "fiyat kalemi güncellendi."
+                    ),
+                )
 
         except Exception as e:
 
@@ -1752,9 +2041,51 @@ def fiyat_verilerini_olustur():
 
     sonuc = []
 
-    for firma in firmalari_sirala(
+    firmalar = firmalari_sirala(
         data
+    )
+
+    # Fiyat kaydı mevcut olup firma kaydı eksikse,
+    # son bilinen fiyatları ana sayfada kaybetme.
+    firma_ids = {
+        str(
+            firma.get(
+                "firma_id",
+                ""
+            )
+        ).strip().lower()
+        for firma in firmalar
+    }
+
+    for fiyat_firma_id in data.get(
+        "prices",
+        {}
     ):
+        canonical_id = str(
+            fiyat_firma_id or ""
+        ).strip().lower()
+
+        if (
+            canonical_id
+            and canonical_id not in firma_ids
+        ):
+            firmalar.append(
+                {                    "firma_id": canonical_id,
+                    "baslik": canonical_id.replace(                        "_",
+                        " "
+                    ).title(),
+                    "url": "",
+                    "otomatik": False,
+                    "aktif": True,
+                    "son_basarili_cekme": None,
+                    "kaynak_fiyat_tarihi": None,
+                    "durum": "manuel",
+                    "sira": 999999,
+                }
+            )
+            firma_ids.add(canonical_id)
+
+    for firma in firmalar:
 
         firma_id = firma.get(
             "firma_id"
@@ -1785,17 +2116,20 @@ def fiyat_verilerini_olustur():
             firma
         )
 
+        # Ana sayfada kayıtlı fiyatı bulunan firmalar "GÜNCEL" olarak
+        # gösterilir. Bu yalnızca ekrandaki etiketi değiştirir;
+        # fiyatın kendisi, son başarılı çekim tarihi ve otomatik
+        # güncelleme mekanizması değiştirilmez.
+        if fiyatlar:
+            stale = False
+
         firma_kalemleri = []
 
-        sirali_fiyatlar = sorted(
-            fiyatlar.items(),
-            key=lambda item: str(
-                item[1].get(
-                    "guncelleme",
-                    ""
-                )
-            ),
-            reverse=True,
+        # Kaynakta gelen / kayıtlı kalem sırasını koru.
+        # Güncelleme tarihine göre sıralamak, fiyat kalemlerinin
+        # doğal sırasını bozuyordu.
+        sirali_fiyatlar = list(
+            fiyatlar.items()
         )
 
         for kalem, bilgi in sirali_fiyatlar:
@@ -1917,30 +2251,47 @@ def fiyat_verilerini_olustur():
 
 scheduler = BackgroundScheduler()
 
+# Otomatik fiyat çekimi aktiftir.
+# AUTO_UPDATE_ENABLED=0 verilirse tamamen kapatılabilir.
+# Mevcut manuel fiyatlar fiyat_kaydet() tarafından korunur.
+AUTO_UPDATE_ENABLED = (
+    os.getenv(
+        "AUTO_UPDATE_ENABLED",
+        "1",
+    ).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+
 
 @asynccontextmanager
 async def lifespan(app):
 
     load_ads()
 
-    print(
-        "İlk fiyat güncellemesi başlıyor..."
-    )
+    if AUTO_UPDATE_ENABLED:
+        print(
+            "İlk fiyat güncellemesi başlıyor..."
+        )
 
-    verileri_guncelle()
+        verileri_guncelle()
 
-    scheduler.add_job(
-        verileri_guncelle,
-        "interval",
-        minutes=1,
-        id="fiyat_guncelleme",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=30,
-    )
+        scheduler.add_job(
+            verileri_guncelle,
+            "interval",
+            minutes=1,
+            id="fiyat_guncelleme",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=30,
+        )
 
-    scheduler.start()
+        scheduler.start()
+    else:
+        print(
+            "Otomatik fiyat güncellemesi kapalı. "
+            "Mevcut fiyatlar korunuyor."
+        )
 
     yield
 
@@ -2050,6 +2401,35 @@ def doviz_kurlarini_getir(force=False):
                 "tarih": tarih,
             }
 
+        # Gram 24 ayar altın: XAU ons fiyatı USD/ons -> TRY/gram.
+        gold_response = requests.get(
+            "https://api.gold-api.com/price/XAU",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "HurdaFiyatBot/2.0",
+            },
+            timeout=10,
+        )
+        gold_response.raise_for_status()
+        gold_data = gold_response.json()
+        gold_usd_ons = gold_data.get("price")
+
+        if gold_usd_ons is not None and bulunan.get("USD"):
+            gold_gram_try = (
+                float(gold_usd_ons)
+                / 31.1034768
+                * float(bulunan["USD"]["kur"])
+            )
+            bulunan["ALTIN"] = {
+                "kod": "ALTIN",
+                "birim": "1 gram",
+                "alis": gold_gram_try,
+                "satis": gold_gram_try,
+                "kur": gold_gram_try,
+                "kur_turu": "24 ayar gram altın referans fiyatı",
+                "tarih": gold_data.get("updatedAt") or gold_data.get("timestamp") or "",
+            }
+
         tarihler = [
             x.get(
                 "tarih",
@@ -2124,6 +2504,417 @@ def get_prices():
 def get_currency():
 
     return doviz_kurlarini_getir()
+
+
+# =========================================================
+# PİYASA GEÇMİŞİ / KARŞILAŞTIRMA / DURUM
+# =========================================================
+
+@app.get(
+    "/history"
+)
+def get_history(
+    firma_id: str = None,
+    kalem: str = None,
+    limit: int = 90,
+):
+    data = load_data()
+
+    kayitlar = data.get(
+        "history",
+        [],
+    )
+
+    if firma_id:
+        hedef = firma_id.strip().lower()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("firma_id", "")).strip().lower() == hedef
+        ]
+
+    if kalem:
+        hedef_kalem = kalem.strip().casefold()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("kalem", "")).strip().casefold() == hedef_kalem
+        ]
+
+    # Aynı fiyatın dakika dakika tekrar yazıldığı kayıtları grafik için
+    # gereksiz yere çoğaltma. Sonraki farklı fiyatları koru.
+    ters = list(reversed(kayitlar))
+    benzersiz = []
+    son_deger = object()
+
+    for item in ters:
+        deger = item.get("fiyat")
+        if deger == son_deger:
+            continue
+        benzersiz.append(item)
+        son_deger = deger
+
+    benzersiz.reverse()
+
+    try:
+        limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit = 90
+
+    return {
+        "status": "success",
+        "data": benzersiz[-limit:],
+    }
+
+
+@app.get(
+    "/today-changes"
+)
+def get_today_changes():
+    data = load_data()
+    now = datetime.now()
+    sonuc = []
+
+    # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
+    gruplar = {}
+
+    for item in data.get("history", []):
+        firma_id = str(item.get("firma_id", "")).strip().lower()
+        kalem = str(item.get("kalem", "")).strip()
+
+        if not firma_id or not kalem:
+            continue
+
+        anahtar = (firma_id, kalem)
+        gruplar.setdefault(anahtar, []).append(item)
+
+    for (firma_id, kalem), kayitlar in gruplar.items():
+        sonlar = list(reversed(kayitlar))
+        bulunan = []
+
+        for item in sonlar:
+            try:
+                zaman = datetime.fromisoformat(
+                    str(item.get("tarih", "")).replace("Z", "")
+                )
+            except Exception:
+                continue
+
+            if (
+                now.replace(tzinfo=None) - zaman
+            ).total_seconds() > 24 * 60 * 60:
+                break
+
+            fiyat = item.get("fiyat")
+            if fiyat is None:
+                continue
+
+            if not bulunan or bulunan[-1].get("fiyat") != fiyat:
+                bulunan.append(item)
+
+            if len(bulunan) >= 2:
+                break
+
+        if len(bulunan) < 2:
+            continue
+
+        yeni = bulunan[0].get("fiyat")
+        eski = bulunan[1].get("fiyat")
+
+        try:
+            fark = float(yeni) - float(eski)
+        except (TypeError, ValueError):
+            continue
+
+        if fark == 0:
+            continue
+
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        sonuc.append({
+            "firma_id": firma_id,
+            "firma": firma.get("baslik", firma_id),
+            "kalem": kalem,
+            "eski": eski,
+            "yeni": yeni,
+            "fark": fark,
+            "tarih": bulunan[0].get("tarih"),
+        })
+
+    sonuc.sort(
+        key=lambda item: str(item.get("tarih", "")),
+        reverse=True,
+    )
+
+    return {
+        "status": "success",
+        "data": sonuc[:30],
+    }
+
+
+@app.get(
+    "/compare"
+)
+def get_compare(
+    kalem: str = None,
+):
+    data = load_data()
+
+    mevcut = {}
+    kalemler = set()
+
+    for firma_id, fiyatlar in data.get("prices", {}).items():
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        for ad, bilgi in fiyatlar.items():
+            kalemler.add(ad)
+
+            if kalem and ad.casefold() != kalem.strip().casefold():
+                continue
+
+            manuel = bilgi.get("manuel_fiyat")
+            otomatik = bilgi.get("otomatik_fiyat")
+            fiyat = manuel if manuel is not None else otomatik
+
+            if fiyat is None:
+                continue
+
+            mevcut.setdefault(firma_id, {
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+                "kalem": ad,
+            })
+
+    rows = []
+
+    if kalem:
+        for firma_id, fiyatlar in data.get("prices", {}).items():
+            firma = data.get("firms", {}).get(firma_id, {})
+            bilgi = None
+
+            for ad, kayit in fiyatlar.items():
+                if ad.casefold() == kalem.strip().casefold():
+                    bilgi = kayit
+                    break
+
+            if bilgi is None:
+                continue
+
+            fiyat = (
+                bilgi.get("manuel_fiyat")
+                if bilgi.get("manuel_fiyat") is not None
+                else bilgi.get("otomatik_fiyat")
+            )
+
+            if fiyat is None:
+                continue
+
+            rows.append({
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+            })
+
+        rows.sort(key=lambda x: str(x.get("firma", "")).casefold())
+
+    return {
+        "status": "success",
+        "kalemler": sorted(
+            kalemler,
+            key=lambda x: x.casefold(),
+        ),
+        "kalem": kalem,
+        "data": rows,
+    }
+
+
+@app.get(
+    "/admin/data-backups",
+    response_class=HTMLResponse,
+)
+def admin_data_backups(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        backups = sorted(
+            [
+                os.path.join(BACKUP_DIR, isim)
+                for isim in os.listdir(BACKUP_DIR)
+                if isim.endswith(".json")
+            ],
+            key=lambda yol: os.path.getmtime(yol),
+            reverse=True,
+        )
+    except Exception:
+        backups = []
+
+    rows = "".join(
+        f"""
+<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+<div>
+<div class="text-xs font-black text-slate-800">{esc(os.path.basename(yol))}</div>
+<div class="text-[10px] text-slate-500">{esc(datetime.fromtimestamp(os.path.getmtime(yol)).strftime("%Y-%m-%d %H:%M:%S"))}</div>
+</div>
+</div>
+"""
+        for yol in backups[:10]
+    ) or '<div class="text-sm text-slate-500">Henüz otomatik yedek oluşmadı.</div>'
+
+    return f"""
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veri Yedekleri</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4">
+<div class="max-w-3xl mx-auto space-y-4">
+<div class="bg-slate-900 text-white rounded-3xl p-5">
+<h1 class="text-2xl font-black">Veri Yedekleri</h1>
+<p class="text-sm text-slate-300 mt-1">Mevcut fiyat/firma verisi korunarak son otomatik yedeğe dönülebilir.</p>
+</div>
+<div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+<form method="post" action="/admin/data-rollback" onsubmit="return confirm('Mevcut veri dosyası son otomatik yedekle değiştirilecek. Devam edilsin mi?');">
+<button type="submit" class="w-full rounded-xl bg-red-600 hover:bg-red-700 text-white py-3 font-black">
+Son Yedeğe Geri Dön
+</button>
+</form>
+<div class="mt-4 space-y-2">{rows}</div>
+</div>
+<a href="/admin" class="inline-block rounded-xl bg-slate-900 text-white px-4 py-2 font-bold">← Admin</a>
+</div>
+</body>
+</html>
+"""
+
+
+@app.post(
+    "/admin/data-rollback"
+)
+async def admin_data_rollback(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    os.makedirs(
+        BACKUP_DIR,
+        exist_ok=True,
+    )
+
+    backups = sorted(
+        [
+            os.path.join(BACKUP_DIR, isim)
+            for isim in os.listdir(BACKUP_DIR)
+            if isim.endswith(".json")
+        ],
+        key=lambda yol: os.path.getmtime(yol),
+        reverse=True,
+    )
+
+    if not backups:
+        raise HTTPException(
+            status_code=404,
+            detail="Henüz geri dönülebilecek otomatik yedek yok.",
+        )
+
+    shutil.copy2(
+        backups[0],
+        DATA_FILE,
+    )
+
+    bildirim_ekle(
+        "sistem",
+        "veri_rollback",
+        "Mevcut veri dosyası son otomatik yedeğe geri döndürüldü.",
+    )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+@app.get(
+    "/system-status"
+)
+def get_system_status():
+    data = load_data()
+
+    firmalar = list(
+        data.get("firms", {}).values()
+    )
+
+    fiyat_sayisi = sum(
+        len(x)
+        for x in data.get("prices", {}).values()
+        if isinstance(x, dict)
+    )
+
+    return {
+        "status": "success",
+        "otomatik_guncelleme": AUTO_UPDATE_ENABLED,
+        "son_fiyat_guncellemesi": SON_GUNCELLEME,
+        "firma_sayisi": len(firmalar),
+        "aktif_firma": len([
+            x for x in firmalar
+            if x.get("aktif", True)
+        ]),
+        "otomatik_firma": len([
+            x for x in firmalar
+            if x.get("otomatik", True)
+        ]),
+        "manuel_firma": len([
+            x for x in firmalar
+            if not x.get("otomatik", True)
+        ]),
+        "fiyat_kalemi": fiyat_sayisi,
+        "gecmis_kaydi": len(data.get("history", [])),
+        "bildirim": len(data.get("notifications", [])),
+    }
+
+
+@app.get(
+    "/robots.txt"
+)
+def robots_txt():
+    return Response(
+        content=(
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /admin\n"
+            "Disallow: /system-status\n"
+            "Disallow: /history\n"
+            "Disallow: /compare\n"
+        ),
+        media_type="text/plain",
+    )
+
+
+@app.get(
+    "/sitemap.xml"
+)
+def sitemap_xml(
+    request: Request,
+):
+    base = str(
+        request.base_url
+    ).rstrip("/")
+
+    return Response(
+        content=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            f'<url><loc>{esc(base)}/</loc></url>'
+            '</urlset>'
+        ),
+        media_type="application/xml",
+    )
 
 
 # =========================================================
@@ -2230,19 +3021,19 @@ content="width=device-width, initial-scale=1.0"
 
 <body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-2xl mx-auto">
+<div class="max-w-3xl mx-auto">
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+<div class="bg-slate-900 text-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
-<h1 class="text-2xl font-bold text-slate-900">
+<h1 class="text-2xl sm:text-3xl font-black text-white">
 Yeni Firma / Kaynak
 </h1>
 
 <a
 href="/admin"
-class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-center"
+class="bg-white/10 border border-white/20 hover:bg-white/15 text-white px-4 py-2 rounded-xl text-sm font-bold text-center transition"
 >
 ← Geri
 </a>
@@ -2252,7 +3043,7 @@ class="bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-center"
 <form
 method="post"
 action="/admin/source/new"
-class="space-y-5"
+class="space-y-5 p-5 sm:p-7"
 >
 
 <div>
@@ -2267,7 +3058,7 @@ name="firma_id"
 required
 placeholder="ornekfirma"
 pattern="[a-zA-Z0-9_-]+"
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <p class="text-xs text-slate-500 mt-1">
@@ -2287,8 +3078,30 @@ type="text"
 name="baslik"
 required
 placeholder="Örnek Demir Çelik"
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
+
+</div>
+
+<div>
+
+<label class="block text-sm font-bold mb-2">
+Ana Sayfa Sıra Numarası
+</label>
+
+<input
+type="number"
+name="sira"
+value="1"
+min="1"
+step="1"
+required
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
+>
+
+<p class="text-xs text-slate-500 mt-1">
+1 = ilk firma. İstediğiniz numarayı yazarak ana sayfadaki yeri belirleyin.
+</p>
 
 </div>
 
@@ -2302,7 +3115,7 @@ Kaynak URL
 type="url"
 name="url"
 placeholder="İsteğe bağlı: https://..."
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <div class="text-xs text-slate-500 mt-2">
@@ -2344,7 +3157,7 @@ Otomatik fiyat çek
 
 <button
 type="submit"
-class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold"
+class="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Firmayı Kaydet
 </button>
@@ -2370,6 +3183,7 @@ async def admin_new_source_save(
     url: str = Form(""),
     aktif: str = Form(None),
     otomatik: str = Form(None),
+    sira: int = Form(1),
     username: str = Depends(
         verify_admin
     ),
@@ -2424,6 +3238,14 @@ async def admin_new_source_save(
         )
     )
 
+    try:
+        yeni_sira = max(
+            1,
+            int(sira),
+        )
+    except (TypeError, ValueError):
+        yeni_sira = 1
+
     mevcut_firma_sayisi = len(
         data[
             "firms"
@@ -2443,11 +3265,13 @@ async def admin_new_source_save(
         "son_basarili_cekme": None,
         "kaynak_fiyat_tarihi": None,
         "durum": "bekliyor",
-        "sira": mevcut_firma_sayisi,
+        "sira": yeni_sira - 1,
     }
 
-    firma_siralarini_duzelt(
-        data
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        yeni_sira,
     )
 
     save_data(
@@ -2584,9 +3408,23 @@ name="manuel_{esc(kalem)}"
 value="{esc(manuel if manuel is not None else '')}"
 min="0"
 step="1"
-class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-3 py-2 text-sm transition"
 placeholder="Boş = otomatik"
 >
+
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+
+<button
+type="submit"
+name="guncelle_kalem"
+value="{esc(kalem)}"
+formaction="/admin/source/{esc(firma_id)}/manual-update"
+formmethod="post"
+formnovalidate
+class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl px-3 py-2 text-sm font-bold"
+>
+✏️ Güncelle
+</button>
 
 <button
 type="submit"
@@ -2595,17 +3433,17 @@ value="{esc(kalem)}"
 formaction="/admin/source/{esc(firma_id)}/manual-delete"
 formmethod="post"
 formnovalidate
-class="w-full mt-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
+class="w-full border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl px-3 py-2 text-sm font-bold"
 >
-Kalemi Tamamen Sil
+🗑️ Sil
 </button>
+
+</div>
 
 </div>
 """
 
-
     if not fiyat_rows:
-
         fiyat_rows = """
 <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
 Bu firma için henüz fiyat kaydı bulunmuyor.
@@ -2716,24 +3554,24 @@ content="width=device-width, initial-scale=1.0"
 
 <body class="bg-slate-100 min-h-screen p-3 sm:p-4">
 
-<div class="max-w-3xl mx-auto space-y-5 sm:space-y-6">
+<div class="admin-compact max-w-5xl mx-auto space-y-4 sm:space-y-5">
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+<div class="bg-slate-900 text-white rounded-3xl shadow-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-<h1 class="text-2xl font-bold text-slate-900 break-words">
+<h1 class="text-2xl sm:text-3xl font-black text-white break-words">
 {esc(firma.get("baslik", firma_id))}
 </h1>
 
 <a
 href="/admin"
-class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-center"
+class="bg-white/10 border border-white/20 hover:bg-white/15 text-white px-4 py-2 rounded-xl text-sm font-bold text-center transition"
 >
 ← Geri
 </a>
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="mb-6">
 
@@ -2769,8 +3607,30 @@ type="text"
 name="baslik"
 value="{esc(firma.get("baslik", ""))}"
 required
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
+
+</div>
+
+<div>
+
+<label class="block text-sm font-bold mb-2">
+Ana Sayfa Sıra Numarası
+</label>
+
+<input
+type="number"
+name="sira"
+value="{esc(int(firma.get("sira", 0)) + 1)}"
+min="1"
+step="1"
+required
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
+>
+
+<p class="text-xs text-slate-500 mt-1">
+1 = ilk firma. İstediğiniz numarayı yazarak ana sayfadaki yeri belirleyin.
+</p>
 
 </div>
 
@@ -2785,7 +3645,7 @@ type="url"
 name="url"
 value="{esc(firma.get("url", ""))}"
 placeholder="İsteğe bağlı: https://..."
-class="w-full border border-slate-300 rounded-xl px-4 py-3"
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
 
 <div class="text-xs text-slate-500 mt-2">
@@ -2817,7 +3677,7 @@ type="checkbox"
 name="otomatik"
 value="1"
 {"checked" if firma.get("otomatik", True) else ""}
-{"disabled" if not scraper_var else ""}
+{"disabled" if not scraper_var and not firma.get("url", "").strip() else ""}
 class="w-5 h-5"
 >
 
@@ -2828,13 +3688,13 @@ Otomatik fiyat çek
 </div>
 
 <div class="text-xs text-slate-500">
-Scraper:
-{"Mevcut" if scraper_var else "Yok - manuel kullanım"}
+Kaynak okuyucu:
+{"Özel scraper mevcut" if scraper_var else ("Genel URL okuyucu" if firma.get("url", "").strip() else "URL gerekli")}
 </div>
 
 <button
 type="submit"
-class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold"
+class="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Kaynak Bilgilerini Kaydet
 </button>
@@ -2849,7 +3709,7 @@ class="mt-3"
 
 <button
 type="submit"
-class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 py-3 rounded-xl font-bold"
+class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 py-3.5 rounded-xl font-black transition"
 >
 🔎 Kaynağı Test Et
 </button>
@@ -2858,7 +3718,7 @@ class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <h2 class="text-xl font-bold mb-5">
 Manuel Fiyatlar
@@ -2876,7 +3736,7 @@ class="space-y-4"
 
 <button
 type="submit"
-class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold"
+class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-black transition shadow-sm"
 >
 Manuel Fiyatları Kaydet
 </button>
@@ -2885,7 +3745,7 @@ Manuel Fiyatları Kaydet
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <h2 class="text-lg font-bold text-red-700 mb-3">
 Tehlikeli Bölge
@@ -2925,6 +3785,7 @@ async def admin_source_save(
     url: str = Form(""),
     aktif: str = Form(None),
     otomatik: str = Form(None),
+    sira: int = Form(1),
     username: str = Depends(
         verify_admin
     ),
@@ -2963,6 +3824,20 @@ async def admin_source_save(
             status_code=400,
             detail="Firma adı boş olamaz.",
         )
+
+    # Daha önce silinmiş bir firma aynı ID ile yeniden ekleniyorsa
+    # silinmişler listesinden çıkar.
+    silinen_firmalar = data.setdefault(
+        "silinen_firmalar",
+        [],
+    )
+    data[
+        "silinen_firmalar"
+    ] = [
+        x for x in silinen_firmalar
+        if str(x).strip().casefold()
+        != str(firma_id).strip().casefold()
+    ]
 
     data[
         "firms"
@@ -3004,32 +3879,26 @@ async def admin_source_save(
         )
     )
 
-    if "sira" not in data[
-        "firms"
-    ][
-        firma_id
-    ]:
-
-        data[
-            "firms"
-        ][
-            firma_id
-        ][
-            "sira"
-        ] = len(
-            data[
-                "firms"
-            ]
+    try:
+        yeni_sira = max(
+            1,
+            int(sira),
         )
+    except (TypeError, ValueError):
+        yeni_sira = 1
 
-    firma_siralarini_duzelt(
-        data
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        yeni_sira,
     )
 
     save_data(
         data
     )
 
+    # Kaynak ayarlarını kaydetmek ile fiyat çekmeyi ayır.
+    # Böylece scraper kaynaklı bir hata, ayar kayıt isteğini 500'e düşürmez.
     if (
         otomatik == "1"
         and not kayitli_scraper_var
@@ -3050,51 +3919,56 @@ async def admin_source_save(
         False,
     ):
 
-        try:
+        bildirim_ekle(
+            firma_id,
+            "otomatik_ayar",
+            (
+                "Otomatik fiyat çekme ayarı kaydedildi. "
+                "Fiyat çekmek için Kaynağı Test Et / Şimdi Çek "
+                "butonunu kullanabilirsiniz."
+            ),
+        )
 
-            fonksiyon = firma_scraperini_bul(
-                firma_id,
-                data,
-            )
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
 
-            if fonksiyon is not None:
-                sonuc = firma_verisini_cek(
-                    fonksiyon
-                )
 
-                bildirim_ekle(
-                    firma_id,
-                    "basarili_guncelleme",
-                    (
-                        "Kaynak ayarları kaydedildi ve ilk "
-                        "otomatik çekim başarılı oldu. "
-                        f"{len(sonuc['kalemler'])} fiyat kalemi okundu."
-                    ),
-                )
+# =========================================================
+# FİRMA SIRALAMA - DOĞRUDAN NUMARA
+# =========================================================
 
-        except Exception as e:
+@app.post(
+    "/admin/source/{firma_id}/order"
+)
+async def admin_source_order(
+    firma_id: str,
+    sira: int = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    data = load_data()
 
-            data = load_data()
+    if firma_id not in data.get("firms", {}):
+        raise HTTPException(
+            status_code=404,
+            detail="Firma bulunamadı.",
+        )
 
-            if firma_id in data.get(
-                "firms",
-                {},
-            ):
+    try:
+        hedef_sira = max(1, int(sira))
+    except (TypeError, ValueError):
+        hedef_sira = 1
 
-                data["firms"][firma_id]["durum"] = "hata"
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        hedef_sira - 1,
+    )
 
-                save_data(
-                    data
-                )
-
-            bildirim_ekle(
-                firma_id,
-                "kaynak_testi_hatasi",
-                (
-                    "Kaynak ayarları kaydedildi fakat "
-                    f"otomatik çekim başarısız oldu: {e}"
-                ),
-            )
+    save_data(data)
 
     return RedirectResponse(
         url="/admin",
@@ -3497,6 +4371,110 @@ async def admin_manual_save_real(
 
 
 # =========================================================
+# MANUEL FİYAT GÜNCELLE
+# =========================================================
+
+@app.post(
+    "/admin/source/{firma_id}/manual-update"
+)
+async def admin_manual_update(
+    request: Request,
+    firma_id: str,
+    guncelle_kalem: str = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    data = load_data()
+
+    if firma_id not in data.get(
+        "firms",
+        {},
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Firma bulunamadı.",
+        )
+
+    kalem = str(        guncelle_kalem
+        or ""
+    ).strip()
+    if not kalem:
+        raise HTTPException(
+            status_code=400,
+            detail="Güncellenecek kalem belirtilmedi.",
+        )
+
+    form = await request.form()
+    value = form.get(
+        "manuel_" + kalem
+    )
+
+    value = str(
+        value or ""
+    ).strip()
+
+    try:
+        fiyat = int(
+            float(value)
+        )
+
+        if fiyat <= 0:
+            raise ValueError
+
+    except Exception:
+        bildirim_ekle(
+            firma_id,
+            "manuel_fiyat_hatasi",
+            f"{kalem} için geçerli bir manuel fiyat girilmedi.",
+        )
+        return RedirectResponse(
+            url=f"/admin/source/{firma_id}",
+            status_code=303,
+        )
+
+    prices = data.get(
+        "prices",
+        {},
+    ).get(
+        firma_id,
+        {},
+    )
+
+    if kalem not in prices:
+        raise HTTPException(
+            status_code=404,
+            detail="Güncellenecek fiyat kalemi bulunamadı.",
+        )
+
+    manuel_fiyat_kaydet(
+        firma_id=firma_id,
+        kalem=kalem,
+        fiyat=fiyat,
+    )
+
+    gecmis_ekle(
+        firma_id=firma_id,
+        kalem=kalem,
+        fiyat=fiyat,
+        fiyat_tarihi=now_istanbul().strftime(
+            "%Y-%m-%d"
+        ),
+    )
+
+    bildirim_ekle(
+        firma_id,
+        "manuel_fiyat",
+        f"{kalem} manuel fiyatı {fiyat_format(fiyat)} olarak güncellendi.",
+    )
+
+    return RedirectResponse(
+        url=f"/admin/source/{firma_id}",
+        status_code=303,
+    )
+
+
+# =========================================================
 # MANUEL FİYAT SİL
 # =========================================================
 
@@ -3606,6 +4584,25 @@ async def admin_source_delete(
         None,
     )
 
+    # Otomatik kaynaklar her dakika tekrar tarandığı için,
+    # silinen firmayı scraper'ın yeniden oluşturmasını engelle.
+    silinen_firmalar = data.setdefault(
+        "silinen_firmalar",
+        [],
+    )
+
+    silinen_id = str(
+        gercek_firma_id
+    ).strip().casefold()
+
+    if silinen_id not in {
+        str(x).strip().casefold()
+        for x in silinen_firmalar
+    }:
+        silinen_firmalar.append(
+            gercek_firma_id
+        )
+
     # =====================================================
     # FİRMAYA AİT FİYAT KAYITLARINI SİL
     # =====================================================
@@ -3630,10 +4627,10 @@ async def admin_source_delete(
     # FİRMAYA AİT GEÇMİŞ FİYATLARI SİL
     # =====================================================
 
-    data["price_history"] = [
+    data["history"] = [
         item
         for item in data.get(
-            "price_history",
+            "history",
             [],
         )
         if item.get(
@@ -3789,6 +4786,30 @@ async def notifications_read(
 
 
 # =========================================================
+# TEK BİLDİRİMİ OKUNDU YAP
+# =========================================================
+
+@app.post(
+    "/admin/notifications/read-one"
+)
+async def notification_read_one(
+    notification_id: int = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirim_okundu(
+        notification_id
+    )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
 # BİLDİRİM SİL
 # =========================================================
 
@@ -3813,6 +4834,27 @@ async def notifications_delete(
 
 
 # =========================================================
+# TÜM BİLDİRİMLERİ SİL
+# =========================================================
+
+@app.post(
+    "/admin/notifications/delete-all"
+)
+async def notifications_delete_all(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+
+    bildirimleri_sil()
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
 # ADMİN PANELİ
 # =========================================================
 
@@ -3828,14 +4870,8 @@ def admin_panel(
 
     data = load_data()
 
-    firma_siralarini_duzelt(
-        data
-    )
-
-    save_data(
-        data
-    )
-
+    # Admin panelini açmak mevcut fiyat/veri dosyasını değiştirmemelidir.
+    # Sıralama yalnızca ekranda uygulanır.
     firmalar = firmalari_sirala(
         data
     )
@@ -3985,8 +5021,7 @@ BEKLİYOR
             ) - 1
         )
 
-        firma_rows += f"""
-<div class="border border-slate-200 rounded-2xl p-4">
+        firma_rows += f"""\n<div data-firma-row="{esc(str(baslik) + " " + str(firma_id))}" class="border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md rounded-2xl p-4 sm:p-5 transition">
 
 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
@@ -4002,6 +5037,33 @@ ID: {esc(firma_id)}
 
 <div class="text-xs text-slate-500 mt-1 break-words">
 Son başarılı çekim: {esc(son_cekim)}
+</div>
+
+<div class="flex items-center gap-2 mt-2">
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/order"
+class="flex items-center gap-2"
+>
+<label class="text-xs text-indigo-700 font-black whitespace-nowrap">
+Ana Sayfa Sırası
+</label>
+<input
+type="number"
+name="sira"
+value="{index + 1}"
+min="1"
+step="1"
+required
+class="w-20 h-9 rounded-lg border border-indigo-200 bg-white px-2 text-sm font-black text-indigo-800 text-center outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+>
+<button
+type="submit"
+class="h-9 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition"
+>
+Kaydet
+</button>
+</form>
 </div>
 
 <div class="flex flex-wrap gap-2 mt-3">
@@ -4070,10 +5132,23 @@ class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 f
 
 <a
 href="/admin/source/{esc(firma_id)}"
-class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold"
+class="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
 >
-Düzenle
+Düzenle / Güncelle
 </a>
+
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/test"
+class="inline"
+>
+<button
+type="submit"
+class="px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition"
+>
+Test Et
+</button>
+</form>
 
 <form
 method="post"
@@ -4113,8 +5188,30 @@ Henüz firma bulunmuyor.
         ]
     ):
 
+        notification_read_action = ""
+        if not item.get("okundu", False):
+            notification_read_action = f"""
+<form
+method="post"
+action="/admin/notifications/read-one"
+class="inline"
+>
+<input
+type="hidden"
+name="notification_id"
+value="{esc(item.get("id", ""))}"
+>
+<button
+type="submit"
+class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold"
+>
+Okundu
+</button>
+</form>
+"""
+
         notification_rows += f"""
-<div class="border border-slate-200 rounded-xl p-4">
+<div class="border border-slate-200 bg-slate-50/50 rounded-xl p-4 hover:bg-white transition">
 
 <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
 
@@ -4136,25 +5233,23 @@ Henüz firma bulunmuyor.
 {esc(item.get("tarih", ""))}
 </div>
 
+{notification_read_action}
 <form
 method="post"
 action="/admin/notifications/delete"
 onsubmit="return confirm('Bu bildirimi silmek istediğinizden emin misiniz?');"
 >
-
 <input
 type="hidden"
 name="notification_id"
 value="{esc(item.get("id", ""))}"
 >
-
 <button
 type="submit"
 class="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold"
 >
 Sil
 </button>
-
 </form>
 
 </div>
@@ -4227,12 +5322,10 @@ Bildirim bulunmuyor.
 <div class="text-xs font-semibold text-slate-500 mb-2">
 Mevcut Banner
 </div>
-
 <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
 <img
 src="{esc(ad.get("image_url", ""))}"
-alt="{esc(ad.get("title", label))}"
-class="w-full max-h-72 object-contain rounded-lg"
+alt="{esc(ad.get("title", label))}"class="w-full max-h-32 object-contain rounded-lg"
 >
 </div>
 
@@ -4240,10 +5333,31 @@ class="w-full max-h-72 object-contain rounded-lg"
 """
 
         ad_form_fields += f"""
-<div class="border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+<div class="admin-banner-card border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 bg-slate-50/60 hover:bg-white hover:shadow-md transition">
+
+<form
+method="post"
+action="/admin/update-ads"
+enctype="multipart/form-data"
+class="space-y-3"
+>
+
+<input
+type="hidden"
+name="banner_key"
+value="{key}"
+>
+
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 
 <div class="font-bold text-slate-900 text-lg">
 {label}
+</div>
+
+<div class="text-xs bg-white border border-slate-200 text-slate-500 px-2.5 py-1.5 rounded-lg font-semibold">
+{key}
+</div>
+
 </div>
 
 <div class="text-xs text-slate-500">
@@ -4301,6 +5415,27 @@ Banner aktif
 
 </label>
 
+<div class="flex flex-col sm:flex-row gap-2">
+<button
+type="submit"
+class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl font-bold text-sm transition"
+>
+Bannerı Kaydet
+</button>
+<button
+type="submit"
+name="banner_delete"
+value="1"
+formnovalidate
+onclick="return confirm('Bu banner görselini kaldırmak istediğinizden emin misiniz?');"
+class="w-full sm:w-auto border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 px-5 py-3 rounded-xl font-bold text-sm transition"
+>
+Bannerı Kaldır
+</button>
+</div>
+
+</form>
+
 </div>
 """
 
@@ -4335,28 +5470,367 @@ body {{
     box-sizing: border-box;
 }}
 
+.admin-compact .max-w-7xl {{
+    gap: 12px;
+}}
+
+.admin-compact .max-w-7xl > .bg-slate-900 {{
+    padding: 14px 18px !important;
+    border-radius: 18px !important;
+}}
+
+.admin-compact .max-w-7xl > .bg-white {{
+    padding: 14px 16px !important;
+    border-radius: 18px !important;
+}}
+
+.admin-compact h1 {{
+    font-size: 1.35rem !important;
+}}
+
+.admin-compact h2 {{
+    font-size: 1rem !important;
+}}
+
+.admin-compact .space-y-3 > * + * {{
+    margin-top: 8px !important;
+}}
+
+.admin-compact .space-y-5 > * + * {{
+    margin-top: 12px !important;
+}}
+
+.admin-compact .space-y-6 > * + * {{
+    margin-top: 14px !important;
+}}
+
+.admin-compact [data-firma-row] {{
+    padding: 10px 12px !important;
+}}
+
+.admin-compact [data-firma-row] .text-lg {{
+    font-size: .95rem !important;
+}}
+
+.admin-compact .admin-banner-grid {{
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 10px;
+}}
+
+@media (min-width: 1024px) {{
+    .admin-compact .admin-banner-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+}}
+
+.admin-compact .admin-banner-card {{
+    padding: 11px !important;
+    border-radius: 14px !important;
+}}
+
+.admin-compact .admin-banner-card input[type="text"],
+.admin-compact .admin-banner-card input[type="url"],
+.admin-compact .admin-banner-card input[type="file"] {{
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}}
+
+.admin-compact .admin-banner-card img {{
+    max-height: 120px !important;
+}}
+
 .break-anywhere {{
     overflow-wrap: anywhere;
     word-break: break-word;
+}}
+
+/* =====================================================
+   PİYASA ÖZETİ — MEVCUT VERİDEN GÖRSEL ÖZET
+   ===================================================== */
+
+.market-summary {{
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}}
+
+.market-summary-card {{
+    min-width: 0;
+    background: rgba(255,255,255,.98);
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 13px 14px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.055);
+}}
+
+.market-summary-label {{
+    color: #64748b;
+    font-size: 9px;
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+}}
+
+.market-summary-value {{
+    color: #0f172a;
+    font-size: 21px;
+    line-height: 1.15;
+    font-weight: 950;
+    letter-spacing: -.025em;
+    margin-top: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}}
+
+.market-summary-sub {{
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+    margin-top: 4px;
+}}
+
+.market-summary-card.up .market-summary-value {{
+    color: #059669;
+}}
+
+.market-summary-card.down .market-summary-value {{
+    color: #dc2626;
+}}
+
+.market-summary-card.update .market-summary-value {{
+    font-size: 13px;
+    letter-spacing: -.01em;
+}}
+
+.market-design #todayChanges {{
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.045);
+}}
+
+.market-design #todayChanges > div:first-child {{
+    color: #0f172a;
+    font-size: 10px;
+    letter-spacing: .10em;
+    margin-bottom: 9px;
+}}
+
+.market-design #todayChanges .today-change-card {{
+    min-height: 74px;
+    transition: transform .16s ease, box-shadow .16s ease;
+}}
+
+.market-design #todayChanges .today-change-card:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(15,23,42,.07);
+}}
+
+@media (max-width: 900px) {{
+    .market-summary {{
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }}
+}}
+
+@media (max-width: 639px) {{
+    .market-summary {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }}
+
+    .market-summary-card {{
+        border-radius: 15px;
+        padding: 11px 12px;
+    }}
+
+    .market-summary-value {{
+        font-size: 18px;
+    }}
+
+    .market-summary-card.update {{
+        grid-column: span 2;
+    }}
+}}
+
+/* =========================================================
+   FABRİKA KARTLARI — SON VE TEK LAYOUT KURALI
+   Bu blok önceki fabrika flex kurallarını bilinçli olarak ezer.
+   ========================================================= */
+.market-design .factory-price-grid > .price-card {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}}
+
+.market-design .factory-price-grid .firma-toggle {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 132px !important;
+    padding: 16px !important;
+    text-align: left !important;
+}}
+
+.market-design .factory-price-grid .factory-card-header {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-main {{
+    display: grid !important;
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 10px !important;
+    align-items: center !important;
+}}
+
+.market-design .factory-price-grid .factory-card-info {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-title-line {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    line-height: 1.25 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-title {{
+    display: inline !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    line-height: 1.25 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-title-line > span {{
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-left: 6px !important;
+}}
+
+.market-design .factory-price-grid .factory-card-meta {{
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin-top: 6px !important;
+}}
+
+.market-design .factory-price-grid .factory-card-actions {{
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid #f1f5f9 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-actions > * {{
+    flex: 0 0 auto !important;
+}}
+
+.market-design .factory-price-grid .factory-price-panel:not(.hidden) {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}}
+
+.market-design .factory-price-grid .factory-price-panel:not(.hidden) > .factory-price-panel {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}}
+
+.market-design .factory-price-grid .factory-price-list {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}}
+
+.market-design .factory-price-grid .factory-price-row {{
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    column-gap: 10px !important;
+}}
+
+.market-design .factory-price-grid .factory-price-name {{
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}}
+
+.market-design .factory-price-grid .factory-price-value {{
+    display: block !important;
+    width: auto !important;
+    min-width: 105px !important;
+    max-width: none !important;
+    justify-self: end !important;
+    text-align: right !important;
+}}
+
+@media (max-width: 639px) {{
+    .market-design .factory-price-grid .firma-toggle {{
+        min-height: 0 !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-actions {{
+        justify-content: space-between !important;
+    }}
+
+    .market-design .factory-price-grid .factory-price-row {{
+        grid-template-columns: minmax(0, 1fr) auto !important;
+    }}
+
+    .market-design .factory-price-grid .factory-price-value {{
+        min-width: 88px !important;
+    }}
 }}
 
 </style>
 
 </head>
 
-<body class="bg-slate-100 min-h-screen p-3 sm:p-4">
+<body class="admin-compact bg-slate-100 min-h-screen p-3 sm:p-4 text-slate-900">
 
-<div class="max-w-6xl mx-auto space-y-5 sm:space-y-6">
+<div class="max-w-7xl mx-auto space-y-5 sm:space-y-6">
 
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="bg-slate-900 rounded-3xl shadow-xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
 <div class="min-w-0">
 
-<h1 class="text-2xl sm:text-3xl font-bold text-slate-900">
+<h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
 Hurda Fiyatları
 </h1>
 
-<p class="text-sm text-slate-500 mt-1">
+<p class="text-sm text-slate-300 mt-1">
 Yönetim Paneli
 </p>
 
@@ -4366,16 +5840,23 @@ Yönetim Paneli
 
 <a
 href="/"
-class="bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold"
+class="bg-white/10 border border-white/20 text-white hover:bg-white/15 px-4 py-2.5 rounded-xl text-sm font-bold transition"
 >
 ← Ana Sayfa
 </a>
 
 <a
 href="/admin/source/new"
-class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
+class="bg-white text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl text-sm font-black transition shadow-sm"
 >
 + Yeni Kaynak
+</a>
+
+<a
+href="/admin/data-backups"
+class="bg-amber-400 text-slate-950 hover:bg-amber-300 px-4 py-2.5 rounded-xl text-sm font-black transition shadow-sm"
+>
+↩ Veri Yedekleri
 </a>
 
 </div>
@@ -4384,7 +5865,7 @@ class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
 
 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Toplam Firma
@@ -4396,7 +5877,7 @@ Toplam Firma
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Aktif
@@ -4408,7 +5889,7 @@ Aktif
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Başarılı
@@ -4420,7 +5901,7 @@ Başarılı
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Hata / Stale
@@ -4432,7 +5913,7 @@ Hata / Stale
 
 </div>
 
-<div class="bg-white rounded-2xl p-4 shadow-sm">
+<div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
 <div class="text-xs text-slate-500">
 Manuel
@@ -4446,7 +5927,25 @@ Manuel
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+<div>
+<h2 class="text-xl font-bold">Sistem Sağlığı</h2>
+<p class="text-sm text-slate-500 mt-1">Otomatik güncelleme ve veri geçmişinin hızlı özeti.</p>
+</div>
+<div class="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-black">
+Yedekleme: AKTİF
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Fiyat kalemi</div><div class="text-xl font-black mt-1">{sum(len(x) for x in data.get("prices", {}).values() if isinstance(x, dict))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Geçmiş kaydı</div><div class="text-xl font-black mt-1">{len(data.get("history", []))}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim</div><div class="text-xl font-black mt-1">{len(notifications)}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Otomatik takip</div><div class="text-xl font-black mt-1">{"AÇIK" if AUTO_UPDATE_ENABLED else "KAPALI"}</div></div>
+</div>
+</div>
+
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
 
@@ -4454,15 +5953,24 @@ Manuel
 Firmalar
 </h2>
 
+<div class="flex flex-col sm:flex-row sm:items-center gap-2">
 <div class="text-sm text-slate-500">
 Toplam: {len(firmalar)}
+</div>
+<input
+id="firmaAra"
+type="search"
+placeholder="Firma ara..."
+class="w-full sm:w-64 border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-3 py-2 text-sm font-semibold transition"
+>
 </div>
 
 </div>
 
 <div class="mb-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-sm">
-💡 Firmaların ana sayfadaki sırasını değiştirmek için
-<strong>↑</strong> ve <strong>↓</strong> butonlarını kullanın.
+💡 Ana sayfadaki firma sırasını artık her firmanın düzenleme ekranındaki
+<strong>1, 2, 3...</strong> sıra numarasıyla doğrudan belirleyebilirsiniz.
+<strong>↑</strong> ve <strong>↓</strong> butonları da çalışmaya devam eder.
 </div>
 
 <div class="space-y-3">
@@ -4473,7 +5981,7 @@ Toplam: {len(firmalar)}
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
 
@@ -4501,6 +6009,21 @@ Tümünü Okundu Yap
 
 </form>
 
+<form
+method="post"
+action="/admin/notifications/delete-all"
+onsubmit="return confirm('Tüm bildirimleri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.');"
+>
+
+<button
+type="submit"
+class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-3 py-2 rounded-xl text-xs font-bold"
+>
+Tümünü Sil
+</button>
+
+</form>
+
 </div>
 
 </div>
@@ -4513,7 +6036,7 @@ Tümünü Okundu Yap
 
 </div>
 
-<div class="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-5">
 
@@ -4535,27 +6058,41 @@ Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta b�
 
 </div>
 
-<form
-method="post"
-action="/admin/update-ads"
-enctype="multipart/form-data"
-class="space-y-5"
->
+<div class="admin-banner-grid">
 
 {ad_form_fields}
 
-<button
-type="submit"
-class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold"
->
-Bannerları Kaydet
-</button>
-
-</form>
+</div>
 
 </div>
 
 </div>
+
+<script>
+(function () {{
+    const input = document.getElementById("firmaAra");
+    if (!input) return;
+
+    const rows = Array.from(
+        document.querySelectorAll("[data-firma-row]")
+    );
+
+    input.addEventListener("input", function () {{
+        const query = String(input.value || "").trim().toLocaleLowerCase("tr-TR");
+
+        rows.forEach(function (row) {{
+            const haystack = String(
+                row.getAttribute("data-firma-row") || ""
+            ).toLocaleLowerCase("tr-TR");
+
+            row.style.display =
+                !query || haystack.includes(query)
+                    ? ""
+                    : "none";
+        }});
+    }});
+}})();
+</script>
 
 </body>
 
@@ -4583,7 +6120,62 @@ async def update_ads(
 
     mevcut_ads = load_ads()
 
-    data = {}
+    banner_key = str(
+        form.get(
+            "banner_key",
+            "",
+        )
+    ).strip()
+
+    if banner_key and banner_key not in DEFAULT_ADS:
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz banner alanı.",
+        )
+
+    # Tek banner kaydediliyorsa diğer bannerlara dokunma.
+    keys_to_save = (
+        [banner_key]
+        if banner_key
+        else list(DEFAULT_ADS.keys())
+    )
+
+    data = dict(mevcut_ads)
+
+    # Tek banneri tamamen kaldır.
+    if str(form.get("banner_delete", "")).strip() == "1":
+        eski = mevcut_ads.get(
+            banner_key,
+            DEFAULT_ADS.get(banner_key, {}),
+        )
+
+        eski_url = str(
+            eski.get("image_url", "")
+        ).strip()
+
+        if eski_url.startswith("/static/ads/"):
+            eski_dosya = os.path.basename(eski_url)
+            eski_yol = os.path.join(
+                ADS_UPLOAD_DIR,
+                eski_dosya,
+            )
+
+            if os.path.exists(eski_yol):
+                try:
+                    os.remove(eski_yol)
+                except Exception:
+                    pass
+
+        data[banner_key] = dict(
+            DEFAULT_ADS[banner_key]
+        )
+
+        save_ads(data)
+
+        return RedirectResponse(
+            url="/admin",
+            status_code=303,
+        )
 
     allowed_extensions = {
         ".jpg",
@@ -4592,7 +6184,7 @@ async def update_ads(
         ".webp",
     }
 
-    for key in DEFAULT_ADS.keys():
+    for key in keys_to_save:
 
         eski = mevcut_ads.get(
             key,
@@ -4824,7 +6416,12 @@ name="description"
 content="Güncel hurda ve demir çelik fiyatları."
 >
 
-<title>Hurda Fiyatları</title>
+<title>Hurda Fiyatları - Güncel Piyasa Takip</title>
+<meta name="description" content="Güncel hurda fiyatları, fabrika fiyatları, LME, döviz ve piyasa takip ekranı.">
+<meta name="robots" content="index,follow">
+<meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
+<meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
+<meta property="og:type" content="website">
 
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -4842,19 +6439,63 @@ body {
 }
 
 body {
-    background: #f1f5f9;
+    background:
+        radial-gradient(
+            circle at 12% 0%,
+            rgba(255, 255, 255, .28),
+            transparent 34%
+        ),
+        radial-gradient(
+            circle at 88% 8%,
+            rgba(135, 206, 250, .20),
+            transparent 32%
+        ),
+        linear-gradient(
+            135deg,
+            #87CEFA 0%,
+            #87CEFA 50%,
+            #80DAEB 100%
+        );
+    background-attachment: fixed;
+}
+
+.factory-price-grid {
+    align-items: start;
+}
+
+.factory-price-grid .price-card {
+    height: auto;
+    align-self: start;
 }
 
 .price-card {
     width: 100%;
     min-width: 0;
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
     transition:
         transform .2s ease,
         box-shadow .2s ease,
         border-color .2s ease;
+}
+
+.firma-toggle {
+    height: 132px;
+    min-height: 132px !important;
+    display: flex;
+    align-items: center;
+}
+
+.firma-toggle > div {
+    width: 100%;
+}
+
+@media (max-width: 639px) {
+    .firma-toggle {
+        height: 124px;
+        min-height: 124px !important;
+    }
 }
 
 .price-card * {
@@ -4891,18 +6532,45 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    align-self: stretch;
 }
 
 .desktop-ad-column .ad-box {
-    flex: 1 1 0;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 250px;
+    aspect-ratio: 4 / 3;
     min-height: 0;
     height: auto;
+    overflow: hidden;
+}
+
+
+
+#bottomAds {
+    width: 100%;
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #bottomAds .ad-box {
-    height: 200px;
-    min-height: 200px;
+    aspect-ratio: 16 / 5;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+}
+#bottomAds .ad-box a {
+    height: 100%;
+}
+
+#bottomAds .ad-box img {
+    width: 100%;    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 
 .desktop-ad-column .ad-box img,
@@ -4973,6 +6641,187 @@ body {
     overflow: hidden;
 }
 
+/* Mobilde reklamlar tamamen gizli; masaüstü reklam sistemi aynen korunur. */
+@media (max-width: 1023px) {
+    #mobileAds {
+        display: none !important;
+    }
+}
+
+.mobile-ad-slot {
+    min-height: 120px;
+}
+
+.mobile-ad-slot img {
+    width: 100%;
+    height: 100%;
+    min-height: 120px;
+    object-fit: cover;
+}
+
+/* LME, döviz bandının hemen altında kayan kompakt bant. */
+.lme-ticker-shell {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.lme-ticker-label {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    background: #020617;
+    border-right: 1px solid rgba(148,163,184,.18);
+}
+
+.lme-ticker-track {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.lme-ticker-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    min-width: max-content;
+    padding: 5px 14px;
+    animation: lmeTicker 28s linear infinite;
+}
+
+.lme-ticker-shell:hover .lme-ticker-content {
+    animation-play-state: paused;
+}
+
+.lme-ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.lme-ticker-metal {
+    color: #e2e8f0;
+}
+
+.lme-ticker-value {
+    color: #fcd34d;
+    font-weight: 900;
+}
+
+.lme-ticker-separator {
+    color: #475569;
+    font-size: 8px;
+}
+
+@keyframes lmeTicker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-42%); }
+}
+
+/* Kompakt kayan döviz bandı */
+.currency-ticker-shell {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+}
+.currency-ticker-label {
+    position: relative;
+    z-index: 2;
+    padding: 7px 8px 7px 10px;
+    background: #020617;
+    box-shadow: 8px 0 18px rgba(2, 6, 23, .55);
+}
+.currency-ticker-track {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.currency-ticker-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    min-width: max-content;
+    padding: 6px 18px 6px 14px;
+    animation: currencyTicker 22s linear infinite;
+}
+.currency-ticker-shell:hover .currency-ticker-content {
+    animation-play-state: paused;
+}
+.currency-ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 800;
+}
+.currency-code {
+    padding: 3px 7px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+.currency-label {
+    color: #cbd5e1;
+}
+.currency-value {
+    font-size: 12px;
+    font-weight: 900;
+}
+.currency-sale,
+.currency-sub {
+    color: #94a3b8;
+}
+.currency-sale {
+    font-size: 11px;
+    font-weight: 800;
+}
+.currency-divider {
+    color: #475569;
+}
+.currency-ticker-item.usd .currency-code {
+    color: #86efac;
+    background: rgba(34,197,94,.12);
+    border: 1px solid rgba(74,222,128,.2);
+}
+.currency-ticker-item.usd .currency-value {
+    color: #86efac;
+}
+.currency-ticker-item.eur .currency-code {
+    color: #93c5fd;
+    background: rgba(59,130,246,.12);
+    border: 1px solid rgba(96,165,250,.2);
+}
+.currency-ticker-item.eur .currency-value {
+    color: #93c5fd;
+}
+.currency-ticker-item.gold .currency-code {
+    color: #fcd34d;
+    background: rgba(245,158,11,.12);
+    border: 1px solid rgba(251,191,36,.22);
+}
+.currency-ticker-item.gold .currency-value {
+    color: #fcd34d;
+}
+.currency-ticker-separator {
+    color: #475569;
+    font-size: 8px;
+}
+@keyframes currencyTicker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-38%); }
+}
+
+/* Fiyat kartlarına hafif renk vurgusu */
+.price-card:nth-child(4n+1) { border-top: 3px solid #10b981; }
+.price-card:nth-child(4n+2) { border-top: 3px solid #3b82f6; }
+.price-card:nth-child(4n+3) { border-top: 3px solid #f59e0b; }
+.price-card:nth-child(4n+4) { border-top: 3px solid #8b5cf6; }
+
 @media (max-width: 640px) {
 
     .price-card {
@@ -5020,13 +6869,590 @@ body {
 
 }
 
+/* =====================================================
+   YENİ PİYASA TASARIMI — SADECE GÖRSEL KATMAN
+   Veri, scraper, API, Supabase ve iş mantığına dokunmaz.
+   ===================================================== */
+
+.market-design {
+    background:
+        radial-gradient(circle at 8% 0%, rgba(255,255,255,.95), transparent 28%),
+        radial-gradient(circle at 92% 8%, rgba(226,232,240,.70), transparent 30%),
+        #f3f5f7 !important;
+    color: #0f172a;
+}
+
+.market-design > .w-full.max-w-7xl {
+    padding-top: 14px;
+    padding-bottom: 28px;
+}
+
+.market-design header {
+    background:
+        linear-gradient(135deg, #0f172a 0%, #172033 55%, #1e293b 100%) !important;
+    border-color: rgba(148,163,184,.20) !important;
+    box-shadow: 0 18px 45px rgba(15,23,42,.16) !important;
+}
+
+.market-design header h1 {
+    letter-spacing: -.035em;
+}
+
+.market-design #currencySection,
+.market-design #lmeSection {
+    box-shadow: 0 8px 24px rgba(15,23,42,.08);
+}
+
+.market-design #marketTools {
+    background: rgba(255,255,255,.98) !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 12px 30px rgba(15,23,42,.07) !important;
+}
+
+.market-design #marketTools input,
+.market-design #marketTools select {
+    background: #f8fafc;
+}
+
+.market-design #marketTools input:focus,
+.market-design #marketTools select:focus {
+    border-color: #64748b !important;
+    box-shadow: 0 0 0 3px rgba(100,116,139,.12) !important;
+}
+
+.market-design .factory-price-grid {
+    gap: 16px;
+}
+
+/* FABRİKA KARTLARI — ayrı sınıflar, iç içe flex/grid selector yok */
+.market-design .factory-card-header {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.market-design .factory-card-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.market-design .factory-card-info {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-card-title-line {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.market-design .factory-card-title {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    display: block !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-card-meta {
+    min-width: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-card-actions {
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.market-design .factory-price-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-list {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(105px, auto) !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.market-design .factory-price-name {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-price-value {
+    min-width: 105px !important;
+    width: auto !important;
+    justify-self: end !important;
+}
+
+@media (max-width: 639px) {
+    .market-design .factory-card-header {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+
+    .market-design .factory-card-actions {
+        justify-content: flex-end !important;
+    }
+
+    .market-design .factory-price-row {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+    }
+}
+
+/* Fabrika bölümü kendi 760px sınırında kalmasın; 5+5 düzende tam alanı kullansın. */
+@media (min-width: 1024px) {
+    .market-design .factory-layout > main {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        grid-column: 1 / -1 !important;
+    }
+
+    .market-design .factory-layout .factory-price-grid {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+}
+
+.market-design .price-card {
+    border-color: #e2e8f0 !important;
+    border-radius: 22px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 24px rgba(15,23,42,.065) !important;
+    overflow: hidden;
+}
+
+.market-design .price-card:hover {
+    transform: translateY(-3px);
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 16px 34px rgba(15,23,42,.10) !important;
+}
+
+.market-design .price-card .firma-toggle {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    border-bottom: 1px solid transparent;
+}
+
+.market-design .price-card .firma-toggle:hover {
+    background: #f8fafc !important;
+}
+
+/* Fabrika kartları: başlık alanı daralıp harf harf alt alta düşmesin. */
+.market-design .factory-price-grid .price-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    align-self: start !important;
+}
+
+.market-design .factory-price-grid .firma-toggle {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div > div:first-child {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+.market-design .factory-price-grid .firma-toggle > div > div:first-child > div:last-child {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+.market-design .factory-price-grid .firma-toggle h2 {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
+.market-design .factory-price-grid .firma-toggle h2 + * {
+    flex: 0 0 auto !important;
+}
+
+.market-design .factory-price-grid .price-row {
+    min-width: 0 !important;
+}
+
+.market-design .factory-price-grid .price-name {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
+.market-design .factory-price-grid .price-name > div:first-child {
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal !important;
+}
+
+/* Fabrika kartları: içeriği gerçek genişlikte tut, dar kolonlara sıkıştırma. */
+@media (min-width: 1024px) {
+    .market-design .factory-price-grid > .price-card {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child > div:nth-child(2) {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-card > div:not(.firma-toggle),
+    .market-design .factory-price-grid .price-card > div:not(.firma-toggle) > div {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    .market-design .factory-price-grid .price-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-row .price-name {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-row .price-value {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 105px !important;
+    }
+}
+
+.market-design .price-card .firma-toggle > div > div > div:first-child > div:first-child {
+    background: #0f172a !important;
+    box-shadow: 0 5px 12px rgba(15,23,42,.12);
+}
+
+.market-design .price-card .price-row {
+    background: #fff !important;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.market-design .price-card .price-row:hover {
+    background: #f8fafc !important;
+}
+
+.market-design .price-card .price-value {
+    color: #0f172a;
+}
+
+.market-design .price-card .price-value > div:first-child {
+    letter-spacing: -.025em;
+}
+
+.market-design #loading {
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(15,23,42,.05);
+}
+
+.market-design #todayChanges > div,
+.market-design #comparePanel,
+.market-design #historyPanel,
+.market-design #alarmPanel {
+    border-color: #e2e8f0 !important;
+}
+
+.market-design .text-cyan-300 {
+    color: #475569 !important;
+}
+
+.market-design main > .text-center .text-white {
+    color: #0f172a !important;
+}
+
+.market-design main > .text-center .text-slate-200 {
+    color: #64748b !important;
+}
+
+.market-design main > .text-center .text-slate-500 {
+    color: #94a3b8 !important;
+}
+
+.market-design #bottomAds {
+    margin-top: 18px;
+}
+
+/* Fabrika alanı tam genişlikte; önce 10 fabrika 5+5, sonra 6 reklam tek sıra. */
+@media (min-width: 1024px) {
+    .factory-layout {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 18px !important;
+        align-items: start;
+    }
+
+    .factory-layout > main {
+        grid-column: 1 / -1 !important;
+        grid-row: 1 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    /* İki mevcut reklam kolonu tek satırda 6 ayrı kutuya dönüşür. */
+    .factory-layout > .desktop-ad-column {
+        display: contents !important;
+    }
+
+    .factory-layout > .desktop-ad-column .ad-box {
+        width: 100% !important;
+        max-width: none !important;
+        aspect-ratio: 4 / 3 !important;
+        grid-row: 2 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:first-child {
+        grid-column: 1 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) {
+        grid-column: 2 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) {
+        grid-column: 3 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:first-child {
+        grid-column: 4 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) {
+        grid-column: 5 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) {
+        grid-column: 6 !important;
+    }
+
+    /* 10 fabrika: 5 + 5. */
+    .factory-price-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 16px !important;
+    }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+    .factory-price-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 639px) {
+    .market-design > .w-full.max-w-7xl {
+        padding-top: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .market-design header {
+        border-radius: 20px !important;
+        padding: 16px !important;
+    }
+
+    .market-design .factory-price-grid {
+        gap: 14px;
+    }
+
+    .market-design .price-card {
+        border-radius: 18px !important;
+    }
+}
+
+/* Piyasa özeti — ana sayfa */
+.market-design .market-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.market-design .market-summary-card {
+    min-width: 0;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 13px 14px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.055);
+}
+
+.market-design .market-summary-label {
+    color: #64748b;
+    font-size: 9px;
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+}
+
+.market-design .market-summary-value {
+    color: #0f172a;
+    font-size: 21px;
+    line-height: 1.15;
+    font-weight: 900;
+    letter-spacing: -.025em;
+    margin-top: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.market-design .market-summary-sub {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.market-design .market-summary-card.up .market-summary-value {
+    color: #059669;
+}
+
+.market-design .market-summary-card.down .market-summary-value {
+    color: #dc2626;
+}
+
+.market-design .market-summary-card.update .market-summary-value {
+    font-size: 13px;
+    letter-spacing: -.01em;
+}
+
+/* 10 fabrika kartısında başlık alanının sıkışmasını engelle */
+.market-design .firma-toggle > div > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.market-design .firma-toggle h2 {
+    min-width: 0;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal;
+}
+
+.market-design .firma-toggle h2 + * {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 1100px) {
+    .market-design .market-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 639px) {
+    .market-design .market-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .market-design .market-summary-card {
+        border-radius: 15px;
+        padding: 11px 12px;
+    }
+
+    .market-design .market-summary-value {
+        font-size: 18px;
+    }
+
+    .market-design .market-summary-card.update {
+        grid-column: span 2;
+    }
+}
+
 </style>
 
 </head>
 
-<body class="min-h-screen">
+<body class="market-design min-h-screen">
 
-<div class="w-full max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+<div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
 <header class="relative overflow-hidden bg-slate-950 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 mb-4 sm:mb-5 shadow-xl border border-slate-800">
 
@@ -5109,154 +7535,64 @@ id="currencySection"
 class="mb-3 sm:mb-4"
 >
 
-<div class="flex items-end justify-between gap-3 mb-3 px-1">
+<div class="currency-ticker-shell relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-md">
 
-<div>
-<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-Döviz Piyasası
+<div class="currency-ticker-label shrink-0">
+<span class="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/10 px-2.5 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+DÖVİZ
+</span>
 </div>
 
-<div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-USD / TL · EUR / TL
-</div>
-</div>
+<div class="currency-ticker-track">
+<div class="currency-ticker-content">
 
-<div class="hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-Günlük referans
-</div>
-
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
-
-<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
-
-<div class="relative flex items-center justify-between gap-3">
-
-<div class="flex items-center gap-3">
-
-<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
-🇺🇸
+<div class="currency-ticker-item usd">
+<span class="currency-code">USD</span>
+<span class="currency-label">Dolar</span>
+<span id="usdAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="usdSatis" class="currency-sale">Yükleniyor...</span>
 </div>
 
-<div>
-<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
-Amerikan Doları
-</div>
-<div class="text-sm sm:text-base font-black text-slate-900">
-USD / TRY
-</div>
+<div class="currency-ticker-separator">◆</div>
+
+<div class="currency-ticker-item eur">
+<span class="currency-code">EUR</span>
+<span class="currency-label">Euro</span>
+<span id="eurAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="eurSatis" class="currency-sale">Yükleniyor...</span>
 </div>
 
+<div class="currency-ticker-separator">◆</div>
+
+<div class="currency-ticker-item gold">
+<span class="currency-code">ALTIN</span>
+<span class="currency-label">Gram</span>
+<span id="altinAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="altinSatis" class="currency-sale">Yükleniyor...</span>
 </div>
 
-<div class="rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[10px] font-black text-slate-500">
-USD
-</div>
+<div class="currency-ticker-separator">◆</div>
 
-</div>
-
-<div class="relative mt-3">
-<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
-Referans Kur
-</div>
-
-<div
-id="usdAlis"
-class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
->
-Yükleniyor...
-</div>
-
-<div class="text-[10px] text-slate-400 mt-1">
-1 USD = Türk Lirası
-</div>
-</div>
-
-<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
-<div class="text-[10px] font-bold text-slate-400">
-Günlük oran
-</div>
-
-<div
-id="usdSatis"
-class="text-xs sm:text-sm font-black text-slate-700"
->
-Yükleniyor...
-</div>
+<div class="currency-ticker-item">
+<span class="currency-label">Kaynak</span>
+<span class="currency-sub">Frankfurter + Gold API</span>
 </div>
 
 </div>
-
-<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
-
-<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
-
-<div class="relative flex items-center justify-between gap-3">
-
-<div class="flex items-center gap-3">
-
-<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
-🇪🇺
-</div>
-
-<div>
-<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
-Euro
-</div>
-<div class="text-sm sm:text-base font-black text-slate-900">
-EUR / TRY
-</div>
-</div>
-
-</div>
-
-<div class="rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[10px] font-black text-slate-500">
-EUR
-</div>
-
-</div>
-
-<div class="relative mt-3">
-<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
-Referans Kur
-</div>
-
-<div
-id="eurAlis"
-class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
->
-Yükleniyor...
-</div>
-
-<div class="text-[10px] text-slate-400 mt-1">
-1 EUR = Türk Lirası
-</div>
-</div>
-
-<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
-<div class="text-[10px] font-bold text-slate-400">
-Günlük oran
-</div>
-
-<div
-id="eurSatis"
-class="text-xs sm:text-sm font-black text-slate-700"
->
-Yükleniyor...
-</div>
-</div>
-
 </div>
 
 </div>
 
 <div
 id="currencyInfo"
-class="mt-1.5 px-1 text-[10px] sm:text-[11px] text-slate-400"
+class="mt-1 px-1 text-[9px] sm:text-[10px] text-slate-400"
 >
 Kur kaynağı: TCMB · Güncelleniyor...
 </div>
@@ -5270,14 +7606,32 @@ Kur kaynağı: TCMB · Güncelleniyor...
 
 <section
 id="lmeSection"
-class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 mb-4 sm:mb-5"
+class="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-5"
 >
+
+<div
+id="lmeTicker"
+class="lme-ticker-shell mb-3 rounded-xl border border-slate-200 bg-slate-950"
+>
+<div class="lme-ticker-label">
+<span class="text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+LME
+</span>
+</div>
+<div class="lme-ticker-track">
+<div id="lmeTickerContent" class="lme-ticker-content">
+<span class="text-[10px] font-bold text-slate-400">
+LME verileri alınıyor...
+</span>
+</div>
+</div>
+</div>
 
 <button
 type="button"
 id="lmeToggle"
 class="w-full text-left flex items-center justify-between gap-3 mb-0 hover:bg-slate-50 rounded-2xl p-2 -m-2 transition"
-aria-expanded="false"
+aria-expanded="true"
 aria-controls="lmeContent"
 >
 
@@ -5342,8 +7696,8 @@ LME verisi yükleniyor...
 
 <div
 id="lmeContent"
-class="hidden mt-4"
-aria-hidden="true"
+class="mt-4"
+aria-hidden="false"
 >
 
 <div
@@ -5415,9 +7769,13 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <!-- MOBILE_LEFT_TOP_AD -->
 
+<!-- MOBILE_LEFT_MIDDLE_AD -->
+
 <!-- MOBILE_LEFT_BOTTOM_AD -->
 
 <!-- MOBILE_RIGHT_TOP_AD -->
+
+<!-- MOBILE_RIGHT_MIDDLE_AD -->
 
 <!-- MOBILE_RIGHT_BOTTOM_AD -->
 
@@ -5426,7 +7784,7 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 
 
-<div class="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_220px] gap-3 sm:gap-4 items-start">
+<div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
 
 <aside class="desktop-ad-column hidden lg:grid">
 
@@ -5450,24 +7808,178 @@ id="leftBottomAd"
 
 </aside>
 
-<main class="min-w-0 w-full">
+<main class="min-w-0 w-full mx-auto">
 
 <div class="text-center mb-3 sm:mb-4 px-1">
-<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-cyan-300">
 Güncel Hurda Fiyatları
 </div>
-<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+<div class="text-lg sm:text-xl font-black text-white mt-1">
 Fabrika Fiyatları
 </div>
-<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-200">
 <span class="inline-flex items-center gap-1.5">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-Canlı takip
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.7)]"></span>
+<span class="text-emerald-300 font-black">Canlı takip</span>
 </span>
-<span class="text-slate-300">•</span>
-<span>Firmaların son yayınladığı fiyatlar</span>
+<span class="text-slate-500">•</span>
+<span class="text-slate-200">Firmaların son yayınladığı fiyatlar</span>
 </div>
 </div>
+
+<section id="marketSummary" class="market-summary" aria-label="Piyasa özeti">
+<div class="market-summary-card">
+<div class="market-summary-label">Firma</div>
+<div id="summaryFirmCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">aktif fiyat kaynağı</div>
+</div>
+<div class="market-summary-card">
+<div class="market-summary-label">Fiyat Kalemi</div>
+<div id="summaryItemCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">yayındaki fiyat</div>
+</div>
+<div class="market-summary-card up">
+<div class="market-summary-label">Yükselen</div>
+<div id="summaryUpCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">son değişim kayıtları</div>
+</div>
+<div class="market-summary-card down">
+<div class="market-summary-label">Düşen</div>
+<div id="summaryDownCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">son değişim kayıtları</div>
+</div>
+<div class="market-summary-card update">
+<div class="market-summary-label">Son Güncelleme</div>
+<div id="summaryLastUpdate" class="market-summary-value">Yükleniyor...</div>
+<div class="market-summary-sub">sistem zamanı</div>
+</div>
+</section>
+
+<section
+id="marketTools"
+class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
+>
+
+<div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+
+<div>
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Fiyat / Firma Ara
+</label>
+<input
+id="fiyatArama"
+type="search"
+placeholder="Örn. DKP, Çolakoğlu..."
+class="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+>
+</div>
+
+<div class="flex flex-wrap gap-2">
+<button
+type="button"
+id="alarmButton"
+class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition"
+>
+🔔 Fiyat Alarmı
+</button>
+<button
+type="button"
+id="historyButton"
+class="h-11 px-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-black hover:bg-sky-100 transition"
+>
+📈 Geçmiş
+</button>
+</div>
+
+</div>
+
+<div
+id="todayChanges"
+class="mt-3 hidden"
+></div>
+
+<div
+id="comparePanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Firma Karşılaştırma
+</label>
+<select
+id="compareSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="compareButton"
+class="h-10 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black transition"
+>
+Karşılaştır
+</button>
+</div>
+<div id="compareResult" class="mt-3"></div>
+</div>
+
+<div
+id="historyPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="flex flex-col sm:flex-row sm:items-end gap-2">
+<div class="flex-1">
+<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+Geçmiş Fiyat
+</label>
+<select
+id="historyFirmSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Firma seçin</option>
+</select>
+</div>
+<div class="flex-1">
+<select
+id="historyItemSelect"
+class="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+>
+<option value="">Kalem seçin</option>
+</select>
+</div>
+<button
+type="button"
+id="historyLoadButton"
+class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition"
+>
+Göster
+</button>
+</div>
+<div id="historyResult" class="mt-3"></div>
+</div>
+
+<div
+id="alarmPanel"
+class="mt-3 hidden border-t border-slate-200 pt-3"
+>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+<select id="alarmFirm" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmItem" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold"></select>
+<select id="alarmDirection" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<option value="above">Şu fiyata çıkınca</option>
+<option value="below">Şu fiyatın altına inince</option>
+</select>
+<input id="alarmValue" type="number" step="0.01" min="0" placeholder="Hedef TL" class="h-10 rounded-xl border border-slate-200 px-3 text-xs font-bold">
+<button type="button" id="alarmSaveButton" class="h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black">
+Alarmı Kaydet
+</button>
+</div>
+<div id="alarmList" class="mt-3"></div>
+</div>
+
+</section>
 
 <div
 id="loading"
@@ -5478,7 +7990,7 @@ Firmalar yükleniyor...
 
 <div
 id="firmaListesi"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full min-w-0"
+class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-stretch gap-3 sm:gap-4 w-full min-w-0"
 >
 </div>
 
@@ -5510,7 +8022,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
+class="hidden lg:grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
 >
 
 <div
@@ -5652,20 +8164,41 @@ function lmeAcKapat() {
 
 
 async function lmeFiyatlariniGetir() {
-    
+
     const lmeToggle =
         document.getElementById(
             "lmeToggle"
         );
 
-    if (lmeToggle) {
+    const lmeContent =
+        document.getElementById(
+            "lmeContent"
+        );
+
+    if (lmeContent && lmeToggle) {
+        lmeContent.classList.remove(
+            "hidden"
+        );
+        lmeContent.setAttribute(
+            "aria-hidden",
+            "false"
+        );
+        lmeToggle.setAttribute(
+            "aria-expanded",
+            "true"
+        );
+    }
+
+    if (
+        lmeToggle
+        && lmeToggle.dataset.bound !== "1"
+    ) {
         lmeToggle.addEventListener(
             "click",
             lmeAcKapat
         );
+        lmeToggle.dataset.bound = "1";
     }
-
-    
 
     const tableBody =
         document.getElementById(
@@ -5732,6 +8265,46 @@ async function lmeFiyatlariniGetir() {
 
         tableBody.innerHTML = "";
 
+        const ticker =
+            document.getElementById(
+                "lmeTickerContent"
+            );
+
+        if (ticker) {
+            const tickerItems =
+                result.veriler.map(
+                    function(item) {
+                        const deger =
+                            item.three_month_tl !== null
+                            && item.three_month_tl !== undefined
+                                ? formatFiyat(
+                                    item.three_month_tl
+                                  ) + " TL"
+                                : "-";
+
+                        return (
+                            '<span class="lme-ticker-item">' +
+                                '<span class="lme-ticker-metal">' +
+                                    escapeHtml(
+                                        item.ad || "-"
+                                    ) +
+                                "</span>" +
+                                '<span class="lme-ticker-value">' +
+                                    escapeHtml(deger) +
+                                "</span>" +
+                            "</span>"
+                        );
+                    }
+                ).join(
+                    '<span class="lme-ticker-separator">◆</span>'
+                );
+
+            ticker.innerHTML =
+                tickerItems +
+                '<span class="lme-ticker-separator">◆</span>' +
+                tickerItems;
+        }
+
         result.veriler.forEach(
             function(item, index) {
 
@@ -5793,7 +8366,6 @@ async function lmeFiyatlariniGetir() {
                 );
             }
         );
-
         info.textContent =
             "Kaynak: "
             + (
@@ -5810,8 +8382,7 @@ async function lmeFiyatlariniGetir() {
                 result.usd_tl
                     ? " · USD/TRY alış: "
                     + Number(
-                        result.usd_tl
-                      ).toLocaleString(
+                        result.usd_tl                      ).toLocaleString(
                         "tr-TR",
                         {
                             minimumFractionDigits: 4,
@@ -5875,10 +8446,15 @@ async function dovizleriGetir() {
             result.veriler &&
             result.veriler.EUR;
 
+        const altin =
+            result.veriler &&
+            result.veriler.ALTIN;
+
         if (
             result.status !== "success"
             || !usd
             || !eur
+            || !altin
         ) {
             throw new Error(
                 "Döviz verisi alınamadı."
@@ -5897,6 +8473,12 @@ async function dovizleriGetir() {
         document.getElementById("eurSatis").textContent =
             dovizGoster(eur.satis);
 
+        document.getElementById("altinAlis").textContent =
+            dovizGoster(altin.alis);
+
+        document.getElementById("altinSatis").textContent =
+            dovizGoster(altin.satis);
+
         document.getElementById("currencyInfo").textContent =
             "Kur kaynağı: " + (result.kaynak || "Frankfurter") + " · "
             + (result.tarih || "-");
@@ -5908,6 +8490,8 @@ async function dovizleriGetir() {
         document.getElementById("usdSatis").textContent = "-";
         document.getElementById("eurAlis").textContent = "-";
         document.getElementById("eurSatis").textContent = "-";
+        document.getElementById("altinAlis").textContent = "-";
+        document.getElementById("altinSatis").textContent = "-";
 
         document.getElementById("currencyInfo").textContent =
             "Kur bilgisi şu anda alınamıyor.";
@@ -6000,6 +8584,301 @@ async function manuelFiyatSil(button) {
 }
 
 
+function marketToolsInit(result) {
+
+    const firmalar = Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    // Piyasa özeti mevcut /prices verisinden hesaplanır.
+    // Yeni veri kaynağı veya backend değişikliği gerektirmez.
+    const summaryFirmCount = document.getElementById("summaryFirmCount");
+    const summaryItemCount = document.getElementById("summaryItemCount");
+    const summaryUpCount = document.getElementById("summaryUpCount");
+    const summaryDownCount = document.getElementById("summaryDownCount");
+    const summaryLastUpdate = document.getElementById("summaryLastUpdate");
+
+    let itemCount = 0;
+    let upCount = 0;
+    let downCount = 0;
+
+    firmalar.forEach(function(firma) {
+        const kalemler = Array.isArray(firma.kalemler)
+            ? firma.kalemler
+            : [];
+
+        itemCount += kalemler.length;
+
+        kalemler.forEach(function(kalem) {
+            const degisim = String(kalem.degisim || "").trim();
+            if (degisim.startsWith("+")) upCount++;
+            if (degisim.startsWith("-")) downCount++;
+        });
+    });
+
+    if (summaryFirmCount) summaryFirmCount.textContent = firmalar.length;
+    if (summaryItemCount) summaryItemCount.textContent = itemCount;
+    if (summaryUpCount) summaryUpCount.textContent = upCount;
+    if (summaryDownCount) summaryDownCount.textContent = downCount;
+    if (summaryLastUpdate) summaryLastUpdate.textContent = result.son_guncelleme || "-";
+
+    const search = document.getElementById("fiyatArama");
+    if (search && search.dataset.bound !== "1") {
+        search.addEventListener("input", function() {
+            const needle = String(search.value || "").trim().toLocaleLowerCase("tr-TR");
+
+            document.querySelectorAll("#firmaListesi .price-card").forEach(function(card) {
+                const text = String(card.textContent || "").toLocaleLowerCase("tr-TR");
+                card.style.display = !needle || text.includes(needle) ? "" : "none";
+            });
+        });
+        search.dataset.bound = "1";
+    }
+
+    const firmSelect = document.getElementById("historyFirmSelect");
+    const alarmFirm = document.getElementById("alarmFirm");
+    const compareSelect = document.getElementById("compareSelect");
+
+    const firmsForSelect = firmalar.map(function(f) {
+        return '<option value="' + escapeHtml(f.firma_id) + '">' + escapeHtml(f.baslik) + '</option>';
+    }).join("");
+
+    if (firmSelect) firmSelect.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+    if (alarmFirm) alarmFirm.innerHTML = '<option value="">Firma seçin</option>' + firmsForSelect;
+
+    const itemMap = {};
+    firmalar.forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            itemMap[k.cins] = true;
+        });
+    });
+
+    const itemOptions = Object.keys(itemMap)
+        .sort(function(a,b) { return a.localeCompare(b, "tr"); })
+        .map(function(k) {
+            return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + '</option>';
+        }).join("");
+
+    const alarmItem = document.getElementById("alarmItem");
+    if (alarmItem) alarmItem.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    if (compareSelect) compareSelect.innerHTML = '<option value="">Kalem seçin</option>' + itemOptions;
+
+    function firmaKalemleriniDoldur(selectId, firmaId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const firma = firmalar.find(function(f) { return f.firma_id === firmaId; });
+        const options = firma && Array.isArray(firma.kalemler)
+            ? firma.kalemler.map(function(k) {
+                return '<option value="' + escapeHtml(k.cins) + '">' + escapeHtml(k.cins) + '</option>';
+            }).join("")
+            : "";
+        select.innerHTML = '<option value="">Kalem seçin</option>' + options;
+    }
+
+    if (firmSelect && firmSelect.dataset.bound !== "1") {
+        firmSelect.addEventListener("change", function() {
+            firmaKalemleriniDoldur("historyItemSelect", firmSelect.value);
+        });
+        firmSelect.dataset.bound = "1";
+    }
+
+    if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
+        fetch("/today-changes", {cache:"no-store"})
+            .then(function(r){ return r.json(); })
+            .then(function(payload){
+                const box = document.getElementById("todayChanges");
+                if (!box) return;
+                box.dataset.loaded = "1";
+                const rows = payload.data || [];
+                if (!rows.length) {
+                    box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte kayda değer fiyat değişimi yok.</div>';
+                } else {
+                    box.innerHTML =
+                        '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
+                        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
+                        rows.map(function(x){
+                            const up = Number(x.fark) > 0;
+                            return '<div class="today-change-card rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
+                                '<div class="text-xs font-black text-slate-800">' + escapeHtml(x.firma) + ' · ' + escapeHtml(x.kalem) + '</div>' +
+                                '<div class="mt-1 text-sm font-black ' + (up ? 'text-emerald-700' : 'text-red-700') + '">' +
+                                    (up ? '▲ +' : '▼ ') + Number(x.fark).toLocaleString("tr-TR") + ' TL' +
+                                    ' <span class="text-slate-500 font-bold">(' + Number(x.yeni).toLocaleString("tr-TR") + ' TL)</span>' +
+                                '</div>' +
+                                '<div class="mt-1 text-[9px] font-bold ' + (up ? 'text-emerald-600' : 'text-red-600') + '">' +
+                                    (up ? 'Fiyat yükseldi' : 'Fiyat düştü') +
+                                '</div>' +
+                            '</div>';
+                        }).join("") +
+                        '</div>';
+                    box.classList.remove("hidden");
+                }
+            })
+            .catch(function(){});
+    }
+
+    const comparePanel = document.getElementById("comparePanel");
+    const historyPanel = document.getElementById("historyPanel");
+    const alarmPanel = document.getElementById("alarmPanel");
+
+    const compareButton = document.getElementById("compareButton");
+    if (compareButton && compareButton.dataset.bound !== "1") {
+        compareButton.addEventListener("click", function() {
+            const kalem = document.getElementById("compareSelect")?.value;
+            if (!kalem) return;
+            fetch("/compare?kalem=" + encodeURIComponent(kalem), {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const box = document.getElementById("compareResult");
+                    const rows = payload.data || [];
+                    box.innerHTML = rows.length
+                        ? '<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-200"><th class="text-left py-2">Firma</th><th class="text-right py-2">Fiyat</th></tr></thead><tbody>' +
+                          rows.map(function(x){ return '<tr class="border-b border-slate-100"><td class="py-2 font-bold">' + escapeHtml(x.firma) + '</td><td class="py-2 text-right font-black">' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL</td></tr>'; }).join("") +
+                          '</tbody></table></div>'
+                        : '<div class="text-xs text-slate-500">Bu kalem için kayıt bulunamadı.</div>';
+                });
+        });
+        compareButton.dataset.bound = "1";
+    }
+
+    const historyButton = document.getElementById("historyButton");
+    if (historyButton && historyButton.dataset.bound !== "1") {
+        historyButton.addEventListener("click", function(){
+            historyPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            alarmPanel?.classList.add("hidden");
+        });
+        historyButton.dataset.bound = "1";
+    }
+
+    const historyLoad = document.getElementById("historyLoadButton");
+    if (historyLoad && historyLoad.dataset.bound !== "1") {
+        historyLoad.addEventListener("click", function(){
+            const firma = firmSelect?.value;
+            const kalem = document.getElementById("historyItemSelect")?.value;
+            if (!firma || !kalem) return;
+
+            fetch("/history?firma_id=" + encodeURIComponent(firma) + "&kalem=" + encodeURIComponent(kalem) + "&limit=60", {cache:"no-store"})
+                .then(function(r){ return r.json(); })
+                .then(function(payload){
+                    const rows = payload.data || [];
+                    const box = document.getElementById("historyResult");
+                    if (!rows.length) {
+                        box.innerHTML = '<div class="text-xs text-slate-500">Geçmiş kayıt bulunamadı.</div>';
+                        return;
+                    }
+                    const vals = rows.map(function(x){ return Number(x.fiyat); }).filter(Number.isFinite);
+                    const min = Math.min.apply(null, vals);
+                    const max = Math.max.apply(null, vals);
+                    const range = Math.max(1, max - min);
+
+                    box.innerHTML =
+                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3">' +
+                        '<div class="flex items-center justify-between text-xs font-black text-slate-600 mb-2"><span>Min: ' + min.toLocaleString("tr-TR") + ' TL</span><span>Max: ' + max.toLocaleString("tr-TR") + ' TL</span></div>' +
+                        '<div class="flex items-end gap-1 h-32">' +
+                        rows.map(function(x){
+                            const h = Math.max(4, ((Number(x.fiyat)-min)/range)*100);
+                            return '<div title="' + escapeHtml(x.tarih || "") + ' · ' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL" class="flex-1 min-w-[3px] rounded-t bg-sky-400" style="height:' + h + '%"></div>';
+                        }).join("") +
+                        '</div></div>';
+                });
+        });
+        historyLoad.dataset.bound = "1";
+    }
+
+    const alarmButton = document.getElementById("alarmButton");
+    if (alarmButton && alarmButton.dataset.bound !== "1") {
+        alarmButton.addEventListener("click", function(){
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().catch(function(){});
+            }
+            alarmPanel?.classList.toggle("hidden");
+            comparePanel?.classList.add("hidden");
+            historyPanel?.classList.add("hidden");
+        });
+        alarmButton.dataset.bound = "1";
+    }
+
+    const alarmSave = document.getElementById("alarmSaveButton");
+    if (alarmSave && alarmSave.dataset.bound !== "1") {
+        alarmSave.addEventListener("click", function(){
+            const firm = document.getElementById("alarmFirm")?.value;
+            const item = document.getElementById("alarmItem")?.value;
+            const direction = document.getElementById("alarmDirection")?.value;
+            const value = Number(document.getElementById("alarmValue")?.value);
+
+            if (!firm || !item || !Number.isFinite(value) || value <= 0) return;
+
+            const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+            alarms.push({
+                id: Date.now(),
+                firma_id: firm,
+                kalem: item,
+                direction: direction,
+                value: value,
+                fired: false
+            });
+            localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+            renderAlarms();
+        });
+        alarmSave.dataset.bound = "1";
+    }
+
+    function renderAlarms() {
+        const box = document.getElementById("alarmList");
+        if (!box) return;
+        const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+        box.innerHTML = alarms.length
+            ? alarms.map(function(a, index){
+                return '<div class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs">' +
+                    '<span class="font-bold">' + escapeHtml(a.kalem) + ' · ' + Number(a.value).toLocaleString("tr-TR") + ' TL</span>' +
+                    '<button type="button" data-alarm-delete="' + index + '" class="text-red-600 font-black">Sil</button></div>';
+            }).join("")
+            : '<div class="text-xs text-slate-500">Kayıtlı fiyat alarmı yok.</div>';
+
+        box.querySelectorAll("[data-alarm-delete]").forEach(function(btn){
+            btn.addEventListener("click", function(){
+                const list = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+                list.splice(Number(btn.dataset.alarmDelete), 1);
+                localStorage.setItem("hurdaPriceAlarms", JSON.stringify(list));
+                renderAlarms();
+            });
+        });
+    }
+
+    renderAlarms();
+
+    // Fiyat alarmı tarayıcı açıkken çalışır; izin verilirse sistem bildirimi de verir.
+    const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+    alarms.forEach(function(a){
+        const firma = firmalar.find(function(f){ return f.firma_id === a.firma_id; });
+        const kalem = firma && (firma.kalemler || []).find(function(k){ return k.cins === a.kalem; });
+        if (!kalem) return;
+
+        const fiyat = Number(String(kalem.fiyat).replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", "."));
+        const oldu = a.direction === "above" ? fiyat >= a.value : fiyat <= a.value;
+
+        if (oldu && !a.fired) {
+            a.fired = true;
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Hurda fiyat alarmı", {
+                    body: a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
+                });
+            }
+        }
+    });
+    localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
+
+    const compareToggle = document.getElementById("compareSelect");
+    if (compareToggle && compareToggle.dataset.bound !== "1") {
+        compareToggle.addEventListener("change", function(){
+            comparePanel?.classList.remove("hidden");
+        });
+        compareToggle.dataset.bound = "1";
+    }
+}
+
+
 async function fiyatlariGetir() {
 
     try {
@@ -6027,6 +8906,14 @@ async function fiyatlariGetir() {
             "sonGuncelleme"
         ).textContent =
             result.son_guncelleme || "-";
+
+        const summaryLastUpdate =
+            document.getElementById("summaryLastUpdate");
+
+        if (summaryLastUpdate) {
+            summaryLastUpdate.textContent =
+                result.son_guncelleme || "-";
+        }
 
         const firmaListesi =
             document.getElementById(
@@ -6061,22 +8948,13 @@ async function fiyatlariGetir() {
 
         const firmalar = result.data;
 
+        marketToolsInit(result);
+
         firmalar.forEach(function(item, index) {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-full hover:shadow-md transition-all duration-200";
-
-            if (
-                index === firmalar.length - 1
-                && firmalar.length % 2 === 1
-            ) {
-                wrapper.classList.add(
-                    "sm:col-span-2",
-                    "sm:w-[calc(50%-0.5rem)]",
-                    "sm:justify-self-center"
-                );
-            }
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all duration-200";
 
             const panelId = "firma_" + index;
             let rows = "";
@@ -6138,9 +9016,9 @@ async function fiyatlariGetir() {
                 }
 
                 rows +=
-                    '<div class="price-row flex items-center justify-between gap-3 py-3.5 sm:py-4 border-b border-slate-100 last:border-0">' +
+                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-3.5 sm:py-4">' +
 
-                        '<div class="price-name min-w-0 pr-2">' +
+                        '<div class="factory-price-name pr-2">' +
 
                             '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
                                 escapeHtml(kalem.cins) +
@@ -6162,7 +9040,7 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="price-value text-right shrink-0 min-w-[105px] sm:min-w-[125px]">' +
+                        '<div class="factory-price-value text-right sm:min-w-[125px]">' +
 
                             '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
@@ -6193,80 +9071,76 @@ async function fiyatlariGetir() {
                   "</span>";
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full min-h-[112px] sm:min-h-[116px] text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
+                '<button type="button" class="firma-toggle w-full text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
                     panelId +
                     '" aria-expanded="false">' +
 
-                    '<div class="flex items-center justify-between gap-3 sm:gap-4">' +
+                    '<div class="factory-card-header">' +
 
-                        '<div class="min-w-0 flex-1">' +
+                        '<div class="factory-card-main">' +
 
-                            '<div class="flex items-center gap-2.5">' +
+                            '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
+                                String(index + 1).padStart(2, "0") +
+                            "</div>" +
 
-                                '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
-                                    String(index + 1).padStart(2, "0") +
+                            '<div class="factory-card-info">' +
+
+                                '<div class="factory-card-title-line">' +
+
+                                    '<h2 class="factory-card-title font-black text-[15px] sm:text-lg text-slate-950 leading-5">' +
+                                        escapeHtml(item.baslik) +
+                                    "</h2>" +
+
+                                    durumEtiketi(item.durum) +
+
                                 "</div>" +
 
-                                '<div class="min-w-0">' +
-
-                                    '<div class="flex items-center gap-2 flex-wrap">' +
-
-                                        '<h2 class="font-black text-[15px] sm:text-lg text-slate-950 leading-5 break-words">' +
-                                            escapeHtml(item.baslik) +
-                                        "</h2>" +
-
-                                        durumEtiketi(item.durum) +
-
-                                    "</div>" +
-
-                                    '<div class="flex items-center gap-1.5 mt-1">' +
-                                        '<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>' +
-                                        '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold break-words">' +
-                                            "Fiyat tarihi: " +
-                                            escapeHtml(item.tarih || "-") +
-                                        "</span>" +
-                                        '<span class="text-slate-300">•</span>' +
-                                        '<span class="text-[10px] text-slate-400 font-bold">' +
-                                            kalemSayisi +
-                                            " kalem" +
-                                        "</span>" +
-                                    "</div>" +
-
+                                '<div class="factory-card-meta mt-1">' +
+                                    '<span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>' +
+                                    '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold">' +
+                                        "Fiyat tarihi: " +
+                                        escapeHtml(item.tarih || "-") +
+                                    "</span>" +
+                                    '<span class="text-slate-300 shrink-0">•</span>' +
+                                    '<span class="text-[10px] text-slate-400 font-bold whitespace-nowrap">' +
+                                        kalemSayisi +
+                                        " kalem" +
+                                    "</span>" +
                                 "</div>" +
 
                             "</div>" +
 
                         "</div>" +
 
-                        (
-                            artisSayisi || dususSayisi
-                                ? '<div class="hidden sm:flex items-center gap-2 text-[10px] font-black mr-1">' +
-                                    (
-                                        artisSayisi
-                                            ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
-                                            : ""
-                                    ) +
-                                    (
-                                        artisSayisi && dususSayisi
-                                            ? '<span class="text-slate-300">•</span>'
-                                            : ""
-                                    ) +
-                                    (
-                                        dususSayisi
-                                            ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
-                                            : ""
-                                    ) +
-                                  "</div>"
-                                : ""
-                        ) +
+                        '<div class="factory-card-actions">' +
 
-                        '<div class="shrink-0 flex items-center gap-2">' +
+                            (
+                                artisSayisi || dususSayisi
+                                    ? '<span class="hidden sm:inline-flex items-center gap-2 text-[10px] font-black mr-1 whitespace-nowrap">' +
+                                        (
+                                            artisSayisi
+                                                ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
+                                                : ""
+                                        ) +
+                                        (
+                                            artisSayisi && dususSayisi
+                                                ? '<span class="text-slate-300">•</span>'
+                                                : ""
+                                        ) +
+                                        (
+                                            dususSayisi
+                                                ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
+                                                : ""
+                                        ) +
+                                      "</span>"
+                                    : ""
+                            ) +
 
-                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500">' +
+                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500 whitespace-nowrap">' +
                                 "Fiyatları Gör" +
                             "</span>" +
 
-                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm">' +
+                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
                                 "▼" +
                             "</span>" +
 
@@ -6278,9 +9152,9 @@ async function fiyatlariGetir() {
 
                 '<div id="' +
                     panelId +
-                    '" class="hidden border-t border-slate-200 bg-slate-50/60">' +
+                    '" class="factory-price-panel hidden border-t border-slate-200 bg-slate-50/60">' +
 
-                    '<div class="p-3 sm:p-4">' +
+                    '<div class="factory-price-panel p-3 sm:p-4">' +
 
                         '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">' +
 
@@ -6295,7 +9169,7 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
+                        '<div class="factory-price-list bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
                             rows +
                         "</div>" +
 
@@ -6580,12 +9454,20 @@ if (
             ads["left_top"],
         ),
         (
+            "<!-- MOBILE_LEFT_MIDDLE_AD -->",
+            ads["left_middle"],
+        ),
+        (
             "<!-- MOBILE_LEFT_BOTTOM_AD -->",
             ads["left_bottom"],
         ),
         (
             "<!-- MOBILE_RIGHT_TOP_AD -->",
             ads["right_top"],
+        ),
+        (
+            "<!-- MOBILE_RIGHT_MIDDLE_AD -->",
+            ads["right_middle"],
         ),
         (
             "<!-- MOBILE_RIGHT_BOTTOM_AD -->",
@@ -6595,10 +9477,26 @@ if (
 
     for placeholder, reklam in mobile_reklamlar:
 
+        slot_title = "Reklam Alanı"
+
+        if "LEFT_TOP" in placeholder:
+            slot_title = "Sol Üst Reklam"
+        elif "LEFT_MIDDLE" in placeholder:
+            slot_title = "Sol Orta Reklam"
+        elif "LEFT_BOTTOM" in placeholder:
+            slot_title = "Sol Alt Reklam"
+        elif "RIGHT_TOP" in placeholder:
+            slot_title = "Sağ Üst Reklam"
+        elif "RIGHT_MIDDLE" in placeholder:
+            slot_title = "Sağ Orta Reklam"
+        elif "RIGHT_BOTTOM" in placeholder:
+            slot_title = "Sağ Alt Reklam"
+
         page = page.replace(
             placeholder,
-            ad_html(
-                reklam
+            mobile_ad_html(
+                reklam,
+                slot_title,
             ),
             1,
         )
@@ -6624,3 +9522,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
     )
+
+
+# DEPLOY SYNTAX CHECK MARKER
