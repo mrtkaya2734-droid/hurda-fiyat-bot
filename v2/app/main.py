@@ -5868,7 +5868,12 @@ name="description"
 content="Güncel hurda ve demir çelik fiyatları."
 >
 
-<title>Hurda Fiyatları</title>
+<title>Hurda Fiyatları - Güncel Piyasa Takip</title>
+<meta name="description" content="Güncel hurda fiyatları, fabrika fiyatları, LME, döviz ve piyasa takip ekranı.">
+<meta name="robots" content="index,follow">
+<meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
+<meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
+<meta property="og:type" content="website">
 
 <script src="https://cdn.tailwindcss.com"></script>
 
