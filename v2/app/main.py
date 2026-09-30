@@ -2439,29 +2439,7 @@ Ana Sayfa Sıra Numarası
 <input
 type="number"
 name="sira"
-value="{esc(firma.get("sira", 0) + 1)}"
-min="1"
-step="1"
-required
-class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
->
-
-<p class="text-xs text-slate-500 mt-1">
-1 = ilk firma. Aynı numara verilirse mevcut sıraya göre yerleştirilir.
-</p>
-
-</div>
-
-<div>
-
-<label class="block text-sm font-bold mb-2">
-Ana Sayfa Sıra Numarası
-</label>
-
-<input
-type="number"
-name="sira"
-value="{len(data.get("firms", {})) + 1 if False else 1}"
+value="1"
 min="1"
 step="1"
 required
@@ -2976,6 +2954,28 @@ value="{esc(firma.get("baslik", ""))}"
 required
 class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
 >
+
+</div>
+
+<div>
+
+<label class="block text-sm font-bold mb-2">
+Ana Sayfa Sıra Numarası
+</label>
+
+<input
+type="number"
+name="sira"
+value="{esc(int(firma.get("sira", 0)) + 1)}"
+min="1"
+step="1"
+required
+class="w-full border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 outline-none rounded-xl px-4 py-3 transition"
+>
+
+<p class="text-xs text-slate-500 mt-1">
+1 = ilk firma. İstediğiniz numarayı yazarak ana sayfadaki yeri belirleyin.
+</p>
 
 </div>
 
