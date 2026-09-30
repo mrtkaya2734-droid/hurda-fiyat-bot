@@ -1591,6 +1591,12 @@ def verileri_guncelle():
         ):
             continue
 
+        if firma_id in data_baslangic.get(
+            "silinen_firmalar",
+            [],
+        ):
+            continue
+
         if not firma.get(
             "otomatik",
             False,
@@ -1618,6 +1624,15 @@ def verileri_guncelle():
         try:
 
             data = load_data()
+
+            if firma_id in data.get(
+                "silinen_firmalar",
+                [],
+            ):
+                print(
+                    f"SİLİNMİŞ: {firma_id}"
+                )
+                continue
 
             firma = data.get(
                 "firms",
@@ -3044,6 +3059,20 @@ async def admin_source_save(
             detail="Firma adı boş olamaz.",
         )
 
+    # Daha önce silinmiş bir firma aynı ID ile yeniden ekleniyorsa
+    # silinmişler listesinden çıkar.
+    silinen_firmalar = data.setdefault(
+        "silinen_firmalar",
+        [],
+    )
+    data[
+        "silinen_firmalar"
+    ] = [
+        x for x in silinen_firmalar
+        if str(x).strip().casefold()
+        != str(firma_id).strip().casefold()
+    ]
+
     data[
         "firms"
     ][
@@ -3757,6 +3786,25 @@ async def admin_source_delete(
         gercek_firma_id,
         None,
     )
+
+    # Otomatik kaynaklar her dakika tekrar tarandığı için,
+    # silinen firmayı scraper'ın yeniden oluşturmasını engelle.
+    silinen_firmalar = data.setdefault(
+        "silinen_firmalar",
+        [],
+    )
+
+    silinen_id = str(
+        gercek_firma_id
+    ).strip().casefold()
+
+    if silinen_id not in {
+        str(x).strip().casefold()
+        for x in silinen_firmalar
+    }:
+        silinen_firmalar.append(
+            gercek_firma_id
+        )
 
     # =====================================================
     # FİRMAYA AİT FİYAT KAYITLARINI SİL
