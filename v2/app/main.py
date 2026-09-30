@@ -6846,18 +6846,6 @@ body {
     margin-top: 18px;
 }
 
-@media (max-width: 639px) {
-    .market-design > .w-full.max-w-7xl {
-        padding-top: 8px;
-        padding-left: 10px;
-        padding-right: 10px;
-    }
-
-    .market-design header {
-        border-radius: 20px !important;
-        padding: 16px !important;
-    }
-
 /* Fabrika alanı tam genişlikte; yan bannerlar fabrika kartlarının altına iner. */
 @media (min-width: 1024px) {
     .factory-layout {
@@ -6910,7 +6898,25 @@ body {
     }
 }
 
+@media (max-width: 639px) {
+    .market-design > .w-full.max-w-7xl {
+        padding-top: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
 
+    .market-design header {
+        border-radius: 20px !important;
+        padding: 16px !important;
+    }
+
+    .market-design .factory-price-grid {
+        gap: 14px;
+    }
+
+    .market-design .price-card {
+        border-radius: 18px !important;
+    }
 }
 
 </style>
