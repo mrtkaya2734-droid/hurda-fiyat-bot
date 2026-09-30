@@ -7807,7 +7807,7 @@ Kaynak: LME Official Prices
      MOBİL REKLAMLAR
      ===================================================== -->
 
-<div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
+<div class="factory-layout grid grid-cols-1 gap-4 lg:gap-5 items-start">
 
 <main class="min-w-0 w-full mx-auto">
 
