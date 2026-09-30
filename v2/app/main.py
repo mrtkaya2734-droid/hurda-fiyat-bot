@@ -2347,6 +2347,300 @@ def get_currency():
 
 
 # =========================================================
+# PİYASA GEÇMİŞİ / KARŞILAŞTIRMA / DURUM
+# =========================================================
+
+@app.get(
+    "/history"
+)
+def get_history(
+    firma_id: str = None,
+    kalem: str = None,
+    limit: int = 90,
+):
+    data = load_data()
+
+    kayitlar = data.get(
+        "history",
+        [],
+    )
+
+    if firma_id:
+        hedef = firma_id.strip().lower()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("firma_id", "")).strip().lower() == hedef
+        ]
+
+    if kalem:
+        hedef_kalem = kalem.strip().casefold()
+        kayitlar = [
+            item
+            for item in kayitlar
+            if str(item.get("kalem", "")).strip().casefold() == hedef_kalem
+        ]
+
+    # Aynı fiyatın dakika dakika tekrar yazıldığı kayıtları grafik için
+    # gereksiz yere çoğaltma. Sonraki farklı fiyatları koru.
+    ters = list(reversed(kayitlar))
+    benzersiz = []
+    son_deger = object()
+
+    for item in ters:
+        deger = item.get("fiyat")
+        if deger == son_deger:
+            continue
+        benzersiz.append(item)
+        son_deger = deger
+
+    benzersiz.reverse()
+
+    try:
+        limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit = 90
+
+    return {
+        "status": "success",
+        "data": benzersiz[-limit:],
+    }
+
+
+@app.get(
+    "/today-changes"
+)
+def get_today_changes():
+    data = load_data()
+    now = now_istanbul()
+    sonuc = []
+
+    # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
+    gruplar = {}
+
+    for item in data.get("history", []):
+        firma_id = str(item.get("firma_id", "")).strip().lower()
+        kalem = str(item.get("kalem", "")).strip()
+
+        if not firma_id or not kalem:
+            continue
+
+        anahtar = (firma_id, kalem)
+        gruplar.setdefault(anahtar, []).append(item)
+
+    for (firma_id, kalem), kayitlar in gruplar.items():
+        sonlar = list(reversed(kayitlar))
+        bulunan = []
+
+        for item in sonlar:
+            try:
+                zaman = datetime.fromisoformat(
+                    str(item.get("tarih", "")).replace("Z", "")
+                )
+            except Exception:
+                continue
+
+            if (
+                now.replace(tzinfo=None) - zaman
+            ).total_seconds() > 24 * 60 * 60:
+                break
+
+            fiyat = item.get("fiyat")
+            if fiyat is None:
+                continue
+
+            if not bulunan or bulunan[-1].get("fiyat") != fiyat:
+                bulunan.append(item)
+
+            if len(bulunan) >= 2:
+                break
+
+        if len(bulunan) < 2:
+            continue
+
+        yeni = bulunan[0].get("fiyat")
+        eski = bulunan[1].get("fiyat")
+
+        try:
+            fark = float(yeni) - float(eski)
+        except (TypeError, ValueError):
+            continue
+
+        if fark == 0:
+            continue
+
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        sonuc.append({
+            "firma_id": firma_id,
+            "firma": firma.get("baslik", firma_id),
+            "kalem": kalem,
+            "eski": eski,
+            "yeni": yeni,
+            "fark": fark,
+            "tarih": bulunan[0].get("tarih"),
+        })
+
+    sonuc.sort(
+        key=lambda item: str(item.get("tarih", "")),
+        reverse=True,
+    )
+
+    return {
+        "status": "success",
+        "data": sonuc[:30],
+    }
+
+
+@app.get(
+    "/compare"
+)
+def get_compare(
+    kalem: str = None,
+):
+    data = load_data()
+
+    mevcut = {}
+    kalemler = set()
+
+    for firma_id, fiyatlar in data.get("prices", {}).items():
+        firma = data.get("firms", {}).get(firma_id, {})
+
+        for ad, bilgi in fiyatlar.items():
+            kalemler.add(ad)
+
+            if kalem and ad.casefold() != kalem.strip().casefold():
+                continue
+
+            manuel = bilgi.get("manuel_fiyat")
+            otomatik = bilgi.get("otomatik_fiyat")
+            fiyat = manuel if manuel is not None else otomatik
+
+            if fiyat is None:
+                continue
+
+            mevcut.setdefault(firma_id, {
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+                "kalem": ad,
+            })
+
+    rows = []
+
+    if kalem:
+        for firma_id, fiyatlar in data.get("prices", {}).items():
+            firma = data.get("firms", {}).get(firma_id, {})
+            bilgi = None
+
+            for ad, kayit in fiyatlar.items():
+                if ad.casefold() == kalem.strip().casefold():
+                    bilgi = kayit
+                    break
+
+            if bilgi is None:
+                continue
+
+            fiyat = (
+                bilgi.get("manuel_fiyat")
+                if bilgi.get("manuel_fiyat") is not None
+                else bilgi.get("otomatik_fiyat")
+            )
+
+            if fiyat is None:
+                continue
+
+            rows.append({
+                "firma_id": firma_id,
+                "firma": firma.get("baslik", firma_id),
+                "fiyat": fiyat,
+            })
+
+        rows.sort(key=lambda x: str(x.get("firma", "")).casefold())
+
+    return {
+        "status": "success",
+        "kalemler": sorted(
+            kalemler,
+            key=lambda x: x.casefold(),
+        ),
+        "kalem": kalem,
+        "data": rows,
+    }
+
+
+@app.get(
+    "/system-status"
+)
+def get_system_status():
+    data = load_data()
+
+    firmalar = list(
+        data.get("firms", {}).values()
+    )
+
+    fiyat_sayisi = sum(
+        len(x)
+        for x in data.get("prices", {}).values()
+        if isinstance(x, dict)
+    )
+
+    return {
+        "status": "success",
+        "otomatik_guncelleme": AUTO_UPDATE_ENABLED,
+        "son_fiyat_guncellemesi": SON_GUNCELLEME,
+        "firma_sayisi": len(firmalar),
+        "aktif_firma": len([
+            x for x in firmalar
+            if x.get("aktif", True)
+        ]),
+        "otomatik_firma": len([
+            x for x in firmalar
+            if x.get("otomatik", True)
+        ]),
+        "manuel_firma": len([
+            x for x in firmalar
+            if not x.get("otomatik", True)
+        ]),
+        "fiyat_kalemi": fiyat_sayisi,
+        "gecmis_kaydi": len(data.get("history", [])),
+        "bildirim": len(data.get("notifications", [])),
+    }
+
+
+@app.get(
+    "/robots.txt"
+)
+def robots_txt():
+    return Response(
+        content=(
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /admin\n"
+            "Disallow: /system-status\n"
+            "Disallow: /history\n"
+            "Disallow: /compare\n"
+        ),
+        media_type="text/plain",
+    )
+
+
+@app.get(
+    "/sitemap.xml"
+)
+def sitemap_xml():
+    return Response(
+        content=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            '<url><loc>/</loc></url>'
+            '</urlset>'
+        ),
+        media_type="application/xml",
+    )
+
+
+# =========================================================
 # MANIFEST
 # =========================================================
 
