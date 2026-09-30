@@ -612,175 +612,6 @@ def _lme_api_verilerini_cek():
 
 
 
-def _lme_official_web_verilerini_cek():
-
-    url = (
-        "https://www.lme.com/en/market-data/"
-        "reports-and-data/lme-official-prices"
-    )
-
-    from bs4 import BeautifulSoup
-
-    cevap = requests.get(
-        url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "Chrome/140.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "en-GB,en;q=0.9",
-        },
-        timeout=20,
-    )
-    cevap.raise_for_status()
-
-    soup = BeautifulSoup(
-        cevap.text,
-        "html.parser",
-    )
-
-    fiyatlar = {}
-    tarih = None
-
-    # Resmi sayfadaki tablo başlıklarından Bid/Ask sütunlarını bul.
-    tablolar = soup.find_all("table")
-
-    for table in tablolar:
-        satirlar = table.find_all("tr")
-        if not satirlar:
-            continue
-
-        basliklar = [
-            " ".join(
-                hucre.stripped_strings
-            ).strip().casefold()
-            for hucre in satirlar[0].find_all(
-                ["th", "td"]
-            )
-        ]
-
-        # Bazı LME sayfa sürümlerinde başlık birkaç satıra
-        # bölünebildiği için tablo metnini de kontrol et.
-        tablo_metin = " ".join(
-            table.stripped_strings
-        ).casefold()
-
-        if (
-            "cash" not in tablo_metin
-            or "3 month" not in tablo_metin
-            or "bid" not in tablo_metin
-            or "ask" not in tablo_metin
-        ):
-            continue
-
-        for satir in satirlar[1:]:
-            hucreler = [
-                " ".join(
-                    hucre.stripped_strings
-                ).strip()
-                for hucre in satir.find_all(
-                    ["th", "td"]
-                )
-            ]
-
-            if len(hucreler) < 5:
-                continue
-
-            metal_adi = hucreler[0].casefold()
-            eslesen = None
-
-            for isim, turkce in LME_METALS.items():
-                if metal_adi == isim.casefold():
-                    eslesen = (
-                        isim,
-                        turkce,
-                    )
-                    break
-
-            if eslesen is None:
-                continue
-
-            # Resmi LME tablosunun ilk fiyat sütunları:
-            # Cash Bid, Cash Ask, 3 Month Bid, 3 Month Ask.
-            degerler = [
-                _lme_sayi(x)
-                for x in hucreler[1:5]
-            ]
-
-            if len(degerler) < 4:
-                continue
-
-            fiyatlar[eslesen[0]] = {
-                "ad": eslesen[1],
-                "cash_bid": degerler[0],
-                "cash_ask": degerler[1],
-                "three_month_bid": degerler[2],
-                "three_month_ask": degerler[3],
-            }
-
-        if fiyatlar:
-            break
-
-    if not fiyatlar:
-        raise RuntimeError(
-            "LME resmi web sayfasındaki fiyat tablosu okunamadı."
-        )
-
-    metin = " ".join(
-        soup.stripped_strings
-    )
-
-    tarih_eslesmeleri = re.findall(
-        r"Data valid for\\s+"
-        r"(\\d{1,2})\\s+"
-        r"([A-Za-z]{3,9})\s+"
-        r"(\d{4})",
-        metin,
-        re.IGNORECASE,
-    )
-
-    if tarih_eslesmeleri:
-        aylar = {
-            "jan": 1,
-            "january": 1,
-            "feb": 2,
-            "february": 2,
-            "mar": 3,
-            "march": 3,
-            "apr": 4,
-            "april": 4,
-            "may": 5,
-            "jun": 6,
-            "june": 6,
-            "jul": 7,
-            "july": 7,
-            "aug": 8,
-            "august": 8,
-            "sep": 9,
-            "september": 9,
-            "oct": 10,
-            "october": 10,
-            "nov": 11,
-            "november": 11,
-            "dec": 12,
-            "december": 12,
-        }
-
-        gun, ay_metin, yil = tarih_eslesmeleri[-1]
-        ay = aylar.get(
-            ay_metin.casefold()
-        )
-
-        if ay:
-            tarih = (
-                f"{int(gun):02d}."
-                f"{ay:02d}."
-                f"{int(yil)}"
-            )
-
-    return fiyatlar, tarih
-
 def _smm_lme_3m_verilerini_cek():
 
     # SMM/Metal.com, LMEselect 3-month kotasyonunu 15 dakika
@@ -912,131 +743,37 @@ def lme_verilerini_cek():
         and _LME_CACHE["cekilme"]
     ):
         gecen = (
-            simdi
-            - _LME_CACHE["cekilme"]
+            simdi - _LME_CACHE["cekilme"]
         ).total_seconds()
 
         if gecen < 900:
             return _LME_CACHE
 
-    hatalar = []
-
-    # Birincil kaynak: SMM/Metal.com LMEselect 3M,
-    # 15 dakika gecikmeli güncel kotasyon.
     try:
-        fiyatlar, tarih = (
-            _smm_lme_3m_verilerini_cek()
-        )
-
-        # 3M için güncel 15 dk gecikmeli SMM kotasyonunu kullan.
-        # Nakit bid/ask sütunlarını ise resmi LME day-delayed
-        # kaynaktan doldur; böylece ekranda sahte bid/ask üretmeyiz.
-        try:
-            resmi_fiyatlar, resmi_tarih = (
-                _lme_api_verilerini_cek()
-            )
-
-            for metal, item in fiyatlar.items():
-                resmi = resmi_fiyatlar.get(metal) or {}
-                item["cash_bid"] = resmi.get("cash_bid")
-                item["cash_ask"] = resmi.get("cash_ask")
-
-            # API boş/eksik dönerse resmi LME web tablosunu dene.
-            if not any(
-                item.get("cash_bid") is not None
-                and item.get("cash_ask") is not None
-                for item in fiyatlar.values()
-            ):
-                raise RuntimeError(
-                    "LME resmi API nakit Bid/Ask vermedi."
-                )
-
-        except Exception as nakit_exc:
-            hatalar.append(
-                f"LME resmi API nakit verisi: {nakit_exc}"
-            )
-
-            try:
-                resmi_fiyatlar, resmi_tarih = (
-                    _lme_official_web_verilerini_cek()
-                )
-
-                for metal, item in fiyatlar.items():
-                    resmi = resmi_fiyatlar.get(metal) or {}
-                    item["cash_bid"] = resmi.get("cash_bid")
-                    item["cash_ask"] = resmi.get("cash_ask")
-
-                if resmi_tarih:
-                    # SMM 3M tarihi daha güncelse onu koru.
-                    if not tarih:
-                        tarih = resmi_tarih
-
-            except Exception as web_exc:
-                hatalar.append(
-                    f"LME resmi web nakit verisi: {web_exc}"
-                )
-
-        kaynak = (
-            "SMM/Metal.com · LMEselect 3M + "
-            "LME Official Cash Bid/Ask"
-        )
+        fiyatlar, tarih = _lme_api_verilerini_cek()
+        kaynak = "LME Official Prices · day-delayed API"
 
     except Exception as exc:
-        hatalar.append(
-            f"SMM LMEselect: {exc}"
-        )
-
-        # SMM erişilemezse resmi LME day-delayed API'ye dön.
         try:
-            fiyatlar, tarih = (
-                _lme_api_verilerini_cek()
-            )
-
-            kaynak = "LME Official Prices · day-delayed API"
-
-        except Exception as lme_exc:
-            hatalar.append(
-                f"LME API: {lme_exc}"
-            )
-
-            try:
-                fiyatlar, tarih = (
-                    _westmetall_lme_verilerini_cek()
-                )
-
-                kaynak = (
-                    "Westmetall · Official LME Prices"
-                )
-
-            except Exception as yedek_exc:
-                hatalar.append(
-                    f"Westmetall: {yedek_exc}"
-                )
-
-                raise RuntimeError(
-                    "LME verisi alınamadı. "
-                    + " | ".join(hatalar)
-                ) from yedek_exc
+            fiyatlar, tarih = _westmetall_lme_verilerini_cek()
+            kaynak = "Westmetall · Official LME Prices"
+        except Exception as yedek_exc:
+            raise RuntimeError(
+                "LME verisi alınamadı: "
+                + str(exc)
+                + " | "
+                + str(yedek_exc)
+            ) from yedek_exc
 
     usd_tl = None
 
     try:
         doviz = doviz_kurlarini_getir()
-
         usd_tl = (
-            doviz.get(
-                "veriler",
-                {}
-            )
-            .get(
-                "USD",
-                {}
-            )
-            .get(
-                "alis"
-            )
+            doviz.get("veriler", {})
+            .get("USD", {})
+            .get("alis")
         )
-
     except Exception:
         usd_tl = None
 
@@ -1046,17 +783,9 @@ def lme_verilerini_cek():
         if key not in fiyatlar:
             continue
 
-        item = dict(
-            fiyatlar[key]
-        )
-
-        bid = item.get(
-            "three_month_bid"
-        )
-
-        ask = item.get(
-            "three_month_ask"
-        )
+        item = dict(fiyatlar[key])
+        bid = item.get("three_month_bid")
+        ask = item.get("three_month_ask")
 
         if (
             usd_tl is not None
@@ -1064,23 +793,17 @@ def lme_verilerini_cek():
             and ask is not None
         ):
             orta = (
-                float(bid)
-                + float(ask)
+                float(bid) + float(ask)
             ) / 2
 
-            item["three_month_tl"] = (
-                round(
-                    orta * float(usd_tl),
-                    2,
-                )
+            item["three_month_tl"] = round(
+                orta * float(usd_tl),
+                2,
             )
-
         else:
             item["three_month_tl"] = None
 
-        veriler.append(
-            item
-        )
+        veriler.append(item)
 
     sonuc = {
         "tarih": tarih or "-",
