@@ -5262,27 +5262,27 @@ Bildirim bulunmuyor.
     for key, label in [
         (
             "left_top",
-            "Sol Üst",
+            "Hesaplama Altı 1",
         ),
         (
             "left_middle",
-            "Sol Orta",
+            "Hesaplama Altı 2",
         ),
         (
             "left_bottom",
-            "Sol Alt",
+            "Hesaplama Altı 3",
         ),
         (
             "right_top",
-            "Sağ Üst",
+            "Fiyat Geçmişi Altı 1",
         ),
         (
             "right_middle",
-            "Sağ Orta",
+            "Fiyat Geçmişi Altı 2",
         ),
         (
             "right_bottom",
-            "Sağ Alt",
+            "Fiyat Geçmişi Altı 3",
         ),
     ]:
 
