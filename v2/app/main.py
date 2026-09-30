@@ -2125,6 +2125,35 @@ def doviz_kurlarini_getir(force=False):
                 "tarih": tarih,
             }
 
+        # Gram 24 ayar altın: XAU ons fiyatı USD/ons -> TRY/gram.
+        gold_response = requests.get(
+            "https://api.gold-api.com/price/XAU",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "HurdaFiyatBot/2.0",
+            },
+            timeout=10,
+        )
+        gold_response.raise_for_status()
+        gold_data = gold_response.json()
+        gold_usd_ons = gold_data.get("price")
+
+        if gold_usd_ons is not None and bulunan.get("USD"):
+            gold_gram_try = (
+                float(gold_usd_ons)
+                / 31.1034768
+                * float(bulunan["USD"]["kur"])
+            )
+            bulunan["ALTIN"] = {
+                "kod": "ALTIN",
+                "birim": "1 gram",
+                "alis": gold_gram_try,
+                "satis": gold_gram_try,
+                "kur": gold_gram_try,
+                "kur_turu": "24 ayar gram altın referans fiyatı",
+                "tarih": gold_data.get("updatedAt") or gold_data.get("timestamp") or "",
+            }
+
         tarihler = [
             x.get(
                 "tarih",
@@ -5543,6 +5572,14 @@ body {
 .currency-ticker-item.eur .currency-value {
     color: #93c5fd;
 }
+.currency-ticker-item.gold .currency-code {
+    color: #fcd34d;
+    background: rgba(245,158,11,.12);
+    border: 1px solid rgba(251,191,36,.22);
+}
+.currency-ticker-item.gold .currency-value {
+    color: #fcd34d;
+}
 .currency-ticker-separator {
     color: #475569;
     font-size: 8px;
@@ -5728,9 +5765,20 @@ DÖVİZ
 
 <div class="currency-ticker-separator">◆</div>
 
+<div class="currency-ticker-item gold">
+<span class="currency-code">ALTIN</span>
+<span class="currency-label">Gram</span>
+<span id="altinAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="altinSatis" class="currency-sale">Yükleniyor...</span>
+</div>
+
+<div class="currency-ticker-separator">◆</div>
+
 <div class="currency-ticker-item">
 <span class="currency-label">Kaynak</span>
-<span class="currency-sub">TCMB</span>
+<span class="currency-sub">Frankfurter + Gold API</span>
 </div>
 
 </div>
@@ -6355,10 +6403,15 @@ async function dovizleriGetir() {
             result.veriler &&
             result.veriler.EUR;
 
+        const altin =
+            result.veriler &&
+            result.veriler.ALTIN;
+
         if (
             result.status !== "success"
             || !usd
             || !eur
+            || !altin
         ) {
             throw new Error(
                 "Döviz verisi alınamadı."
@@ -6377,6 +6430,12 @@ async function dovizleriGetir() {
         document.getElementById("eurSatis").textContent =
             dovizGoster(eur.satis);
 
+        document.getElementById("altinAlis").textContent =
+            dovizGoster(altin.alis);
+
+        document.getElementById("altinSatis").textContent =
+            dovizGoster(altin.satis);
+
         document.getElementById("currencyInfo").textContent =
             "Kur kaynağı: " + (result.kaynak || "Frankfurter") + " · "
             + (result.tarih || "-");
@@ -6388,6 +6447,8 @@ async function dovizleriGetir() {
         document.getElementById("usdSatis").textContent = "-";
         document.getElementById("eurAlis").textContent = "-";
         document.getElementById("eurSatis").textContent = "-";
+        document.getElementById("altinAlis").textContent = "-";
+        document.getElementById("altinSatis").textContent = "-";
 
         document.getElementById("currencyInfo").textContent =
             "Kur bilgisi şu anda alınamıyor.";
