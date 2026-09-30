@@ -8857,16 +8857,85 @@ function marketToolsInit(result) {
         compareButton.addEventListener("click", function() {
             const kalem = document.getElementById("compareSelect")?.value;
             if (!kalem) return;
+
+            compareButton.disabled = true;
+            compareButton.textContent = "Karşılaştırılıyor...";
+
             fetch("/compare?kalem=" + encodeURIComponent(kalem), {cache:"no-store"})
                 .then(function(r){ return r.json(); })
                 .then(function(payload){
                     const box = document.getElementById("compareResult");
-                    const rows = payload.data || [];
-                    box.innerHTML = rows.length
-                        ? '<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="border-b border-slate-200"><th class="text-left py-2">Firma</th><th class="text-right py-2">Fiyat</th></tr></thead><tbody>' +
-                          rows.map(function(x){ return '<tr class="border-b border-slate-100"><td class="py-2 font-bold">' + escapeHtml(x.firma) + '</td><td class="py-2 text-right font-black">' + Number(x.fiyat).toLocaleString("tr-TR") + ' TL</td></tr>'; }).join("") +
-                          '</tbody></table></div>'
-                        : '<div class="text-xs text-slate-500">Bu kalem için kayıt bulunamadı.</div>';
+                    const rows = (payload.data || []).filter(function(x){
+                        return Number.isFinite(Number(x.fiyat));
+                    }).sort(function(a, b){
+                        return Number(b.fiyat) - Number(a.fiyat);
+                    });
+
+                    if (!rows.length) {
+                        box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Bu kalem için karşılaştırılabilir fiyat bulunamadı.</div>';
+                        return;
+                    }
+
+                    const enYuksek = Number(rows[0].fiyat);
+                    const enDusuk = Number(rows[rows.length - 1].fiyat);
+                    const fark = enYuksek - enDusuk;
+
+                    box.innerHTML =
+                        '<div class="mb-3 flex items-center justify-between gap-2">' +
+                            '<div><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Firma karşılaştırması</div>' +
+                            '<div class="text-sm font-black text-slate-900 mt-0.5">' + escapeHtml(kalem) + '</div></div>' +
+                            '<div class="text-[10px] font-bold text-slate-400">' + rows.length + ' firma</div>' +
+                        '</div>' +
+                        '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">' +
+                            '<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">' +
+                                '<div class="text-[9px] uppercase tracking-wide font-black text-emerald-600">En yüksek fiyat</div>' +
+                                '<div class="text-lg font-black text-emerald-700 mt-1">' + enYuksek.toLocaleString("tr-TR") + ' TL</div>' +
+                            '</div>' +
+                            '<div class="rounded-xl border border-slate-200 bg-white p-3">' +
+                                '<div class="text-[9px] uppercase tracking-wide font-black text-slate-400">En düşük fiyat</div>' +
+                                '<div class="text-lg font-black text-slate-900 mt-1">' + enDusuk.toLocaleString("tr-TR") + ' TL</div>' +
+                            '</div>' +
+                            '<div class="rounded-xl border border-slate-200 bg-white p-3">' +
+                                '<div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Fiyat aralığı</div>' +
+                                '<div class="text-lg font-black text-slate-900 mt-1">' + fark.toLocaleString("tr-TR") + ' TL</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="overflow-x-auto rounded-xl border border-slate-200">' +
+                            '<table class="w-full text-xs">' +
+                                '<thead><tr class="bg-slate-50 border-b border-slate-200">' +
+                                    '<th class="text-left px-3 py-2.5 font-black text-slate-500">Firma</th>' +
+                                    '<th class="text-right px-3 py-2.5 font-black text-slate-500">Fiyat</th>' +
+                                    '<th class="text-right px-3 py-2.5 font-black text-slate-500">En yüksekten fark</th>' +
+                                '</tr></thead>' +
+                                '<tbody>' +
+                                    rows.map(function(x, index){
+                                        const fiyat = Number(x.fiyat);
+                                        const farktan = enYuksek - fiyat;
+                                        const vurgu = index === 0 ? ' bg-emerald-50' : '';
+                                        return '<tr class="border-b border-slate-100 last:border-0' + vurgu + '">' +
+                                            '<td class="px-3 py-2.5 font-bold text-slate-800">' +
+                                                '<span class="inline-flex items-center gap-2">' +
+                                                    '<span class="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[9px] font-black">' + String(index + 1).padStart(2, "0") + '</span>' +
+                                                    escapeHtml(x.firma) +
+                                                '</span>' +
+                                            '</td>' +
+                                            '<td class="px-3 py-2.5 text-right font-black text-slate-950 whitespace-nowrap">' + fiyat.toLocaleString("tr-TR") + ' TL</td>' +
+                                            '<td class="px-3 py-2.5 text-right font-bold ' + (farktan === 0 ? 'text-emerald-700' : 'text-slate-500') + ' whitespace-nowrap">' +
+                                                (farktan === 0 ? 'EN YÜKSEK' : '-' + farktan.toLocaleString("tr-TR") + ' TL') +
+                                            '</td>' +
+                                        '</tr>';
+                                    }).join("") +
+                                '</tbody>' +
+                            '</table>' +
+                        '</div>';
+                })
+                .catch(function(){
+                    const box = document.getElementById("compareResult");
+                    if (box) box.innerHTML = '<div class="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">Karşılaştırma verisi alınamadı.</div>';
+                })
+                .finally(function(){
+                    compareButton.disabled = false;
+                    compareButton.textContent = "Karşılaştır";
                 });
         });
         compareButton.dataset.bound = "1";
