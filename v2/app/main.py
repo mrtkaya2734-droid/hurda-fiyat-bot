@@ -784,7 +784,6 @@ DEFAULT_ADS = {
         "target_url": "#",
         "active": True,
     },
-
 }
 
 
@@ -5261,12 +5260,30 @@ Bildirim bulunmuyor.
     ad_form_fields = ""
 
     for key, label in [
-        ("left_top", "Alt Banner 1"),
-        ("left_middle", "Alt Banner 2"),
-        ("left_bottom", "Alt Banner 3"),
-        ("right_top", "Alt Banner 4"),
-        ("right_middle", "Alt Banner 5"),
-        ("right_bottom", "Alt Banner 6"),
+        (
+            "left_top",
+            "Sol Üst",
+        ),
+        (
+            "left_middle",
+            "Sol Orta",
+        ),
+        (
+            "left_bottom",
+            "Sol Alt",
+        ),
+        (
+            "right_top",
+            "Sağ Üst",
+        ),
+        (
+            "right_middle",
+            "Sağ Orta",
+        ),
+        (
+            "right_bottom",
+            "Sağ Alt",
+        ),
     ]:
 
         ad = ads[
@@ -6011,13 +6028,13 @@ Banner Yönetimi
 </h2>
 
 <p class="text-sm text-slate-500 mt-1">
-Ana sayfanın sol ve sağ tarafındaki 3'er bannerı ve sayfanın en alt orta bölümündeki 2 bannerı buradan yönetebilirsiniz.
+Ana sayfanın fabrika fiyatlarının altında tek sıra halinde gösterilen 6 bannerı buradan yönetebilirsiniz.
 </p>
 
 </div>
 
 <div class="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl font-semibold">
-8 Banner Alanı
+6 Banner Alanı
 </div>
 
 </div>
@@ -6491,29 +6508,64 @@ body {
     display: none;
 }
 
+.desktop-ad-column {
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    align-self: stretch;
+}
 
+.desktop-ad-column .ad-box {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 250px;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+}
+
+/* Yan reklam alanları kaldırıldı; bu sütunlar yeni piyasa araçları için ayrıldı. */
+.desktop-feature-column {
+    min-width: 0;
+    width: 100%;
+}
+
+.desktop-feature-column > div {
+    min-width: 0;
+    width: 100%;
+}
 
 
 
 #bottomAds {
     width: 100%;
-    max-width: 1400px;
+    max-width: 1120px;
     margin-left: auto;
     margin-right: auto;
 }
 
 #bottomAds .ad-box {
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 5;
     height: auto;
     min-height: 0;
     overflow: hidden;
-    background: #f8fafc;
 }
-
 #bottomAds .ad-box a {
     height: 100%;
 }
 
+#bottomAds .ad-box img {
+    width: 100%;    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.desktop-ad-column .ad-box img,
 #bottomAds .ad-box img {
     width: 100%;
     height: 100%;
@@ -6570,9 +6622,34 @@ body {
     word-break: break-word;
 }
 
+.mobile-ad-grid {
+    width: 100%;
+    min-width: 0;
+}
 
+.mobile-ad-grid .ad-box {
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+}
 
+/* Mobilde reklamlar tamamen gizli; masaüstü reklam sistemi aynen korunur. */
+@media (max-width: 1023px) {
+    #mobileAds {
+        display: none !important;
+    }
+}
 
+.mobile-ad-slot {
+    min-height: 120px;
+}
+
+.mobile-ad-slot img {
+    width: 100%;
+    height: 100%;
+    min-height: 120px;
+    object-fit: cover;
+}
 
 /* LME, döviz bandının hemen altında kayan kompakt bant. */
 .lme-ticker-shell {
@@ -7807,7 +7884,14 @@ Kaynak: LME Official Prices
      MOBİL REKLAMLAR
      ===================================================== -->
 
-<div class="factory-layout grid grid-cols-1 gap-4 lg:gap-5 items-start">
+
+<div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
+
+<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sol piyasa araçları">
+<div id="leftFeatureTop"></div>
+<div id="leftFeatureMiddle"></div>
+<div id="leftFeatureBottom"></div>
+</aside>
 
 <main class="min-w-0 w-full mx-auto">
 
@@ -8004,11 +8088,17 @@ class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-s
 
 </main>
 
+<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sağ piyasa araçları">
+<div id="rightFeatureTop"></div>
+<div id="rightFeatureMiddle"></div>
+<div id="rightFeatureBottom"></div>
+</aside>
+
 </div>
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-stretch gap-3 sm:gap-4 w-full mt-5"
+class="hidden lg:grid grid-cols-6 items-stretch gap-3 w-full mt-5"
 >
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd1"></div>
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd2"></div>
@@ -8019,6 +8109,7 @@ class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-stretch gap-3 sm:gap
 </div>
 
 </div>
+
 <script>
 
 function escapeHtml(value) {
@@ -9326,35 +9417,6 @@ setInterval(
 
 function bosReklamAlanlariniGizle() {
 
-    document.querySelectorAll(
-        ".desktop-ad-column"
-    ).forEach(
-        function(aside) {
-
-            const kutular =
-                aside.querySelectorAll(
-                    ".ad-box"
-                );
-
-            const dolu =
-                Array.from(
-                    kutular
-                ).some(
-                    function(kutu) {
-                        return (
-                            kutu.innerHTML
-                            || ""
-                        ).trim() !== "";
-                    }
-                );
-
-            if (!dolu) {
-                aside.style.display = "none";
-            }
-
-        }
-    );
-
     const bottom =
         document.getElementById(
             "bottomAds"
@@ -9434,12 +9496,24 @@ if (
     # =====================================================
 
     reklamlar = {
-        "bottomAd1": ads["left_top"],
-        "bottomAd2": ads["left_middle"],
-        "bottomAd3": ads["left_bottom"],
-        "bottomAd4": ads["right_top"],
-        "bottomAd5": ads["right_middle"],
-        "bottomAd6": ads["right_bottom"],
+        "bottomAd1": ads[
+            "left_top"
+        ],
+        "bottomAd2": ads[
+            "left_middle"
+        ],
+        "bottomAd3": ads[
+            "left_bottom"
+        ],
+        "bottomAd4": ads[
+            "right_top"
+        ],
+        "bottomAd5": ads[
+            "right_middle"
+        ],
+        "bottomAd6": ads[
+            "right_bottom"
+        ],
     }
 
     for reklam_id, reklam in reklamlar.items():
