@@ -7258,39 +7258,67 @@ body {
     margin-top: 18px;
 }
 
-/* Fabrika alanı: 10 kart 5+5. Reklamlar ayrı ve daha aşağıda. */
+/* Fabrika alanı: 10 kart 5+5. Ana alan geniş, reklamlar kartların altında. */
 @media (min-width: 1024px) {
-    .factory-layout {
-        display: block !important;
-        width: 100% !important;
-        max-width: none !important;
+    /* 5'li firma kartlarının sıkışmaması için ana çalışma alanını büyüt. */
+    .market-design > .w-full.max-w-7xl {
+        width: min(100%, 1480px) !important;
+        max-width: 1480px !important;
     }
 
+    .factory-layout {
+        display: grid !important;
+        width: 100% !important;
+        max-width: none !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        column-gap: 18px !important;
+        row-gap: 30px !important;
+        align-items: start !important;
+    }
+
+    /* Firma alanı ilk satırın tamamını kullanır. */
     .factory-layout > main {
         display: block !important;
         width: 100% !important;
         max-width: none !important;
         min-width: 0 !important;
         margin: 0 !important;
+        grid-column: 1 / -1 !important;
+        grid-row: 1 !important;
     }
 
-    /* Yan reklam kolonları artık fabrika genişliğini etkilemez. */
+    /* 6 reklam bannerını silmeden ikinci satıra taşı. */
     .factory-layout > .desktop-ad-column {
-        display: none !important;
+        display: contents !important;
     }
 
-    /* 10 fabrika: 5 + 5. */
+    .factory-layout > .desktop-ad-column .ad-box {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        aspect-ratio: 4 / 3 !important;
+        grid-row: 2 !important;
+    }
+
+    .factory-layout > .desktop-ad-column:first-child .ad-box:first-child { grid-column: 1 !important; }
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) { grid-column: 2 !important; }
+    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) { grid-column: 3 !important; }
+    .factory-layout > .desktop-ad-column:last-child .ad-box:first-child { grid-column: 4 !important; }
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) { grid-column: 5 !important; }
+    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) { grid-column: 6 !important; }
+
+    /* 10 firma: 5 + 5. Kartlar daha geniş ve rahat. */
     .factory-price-grid {
         display: grid !important;
         width: 100% !important;
         max-width: none !important;
         min-width: 0 !important;
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-        gap: 18px !important;
+        gap: 20px !important;
         align-items: start !important;
     }
 
-    /* Reklam satırı fabrika kartlarından belirgin şekilde aşağıda. */
+    /* Alttaki iki ek banner da ayrı satırını korusun. */
     #bottomAds {
         display: grid !important;
         width: 100% !important;
