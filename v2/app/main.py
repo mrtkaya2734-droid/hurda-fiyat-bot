@@ -897,7 +897,6 @@ def firmalari_sirala(data):
 
 
 def firma_siralarini_duzelt(data):
-
     firmalar = firmalari_sirala(
         data
     )
@@ -1797,8 +1796,7 @@ def fiyat_verilerini_olustur():
             and canonical_id not in firma_ids
         ):
             firmalar.append(
-                {
-                    "firma_id": canonical_id,
+                {                    "firma_id": canonical_id,
                     "baslik": canonical_id.replace(
                         "_",
                         " "
@@ -2698,7 +2696,6 @@ class="w-full border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 roun
 </div>
 """
 
-
     if not fiyat_rows:
 
         fiyat_rows = """
@@ -3597,8 +3594,7 @@ async def admin_manual_update(
             detail="Firma bulunamadı.",
         )
 
-    kalem = str(
-        guncelle_kalem
+    kalem = str(        guncelle_kalem
         or ""
     ).strip()
 
@@ -4498,7 +4494,6 @@ Bildirim bulunmuyor.
 <div class="text-xs font-semibold text-slate-500 mb-2">
 Mevcut Banner
 </div>
-
 <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
 <img
 src="{esc(ad.get("image_url", ""))}"
@@ -5397,7 +5392,6 @@ body {
     min-height: 0;
     overflow: hidden;
 }
-
 #bottomAds .ad-box a {
     height: 100%;
 }
@@ -5476,6 +5470,99 @@ body {
     width: 100%;
     overflow: hidden;
 }
+
+/* Kompakt kayan döviz bandı */
+.currency-ticker-shell {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+}
+.currency-ticker-label {
+    position: relative;
+    z-index: 2;
+    padding: 7px 8px 7px 10px;
+    background: #020617;
+    box-shadow: 8px 0 18px rgba(2, 6, 23, .55);
+}
+.currency-ticker-track {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.currency-ticker-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    min-width: max-content;
+    padding: 6px 18px 6px 14px;
+    animation: currencyTicker 22s linear infinite;
+}
+.currency-ticker-shell:hover .currency-ticker-content {
+    animation-play-state: paused;
+}
+.currency-ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 800;
+}
+.currency-code {
+    padding: 3px 7px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+.currency-label {
+    color: #cbd5e1;
+}
+.currency-value {
+    font-size: 12px;
+    font-weight: 900;
+}
+.currency-sale,
+.currency-sub {
+    color: #94a3b8;
+}
+.currency-sale {
+    font-size: 11px;
+    font-weight: 800;
+}
+.currency-divider {
+    color: #475569;
+}
+.currency-ticker-item.usd .currency-code {
+    color: #86efac;
+    background: rgba(34,197,94,.12);
+    border: 1px solid rgba(74,222,128,.2);
+}
+.currency-ticker-item.usd .currency-value {
+    color: #86efac;
+}
+.currency-ticker-item.eur .currency-code {
+    color: #93c5fd;
+    background: rgba(59,130,246,.12);
+    border: 1px solid rgba(96,165,250,.2);
+}
+.currency-ticker-item.eur .currency-value {
+    color: #93c5fd;
+}
+.currency-ticker-separator {
+    color: #475569;
+    font-size: 8px;
+}
+@keyframes currencyTicker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-38%); }
+}
+
+/* Fiyat kartlarına hafif renk vurgusu */
+.price-card:nth-child(4n+1) { border-top: 3px solid #10b981; }
+.price-card:nth-child(4n+2) { border-top: 3px solid #3b82f6; }
+.price-card:nth-child(4n+3) { border-top: 3px solid #f59e0b; }
+.price-card:nth-child(4n+4) { border-top: 3px solid #8b5cf6; }
 
 @media (max-width: 640px) {
 
@@ -5613,154 +5700,53 @@ id="currencySection"
 class="mb-3 sm:mb-4"
 >
 
-<div class="flex items-end justify-between gap-3 mb-3 px-1">
+<div class="currency-ticker-shell relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-md">
 
-<div>
-<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-Döviz Piyasası
+<div class="currency-ticker-label shrink-0">
+<span class="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/10 px-2.5 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.12em] text-slate-200">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+DÖVİZ
+</span>
 </div>
 
-<div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-USD / TL · EUR / TL
-</div>
-</div>
+<div class="currency-ticker-track">
+<div class="currency-ticker-content">
 
-<div class="hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-Günlük referans
-</div>
-
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-
-<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
-
-<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
-
-<div class="relative flex items-center justify-between gap-3">
-
-<div class="flex items-center gap-3">
-
-<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
-🇺🇸
+<div class="currency-ticker-item usd">
+<span class="currency-code">USD</span>
+<span class="currency-label">Dolar</span>
+<span id="usdAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="usdSatis" class="currency-sale">Yükleniyor...</span>
 </div>
 
-<div>
-<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
-Amerikan Doları
+<div class="currency-ticker-separator">◆</div>
+
+<div class="currency-ticker-item eur">
+<span class="currency-code">EUR</span>
+<span class="currency-label">Euro</span>
+<span id="eurAlis" class="currency-value">Yükleniyor...</span>
+<span class="currency-divider">•</span>
+<span class="currency-sub">Satış</span>
+<span id="eurSatis" class="currency-sale">Yükleniyor...</span>
 </div>
-<div class="text-sm sm:text-base font-black text-slate-900">
-USD / TRY
-</div>
+
+<div class="currency-ticker-separator">◆</div>
+
+<div class="currency-ticker-item">
+<span class="currency-label">Kaynak</span>
+<span class="currency-sub">TCMB</span>
 </div>
 
 </div>
-
-<div class="rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[10px] font-black text-slate-500">
-USD
-</div>
-
-</div>
-
-<div class="relative mt-3">
-<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
-Referans Kur
-</div>
-
-<div
-id="usdAlis"
-class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
->
-Yükleniyor...
-</div>
-
-<div class="text-[10px] text-slate-400 mt-1">
-1 USD = Türk Lirası
-</div>
-</div>
-
-<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
-<div class="text-[10px] font-bold text-slate-400">
-Günlük oran
-</div>
-
-<div
-id="usdSatis"
-class="text-xs sm:text-sm font-black text-slate-700"
->
-Yükleniyor...
-</div>
-</div>
-
-</div>
-
-<div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-4">
-
-<div class="absolute right-0 top-0 w-24 h-24 rounded-full bg-slate-50 -translate-y-9 translate-x-9"></div>
-
-<div class="relative flex items-center justify-between gap-3">
-
-<div class="flex items-center gap-3">
-
-<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shadow-sm">
-🇪🇺
-</div>
-
-<div>
-<div class="text-[9px] font-black uppercase tracking-wide text-slate-400">
-Euro
-</div>
-<div class="text-sm sm:text-base font-black text-slate-900">
-EUR / TRY
-</div>
-</div>
-
-</div>
-
-<div class="rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[10px] font-black text-slate-500">
-EUR
-</div>
-
-</div>
-
-<div class="relative mt-3">
-<div class="text-[10px] uppercase tracking-wide text-slate-400 font-black">
-Referans Kur
-</div>
-
-<div
-id="eurAlis"
-class="text-xl sm:text-2xl font-black tracking-tight text-slate-950 mt-0.5"
->
-Yükleniyor...
-</div>
-
-<div class="text-[10px] text-slate-400 mt-1">
-1 EUR = Türk Lirası
-</div>
-</div>
-
-<div class="relative mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
-<div class="text-[10px] font-bold text-slate-400">
-Günlük oran
-</div>
-
-<div
-id="eurSatis"
-class="text-xs sm:text-sm font-black text-slate-700"
->
-Yükleniyor...
-</div>
-</div>
-
 </div>
 
 </div>
 
 <div
 id="currencyInfo"
-class="mt-1.5 px-1 text-[10px] sm:text-[11px] text-slate-400"
+class="mt-1 px-1 text-[9px] sm:text-[10px] text-slate-400"
 >
 Kur kaynağı: TCMB · Güncelleniyor...
 </div>
@@ -5923,8 +5909,6 @@ class="mobile-ad-grid grid grid-cols-2 gap-3 lg:hidden mb-4"
 
 <!-- MOBILE_RIGHT_TOP_AD -->
 
-<!-- MOBILE_RIGHT_BOTTOM_AD -->
-
 </div>
 
 
@@ -6014,7 +5998,7 @@ id="rightBottomAd"
 
 <div
 id="bottomAds"
-class="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
+class="hidden lg:grid grid-cols-1 sm:grid-cols-2 items-stretch gap-3 sm:gap-4 w-full mt-4"
 >
 
 <div
@@ -6297,7 +6281,6 @@ async function lmeFiyatlariniGetir() {
                 );
             }
         );
-
         info.textContent =
             "Kaynak: "
             + (
@@ -7131,5 +7114,4 @@ if __name__ == "__main__":
 
 
 # DEPLOY SYNTAX CHECK MARKER
-
 
