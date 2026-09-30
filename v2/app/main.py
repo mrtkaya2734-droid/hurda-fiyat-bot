@@ -5553,6 +5553,10 @@ body {
     height: auto;
     display: flex;
     flex-direction: column;
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease,
+        border-color .2s ease;
 }
 
 .firma-toggle {
@@ -5571,12 +5575,6 @@ body {
         height: 112px;
         min-height: 112px !important;
     }
-    transition:
-        transform .2s ease,
-        box-shadow .2s ease,
-        border-color .2s ease;
-}
-
 }
 
 .price-card * {
