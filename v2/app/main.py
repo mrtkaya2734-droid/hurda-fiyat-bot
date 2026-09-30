@@ -7258,62 +7258,45 @@ body {
     margin-top: 18px;
 }
 
-/* Fabrika alanı tam genişlikte; önce 10 fabrika 5+5, sonra 6 reklam tek sıra. */
+/* Fabrika alanı: 10 kart 5+5. Reklamlar ayrı ve daha aşağıda. */
 @media (min-width: 1024px) {
     .factory-layout {
-        display: grid !important;
-        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-        gap: 18px !important;
-        align-items: start;
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
     }
 
     .factory-layout > main {
-        grid-column: 1 / -1 !important;
-        grid-row: 1 !important;
+        display: block !important;
         width: 100% !important;
         max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
     }
 
-    /* İki mevcut reklam kolonu tek satırda 6 ayrı kutuya dönüşür. */
+    /* Yan reklam kolonları artık fabrika genişliğini etkilemez. */
     .factory-layout > .desktop-ad-column {
-        display: contents !important;
-    }
-
-    .factory-layout > .desktop-ad-column .ad-box {
-        width: 100% !important;
-        max-width: none !important;
-        aspect-ratio: 4 / 3 !important;
-        grid-row: 2 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child .ad-box:first-child {
-        grid-column: 1 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) {
-        grid-column: 2 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) {
-        grid-column: 3 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:first-child {
-        grid-column: 4 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) {
-        grid-column: 5 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) {
-        grid-column: 6 !important;
+        display: none !important;
     }
 
     /* 10 fabrika: 5 + 5. */
     .factory-price-grid {
+        display: grid !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-        gap: 16px !important;
+        gap: 18px !important;
+        align-items: start !important;
+    }
+
+    /* Reklam satırı fabrika kartlarından belirgin şekilde aşağıda. */
+    #bottomAds {
+        display: grid !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin-top: 34px !important;
+        padding-top: 4px !important;
     }
 }
 
