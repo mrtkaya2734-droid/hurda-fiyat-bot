@@ -7443,6 +7443,68 @@ body {
     }
 }
 
+/* =====================================================
+   SON MASAÜSTÜ LAYOUT OVERRIDE
+   3 REKLAM | 10 FABRİKA | 3 REKLAM
+   HTML yapısı korunur; JS veri/render mantığına dokunulmaz.
+   ===================================================== */
+@media (min-width: 1024px) {
+    .market-design .factory-layout {
+        display: grid !important;
+        grid-template-columns: 250px minmax(0, 1fr) 250px !important;
+        gap: 18px !important;
+        align-items: start !important;
+        width: 100% !important;
+    }
+
+    .market-design .factory-layout > .desktop-ad-column:first-child {
+        display: grid !important;
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    .market-design .factory-layout > main {
+        display: block !important;
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+    }
+
+    .market-design .factory-layout > .desktop-ad-column:last-child {
+        display: grid !important;
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    .market-design .factory-layout > .desktop-ad-column .ad-box {
+        width: 100% !important;
+        max-width: none !important;
+        aspect-ratio: 4 / 3 !important;
+        grid-column: auto !important;
+        grid-row: auto !important;
+    }
+
+    .market-design .factory-layout .factory-price-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 16px !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+    }
+}
+
 </style>
 
 </head>
