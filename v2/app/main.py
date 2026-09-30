@@ -6203,23 +6203,23 @@ function historyPanelAlign() {{
 }}
 
 
-function featureAdStacksAlign() {
+function featureAdStacksAlign() {{
     const left = document.querySelector("#calculatorSidePanel + .feature-ad-stack");
     const right = document.querySelector("#historySidePanel + .feature-ad-stack");
 
     if (!left || !right) return;
 
-    if (window.innerWidth < 1024) {
+    if (window.innerWidth < 1024) {{
         left.style.marginTop = "0px";
         return;
-    }
+    }}
 
     const rightTop = right.getBoundingClientRect().top;
     const leftTop = left.getBoundingClientRect().top;
     const offset = Math.round(rightTop - leftTop);
 
     left.style.marginTop = Math.max(0, offset) + "px";
-}
+}}
 
 window.addEventListener("load", historyPanelAlign);
 window.addEventListener("resize", historyPanelAlign);
