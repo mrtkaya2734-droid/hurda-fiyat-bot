@@ -4,7 +4,6 @@ import requests
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi
-from app.scrapers.generic import cek_url as generic_url_cek
 
 
 ID = "colakoglu"
@@ -13,15 +12,11 @@ URL = "https://www.colakoglu.com.tr/hurda"
 API = "https://client.colakoglu.com.tr/webservice/scrap-price"
 
 
-def _resmi_sayfadan_cek() -> FirmaSonuc:
-    return generic_url_cek(
-        ID,
-        BASLIK,
-        URL,
-    )
-
-
 def cek() -> FirmaSonuc:
+    # Çolakoğlu'nun canlı fiyatları doğrudan kendi API'sinden alınır.
+    # API erişilemezse mevcut son kayıt korunur; resmi HTML sayfasına
+    # ayrıca gitmeye çalışılmaz. Bu sayfa Render tarafında robots
+    # nedeniyle engellendiği için her dakika gereksiz bekleme oluşturuyordu.
     try:
         cevap = requests.get(
             API,
@@ -30,39 +25,27 @@ def cek() -> FirmaSonuc:
                 "Accept": "application/json",
             },
             verify=False,
-            timeout=8,
+            timeout=4,
         )
         cevap.raise_for_status()
         veri = cevap.json()
 
     except requests.RequestException as e:
-        try:
-            return _resmi_sayfadan_cek()
-        except Exception as fallback_error:
-            raise ScraperHatasi(
-                f"Çolakoğlu: API bağlantı hatası: {e}; "
-                f"resmi sayfa yedeği de başarısız: {fallback_error}"
-            ) from e
+        raise ScraperHatasi(
+            f"Çolakoğlu: API bağlantı hatası: {e}"
+        ) from e
 
     except ValueError as e:
-        try:
-            return _resmi_sayfadan_cek()
-        except Exception as fallback_error:
-            raise ScraperHatasi(
-                "Çolakoğlu: API geçerli JSON döndürmedi; "
-                f"resmi sayfa yedeği de başarısız: {fallback_error}"
-            ) from e
+        raise ScraperHatasi(
+            "Çolakoğlu: API geçerli JSON döndürmedi."
+        ) from e
 
     fiyatlar = veri.get("prices")
 
     if not fiyatlar:
-        try:
-            return _resmi_sayfadan_cek()
-        except Exception as fallback_error:
-            raise ScraperHatasi(
-                "Çolakoğlu: 'prices' alanı boş ya da yok; "
-                f"resmi sayfa yedeği de başarısız: {fallback_error}"
-            )
+        raise ScraperHatasi(
+            "Çolakoğlu: 'prices' alanı boş ya da yok."
+        )
 
     kalemler = []
 
@@ -80,13 +63,9 @@ def cek() -> FirmaSonuc:
             )
 
     if not kalemler:
-        try:
-            return _resmi_sayfadan_cek()
-        except Exception as fallback_error:
-            raise ScraperHatasi(
-                "Çolakoğlu: geçerli kalem bulunamadı; "
-                f"resmi sayfa yedeği de başarısız: {fallback_error}"
-            )
+        raise ScraperHatasi(
+            "Çolakoğlu: geçerli kalem bulunamadı."
+        )
 
     try:
         tarih = datetime.fromisoformat(
