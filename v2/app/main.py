@@ -8176,20 +8176,6 @@ class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-
 >
 🔔 Fiyat Alarmı
 </button>
-<button
-type="button"
-id="historyButton"
-class="h-11 px-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-black hover:bg-sky-100 transition"
->
-📈 Geçmiş
-</button>
-<button
-type="button"
-id="calculatorToggle"
-class="h-11 px-4 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition"
->
-🧮 Hesapla
-</button>
 </div>
 
 </div>
@@ -9019,16 +9005,6 @@ function marketToolsInit(result) {
         firmSelect.dataset.bound = "1";
     }
 
-    const calculatorToggle = document.getElementById("calculatorToggle");
-    const calculatorPanel = document.getElementById("calculatorPanel");
-    if (calculatorToggle && calculatorPanel && calculatorToggle.dataset.bound !== "1") {
-        calculatorToggle.addEventListener("click", function() {
-            const hidden = calculatorPanel.classList.toggle("hidden");
-            calculatorToggle.setAttribute("aria-expanded", String(!hidden));
-        });
-        calculatorToggle.dataset.bound = "1";
-    }
-
     if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
         fetch("/today-changes", {cache:"no-store"})
             .then(function(r){ return r.json(); })
@@ -9164,20 +9140,6 @@ function marketToolsInit(result) {
                 });
         });
         compareButton.dataset.bound = "1";
-    }
-
-    const historyButton = document.getElementById("historyButton");
-    if (historyButton && historyButton.dataset.bound !== "1") {
-        historyButton.addEventListener("click", function(){
-            comparePanel?.classList.add("hidden");
-            alarmPanel?.classList.add("hidden");
-            historyPanel?.classList.remove("hidden");
-            document.getElementById("historySidePanel")?.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        });
-        historyButton.dataset.bound = "1";
     }
 
     const historyLoad = document.getElementById("historyLoadButton");
