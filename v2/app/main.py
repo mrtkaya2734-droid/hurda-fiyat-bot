@@ -961,7 +961,7 @@ def firma_sirasini_uygula(data, firma_id, istenen_sira):
     try:
         hedef_index = max(
             0,
-            int(istenen_sira),
+            int(istenen_sira) - 1,
         )
     except (TypeError, ValueError):
         hedef_index = 0
@@ -1628,10 +1628,16 @@ def firma_verisini_cek(
         "durum"
     ] = "basarili"
 
+    mevcut_sira = (
+        data.get("firms", {})
+        .get(firma_id, {})
+        .get("sira", 0)
+    )
+
     firma_sirasini_uygula(
         data,
         firma_id,
-        yeni_sira - 1,
+        int(mevcut_sira) + 1,
     )
 
     save_data(
@@ -2688,8 +2694,10 @@ async def admin_new_source_save(
         "sira": yeni_sira - 1,
     }
 
-    firma_siralarini_duzelt(
-        data
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        yeni_sira,
     )
 
     save_data(
@@ -3305,34 +3313,10 @@ async def admin_source_save(
     except (TypeError, ValueError):
         yeni_sira = 1
 
-    data[
-        "firms"
-    ][
-        firma_id
-    ][
-        "sira"
-    ] = yeni_sira - 1
-
-    if "sira" not in data[
-        "firms"
-    ][
-        firma_id
-    ]:
-
-        data[
-            "firms"
-        ][
-            firma_id
-        ][
-            "sira"
-        ] = len(
-            data[
-                "firms"
-            ]
-        )
-
-    firma_siralarini_duzelt(
-        data
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        yeni_sira,
     )
 
     save_data(
@@ -6997,7 +6981,7 @@ async function fiyatlariGetir() {
 
             const wrapper = document.createElement("div");
             wrapper.className =
-                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-full hover:shadow-md transition-all duration-200";
+                "price-card bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all duration-200";
 
             if (
                 index === firmalar.length - 1
