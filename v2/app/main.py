@@ -6600,11 +6600,165 @@ body {
 
 }
 
+/* =====================================================
+   YENİ PİYASA TASARIMI — SADECE GÖRSEL KATMAN
+   Veri, scraper, API, Supabase ve iş mantığına dokunmaz.
+   ===================================================== */
+
+.market-design {
+    background:
+        radial-gradient(circle at 8% 0%, rgba(255,255,255,.95), transparent 28%),
+        radial-gradient(circle at 92% 8%, rgba(226,232,240,.70), transparent 30%),
+        #f3f5f7 !important;
+    color: #0f172a;
+}
+
+.market-design > .w-full.max-w-7xl {
+    padding-top: 14px;
+    padding-bottom: 28px;
+}
+
+.market-design header {
+    background:
+        linear-gradient(135deg, #0f172a 0%, #172033 55%, #1e293b 100%) !important;
+    border-color: rgba(148,163,184,.20) !important;
+    box-shadow: 0 18px 45px rgba(15,23,42,.16) !important;
+}
+
+.market-design header h1 {
+    letter-spacing: -.035em;
+}
+
+.market-design #currencySection,
+.market-design #lmeSection {
+    box-shadow: 0 8px 24px rgba(15,23,42,.08);
+}
+
+.market-design #marketTools {
+    background: rgba(255,255,255,.98) !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 12px 30px rgba(15,23,42,.07) !important;
+}
+
+.market-design #marketTools input,
+.market-design #marketTools select {
+    background: #f8fafc;
+}
+
+.market-design #marketTools input:focus,
+.market-design #marketTools select:focus {
+    border-color: #64748b !important;
+    box-shadow: 0 0 0 3px rgba(100,116,139,.12) !important;
+}
+
+.market-design .factory-price-grid {
+    gap: 16px;
+}
+
+.market-design .price-card {
+    border-color: #e2e8f0 !important;
+    border-radius: 22px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 24px rgba(15,23,42,.065) !important;
+    overflow: hidden;
+}
+
+.market-design .price-card:hover {
+    transform: translateY(-3px);
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 16px 34px rgba(15,23,42,.10) !important;
+}
+
+.market-design .price-card .firma-toggle {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    border-bottom: 1px solid transparent;
+}
+
+.market-design .price-card .firma-toggle:hover {
+    background: #f8fafc !important;
+}
+
+.market-design .price-card .firma-toggle > div > div > div:first-child > div:first-child {
+    background: #0f172a !important;
+    box-shadow: 0 5px 12px rgba(15,23,42,.12);
+}
+
+.market-design .price-card .price-row {
+    background: #fff !important;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.market-design .price-card .price-row:hover {
+    background: #f8fafc !important;
+}
+
+.market-design .price-card .price-value {
+    color: #0f172a;
+}
+
+.market-design .price-card .price-value > div:first-child {
+    letter-spacing: -.025em;
+}
+
+.market-design #loading {
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(15,23,42,.05);
+}
+
+.market-design #todayChanges > div,
+.market-design #comparePanel,
+.market-design #historyPanel,
+.market-design #alarmPanel {
+    border-color: #e2e8f0 !important;
+}
+
+.market-design .text-cyan-300 {
+    color: #475569 !important;
+}
+
+.market-design main > .text-center .text-white {
+    color: #0f172a !important;
+}
+
+.market-design main > .text-center .text-slate-200 {
+    color: #64748b !important;
+}
+
+.market-design main > .text-center .text-slate-500 {
+    color: #94a3b8 !important;
+}
+
+.market-design #bottomAds {
+    margin-top: 18px;
+}
+
+@media (max-width: 639px) {
+    .market-design > .w-full.max-w-7xl {
+        padding-top: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .market-design header {
+        border-radius: 20px !important;
+        padding: 16px !important;
+    }
+
+    .market-design .factory-price-grid {
+        gap: 12px;
+    }
+
+    .market-design .price-card {
+        border-radius: 18px !important;
+    }
+}
+
 </style>
 
 </head>
 
-<body class="min-h-screen">
+<body class="market-design min-h-screen">
 
 <div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
