@@ -5545,6 +5545,119 @@ body {{
     word-break: break-word;
 }}
 
+/* =====================================================
+   PİYASA ÖZETİ — MEVCUT VERİDEN GÖRSEL ÖZET
+   ===================================================== */
+
+.market-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.market-summary-card {
+    min-width: 0;
+    background: rgba(255,255,255,.98);
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 13px 14px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.055);
+}
+
+.market-summary-label {
+    color: #64748b;
+    font-size: 9px;
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+}
+
+.market-summary-value {
+    color: #0f172a;
+    font-size: 21px;
+    line-height: 1.15;
+    font-weight: 950;
+    letter-spacing: -.025em;
+    margin-top: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.market-summary-sub {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.market-summary-card.up .market-summary-value {
+    color: #059669;
+}
+
+.market-summary-card.down .market-summary-value {
+    color: #dc2626;
+}
+
+.market-summary-card.update .market-summary-value {
+    font-size: 13px;
+    letter-spacing: -.01em;
+}
+
+.market-design #todayChanges {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.045);
+}
+
+.market-design #todayChanges > div:first-child {
+    color: #0f172a;
+    font-size: 10px;
+    letter-spacing: .10em;
+    margin-bottom: 9px;
+}
+
+.market-design #todayChanges .today-change-card {
+    min-height: 74px;
+    transition: transform .16s ease, box-shadow .16s ease;
+}
+
+.market-design #todayChanges .today-change-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(15,23,42,.07);
+}
+
+@media (max-width: 900px) {
+    .market-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 639px) {
+    .market-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .market-summary-card {
+        border-radius: 15px;
+        padding: 11px 12px;
+    }
+
+    .market-summary-value {
+        font-size: 18px;
+    }
+
+    .market-summary-card.update {
+        grid-column: span 2;
+    }
+}
+
 </style>
 
 </head>
@@ -7135,6 +7248,34 @@ Fabrika Fiyatları
 </div>
 </div>
 
+<section id="marketSummary" class="market-summary" aria-label="Piyasa özeti">
+<div class="market-summary-card">
+<div class="market-summary-label">Firma</div>
+<div id="summaryFirmCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">aktif fiyat kaynağı</div>
+</div>
+<div class="market-summary-card">
+<div class="market-summary-label">Fiyat Kalemi</div>
+<div id="summaryItemCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">yayındaki fiyat</div>
+</div>
+<div class="market-summary-card up">
+<div class="market-summary-label">Yükselen</div>
+<div id="summaryUpCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">son değişim kayıtları</div>
+</div>
+<div class="market-summary-card down">
+<div class="market-summary-label">Düşen</div>
+<div id="summaryDownCount" class="market-summary-value">-</div>
+<div class="market-summary-sub">son değişim kayıtları</div>
+</div>
+<div class="market-summary-card update">
+<div class="market-summary-label">Son Güncelleme</div>
+<div id="summaryLastUpdate" class="market-summary-value">Yükleniyor...</div>
+<div class="market-summary-sub">sistem zamanı</div>
+</div>
+</section>
+
 <section
 id="marketTools"
 class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
@@ -7870,6 +8011,38 @@ function marketToolsInit(result) {
         ? result.data
         : [];
 
+    // Piyasa özeti mevcut /prices verisinden hesaplanır.
+    // Yeni veri kaynağı veya backend değişikliği gerektirmez.
+    const summaryFirmCount = document.getElementById("summaryFirmCount");
+    const summaryItemCount = document.getElementById("summaryItemCount");
+    const summaryUpCount = document.getElementById("summaryUpCount");
+    const summaryDownCount = document.getElementById("summaryDownCount");
+    const summaryLastUpdate = document.getElementById("summaryLastUpdate");
+
+    let itemCount = 0;
+    let upCount = 0;
+    let downCount = 0;
+
+    firmalar.forEach(function(firma) {
+        const kalemler = Array.isArray(firma.kalemler)
+            ? firma.kalemler
+            : [];
+
+        itemCount += kalemler.length;
+
+        kalemler.forEach(function(kalem) {
+            const degisim = String(kalem.degisim || "").trim();
+            if (degisim.startsWith("+")) upCount++;
+            if (degisim.startsWith("-")) downCount++;
+        });
+    });
+
+    if (summaryFirmCount) summaryFirmCount.textContent = firmalar.length;
+    if (summaryItemCount) summaryItemCount.textContent = itemCount;
+    if (summaryUpCount) summaryUpCount.textContent = upCount;
+    if (summaryDownCount) summaryDownCount.textContent = downCount;
+    if (summaryLastUpdate) summaryLastUpdate.textContent = result.son_guncelleme || "-";
+
     const search = document.getElementById("fiyatArama");
     if (search && search.dataset.bound !== "1") {
         search.addEventListener("input", function() {
@@ -7947,12 +8120,16 @@ function marketToolsInit(result) {
                         '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
                         rows.map(function(x){
                             const up = Number(x.fark) > 0;
-                            return '<div class="rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
+                            return '<div class="today-change-card rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
                                 '<div class="text-xs font-black text-slate-800">' + escapeHtml(x.firma) + ' · ' + escapeHtml(x.kalem) + '</div>' +
                                 '<div class="mt-1 text-sm font-black ' + (up ? 'text-emerald-700' : 'text-red-700') + '">' +
                                     (up ? '▲ +' : '▼ ') + Number(x.fark).toLocaleString("tr-TR") + ' TL' +
                                     ' <span class="text-slate-500 font-bold">(' + Number(x.yeni).toLocaleString("tr-TR") + ' TL)</span>' +
-                                '</div></div>';
+                                '</div>' +
+                                '<div class="mt-1 text-[9px] font-bold ' + (up ? 'text-emerald-600' : 'text-red-600') + '">' +
+                                    (up ? 'Fiyat yükseldi' : 'Fiyat düştü') +
+                                '</div>' +
+                            '</div>';
                         }).join("") +
                         '</div>';
                     box.classList.remove("hidden");
@@ -8150,6 +8327,14 @@ async function fiyatlariGetir() {
             "sonGuncelleme"
         ).textContent =
             result.son_guncelleme || "-";
+
+        const summaryLastUpdate =
+            document.getElementById("summaryLastUpdate");
+
+        if (summaryLastUpdate) {
+            summaryLastUpdate.textContent =
+                result.son_guncelleme || "-";
+        }
 
         const firmaListesi =
             document.getElementById(
