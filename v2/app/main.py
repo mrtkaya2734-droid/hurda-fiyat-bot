@@ -897,8 +897,7 @@ def firmalari_sirala(data):
 
 
 def firma_siralarini_duzelt(data):
-    firmalar = firmalari_sirala(
-        data
+    firmalar = firmalari_sirala(        data
     )
 
     for index, firma in enumerate(
@@ -1797,8 +1796,7 @@ def fiyat_verilerini_olustur():
         ):
             firmalar.append(
                 {                    "firma_id": canonical_id,
-                    "baslik": canonical_id.replace(
-                        "_",
+                    "baslik": canonical_id.replace(                        "_",
                         " "
                     ).title(),
                     "url": "",
@@ -2697,7 +2695,6 @@ class="w-full border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 roun
 """
 
     if not fiyat_rows:
-
         fiyat_rows = """
 <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
 Bu firma için henüz fiyat kaydı bulunmuyor.
@@ -3597,7 +3594,6 @@ async def admin_manual_update(
     kalem = str(        guncelle_kalem
         or ""
     ).strip()
-
     if not kalem:
         raise HTTPException(
             status_code=400,
@@ -4497,8 +4493,7 @@ Mevcut Banner
 <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
 <img
 src="{esc(ad.get("image_url", ""))}"
-alt="{esc(ad.get("title", label))}"
-class="w-full max-h-32 object-contain rounded-lg"
+alt="{esc(ad.get("title", label))}"class="w-full max-h-32 object-contain rounded-lg"
 >
 </div>
 
@@ -5397,8 +5392,7 @@ body {
 }
 
 #bottomAds .ad-box img {
-    width: 100%;
-    height: 100%;
+    width: 100%;    height: 100%;
     object-fit: cover;
     object-position: center;
 }
@@ -6297,8 +6291,7 @@ async function lmeFiyatlariniGetir() {
                 result.usd_tl
                     ? " · USD/TRY alış: "
                     + Number(
-                        result.usd_tl
-                      ).toLocaleString(
+                        result.usd_tl                      ).toLocaleString(
                         "tr-TR",
                         {
                             minimumFractionDigits: 4,
@@ -7067,12 +7060,20 @@ if (
             ads["left_top"],
         ),
         (
+            "<!-- MOBILE_LEFT_MIDDLE_AD -->",
+            ads["left_middle"],
+        ),
+        (
             "<!-- MOBILE_LEFT_BOTTOM_AD -->",
             ads["left_bottom"],
         ),
         (
             "<!-- MOBILE_RIGHT_TOP_AD -->",
             ads["right_top"],
+        ),
+        (
+            "<!-- MOBILE_RIGHT_MIDDLE_AD -->",
+            ads["right_middle"],
         ),
         (
             "<!-- MOBILE_RIGHT_BOTTOM_AD -->",
@@ -7114,4 +7115,3 @@ if __name__ == "__main__":
 
 
 # DEPLOY SYNTAX CHECK MARKER
-
