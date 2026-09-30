@@ -6850,19 +6850,19 @@ body {
 @media (min-width: 1024px) {
     .factory-layout {
         display: grid !important;
-        grid-template-columns: minmax(0, 1fr) !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
         gap: 18px !important;
         align-items: start;
     }
 
     .factory-layout > main {
-        grid-column: 1 !important;
+        grid-column: 1 / -1 !important;
         grid-row: 1 !important;
         width: 100% !important;
         max-width: none !important;
     }
 
-    /* İki mevcut reklam kolonu aynı satırda birleşir. */
+    /* İki mevcut reklam kolonu tek satırda 6 ayrı kutuya dönüşür. */
     .factory-layout > .desktop-ad-column {
         display: contents !important;
     }
@@ -6871,30 +6871,31 @@ body {
         width: 100% !important;
         max-width: none !important;
         aspect-ratio: 4 / 3 !important;
+        grid-row: 2 !important;
     }
 
     .factory-layout > .desktop-ad-column:first-child .ad-box:first-child {
-        grid-column: 1;
+        grid-column: 1 !important;
     }
 
     .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) {
-        grid-column: 2;
+        grid-column: 2 !important;
     }
 
     .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) {
-        grid-column: 3;
+        grid-column: 3 !important;
     }
 
     .factory-layout > .desktop-ad-column:last-child .ad-box:first-child {
-        grid-column: 4;
+        grid-column: 4 !important;
     }
 
     .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) {
-        grid-column: 5;
+        grid-column: 5 !important;
     }
 
     .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) {
-        grid-column: 6;
+        grid-column: 6 !important;
     }
 
     /* 10 fabrika: 5 + 5. */
