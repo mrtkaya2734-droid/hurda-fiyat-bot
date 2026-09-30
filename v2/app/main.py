@@ -47,6 +47,8 @@ from app.storage import (
     bildirimleri_sil,
     gecmis_ekle,
     sistem_ozeti,
+    DATA_FILE,
+    BACKUP_DIR,
 )
 
 
@@ -2412,7 +2414,7 @@ def get_history(
 )
 def get_today_changes():
     data = load_data()
-    now = now_istanbul()
+    now = datetime.now()
     sonuc = []
 
     # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
@@ -2570,6 +2572,117 @@ def get_compare(
 
 
 @app.get(
+    "/admin/data-backups",
+    response_class=HTMLResponse,
+)
+def admin_data_backups(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        backups = sorted(
+            [
+                os.path.join(BACKUP_DIR, isim)
+                for isim in os.listdir(BACKUP_DIR)
+                if isim.endswith(".json")
+            ],
+            key=lambda yol: os.path.getmtime(yol),
+            reverse=True,
+        )
+    except Exception:
+        backups = []
+
+    rows = "".join(
+        f"""
+<div class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+<div>
+<div class="text-xs font-black text-slate-800">{esc(os.path.basename(yol))}</div>
+<div class="text-[10px] text-slate-500">{esc(datetime.fromtimestamp(os.path.getmtime(yol)).strftime("%Y-%m-%d %H:%M:%S"))}</div>
+</div>
+</div>
+"""
+        for yol in backups[:10]
+    ) or '<div class="text-sm text-slate-500">Henüz otomatik yedek oluşmadı.</div>'
+
+    return f"""
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veri Yedekleri</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4">
+<div class="max-w-3xl mx-auto space-y-4">
+<div class="bg-slate-900 text-white rounded-3xl p-5">
+<h1 class="text-2xl font-black">Veri Yedekleri</h1>
+<p class="text-sm text-slate-300 mt-1">Mevcut fiyat/firma verisi korunarak son otomatik yedeğe dönülebilir.</p>
+</div>
+<div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+<form method="post" action="/admin/data-rollback" onsubmit="return confirm('Mevcut veri dosyası son otomatik yedekle değiştirilecek. Devam edilsin mi?');">
+<button type="submit" class="w-full rounded-xl bg-red-600 hover:bg-red-700 text-white py-3 font-black">
+Son Yedeğe Geri Dön
+</button>
+</form>
+<div class="mt-4 space-y-2">{rows}</div>
+</div>
+<a href="/admin" class="inline-block rounded-xl bg-slate-900 text-white px-4 py-2 font-bold">← Admin</a>
+</div>
+</body>
+</html>
+"""
+
+
+@app.post(
+    "/admin/data-rollback"
+)
+async def admin_data_rollback(
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    os.makedirs(
+        BACKUP_DIR,
+        exist_ok=True,
+    )
+
+    backups = sorted(
+        [
+            os.path.join(BACKUP_DIR, isim)
+            for isim in os.listdir(BACKUP_DIR)
+            if isim.endswith(".json")
+        ],
+        key=lambda yol: os.path.getmtime(yol),
+        reverse=True,
+    )
+
+    if not backups:
+        raise HTTPException(
+            status_code=404,
+            detail="Henüz geri dönülebilecek otomatik yedek yok.",
+        )
+
+    shutil.copy2(
+        backups[0],
+        DATA_FILE,
+    )
+
+    bildirim_ekle(
+        "sistem",
+        "veri_rollback",
+        "Mevcut veri dosyası son otomatik yedeğe geri döndürüldü.",
+    )
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+@app.get(
     "/system-status"
 )
 def get_system_status():
@@ -2628,12 +2741,18 @@ def robots_txt():
 @app.get(
     "/sitemap.xml"
 )
-def sitemap_xml():
+def sitemap_xml(
+    request: Request,
+):
+    base = str(
+        request.base_url
+    ).rstrip("/")
+
     return Response(
         content=(
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-            '<url><loc>/</loc></url>'
+            f'<url><loc>{esc(base)}/</loc></url>'
             '</urlset>'
         ),
         media_type="application/xml",
