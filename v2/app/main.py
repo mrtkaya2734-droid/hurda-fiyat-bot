@@ -3362,6 +3362,47 @@ async def admin_source_save(
 
 
 # =========================================================
+# FİRMA SIRALAMA - DOĞRUDAN NUMARA
+# =========================================================
+
+@app.post(
+    "/admin/source/{firma_id}/order"
+)
+async def admin_source_order(
+    firma_id: str,
+    sira: int = Form(...),
+    username: str = Depends(
+        verify_admin
+    ),
+):
+    data = load_data()
+
+    if firma_id not in data.get("firms", {}):
+        raise HTTPException(
+            status_code=404,
+            detail="Firma bulunamadı.",
+        )
+
+    try:
+        hedef_sira = max(1, int(sira))
+    except (TypeError, ValueError):
+        hedef_sira = 1
+
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        hedef_sira - 1,
+    )
+
+    save_data(data)
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303,
+    )
+
+
+# =========================================================
 # FİRMA SIRALAMA
 # =========================================================
 
@@ -4424,8 +4465,31 @@ ID: {esc(firma_id)}
 Son başarılı çekim: {esc(son_cekim)}
 </div>
 
-<div class="text-xs text-indigo-700 font-black mt-1">
-Ana Sayfa Sırası: {index + 1}
+<div class="flex items-center gap-2 mt-2">
+<form
+method="post"
+action="/admin/source/{esc(firma_id)}/order"
+class="flex items-center gap-2"
+>
+<label class="text-xs text-indigo-700 font-black whitespace-nowrap">
+Ana Sayfa Sırası
+</label>
+<input
+type="number"
+name="sira"
+value="{index + 1}"
+min="1"
+step="1"
+required
+class="w-20 h-9 rounded-lg border border-indigo-200 bg-white px-2 text-sm font-black text-indigo-800 text-center outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+>
+<button
+type="submit"
+class="h-9 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition"
+>
+Kaydet
+</button>
+</form>
 </div>
 
 <div class="flex flex-wrap gap-2 mt-3">
