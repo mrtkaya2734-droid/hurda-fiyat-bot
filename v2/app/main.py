@@ -6866,6 +6866,40 @@ body {
     white-space: normal !important;
 }
 
+/* Fabrika kartının iç iskeleti: numara + firma + kontroller net kolonlara ayrılır. */
+@media (min-width: 1024px) {
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child {
+        display: grid !important;
+        grid-template-columns: 40px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 10px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div > div:first-child > div:first-child > div:nth-child(2) {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .market-design .factory-price-grid .firma-toggle > div {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto auto !important;
+        align-items: center !important;
+        column-gap: 10px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .market-design .factory-price-grid .price-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(105px, auto) !important;
+        align-items: center !important;
+        column-gap: 12px !important;
+        width: 100% !important;
+    }
+}
+
 .market-design .price-card .firma-toggle > div > div > div:first-child > div:first-child {
     background: #0f172a !important;
     box-shadow: 0 5px 12px rgba(15,23,42,.12);
