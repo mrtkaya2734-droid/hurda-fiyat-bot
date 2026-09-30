@@ -757,8 +757,26 @@ def lme_verilerini_cek():
             _smm_lme_3m_verilerini_cek()
         )
 
+        # 3M için güncel 15 dk gecikmeli SMM kotasyonunu kullan.
+        # Nakit bid/ask sütunlarını ise resmi LME day-delayed
+        # kaynaktan doldur; böylece ekranda sahte bid/ask üretmeyiz.
+        try:
+            resmi_fiyatlar, _ = _lme_api_verilerini_cek()
+
+            for metal, item in fiyatlar.items():
+                resmi = resmi_fiyatlar.get(metal) or {}
+
+                item["cash_bid"] = resmi.get("cash_bid")
+                item["cash_ask"] = resmi.get("cash_ask")
+
+        except Exception as nakit_exc:
+            hatalar.append(
+                f"LME resmi nakit verisi: {nakit_exc}"
+            )
+
         kaynak = (
-            "SMM/Metal.com · LMEselect 3M · 15 dk gecikmeli"
+            "SMM/Metal.com · LMEselect 3M 15 dk + "
+            "LME Official nakit"
         )
 
     except Exception as exc:
