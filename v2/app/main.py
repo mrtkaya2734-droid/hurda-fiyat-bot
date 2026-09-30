@@ -1290,6 +1290,52 @@ def load_ads():
                     f"{type(exc).__name__}: {exc}"
                 )
 
+        elif os.path.exists(ADS_FILE):
+            # İlk Supabase çalıştırmasında repodaki mevcut reklamları
+            # kalıcı depoya seed et.
+            supabase_upload_json(
+                ADS_FILE,
+                "ads.json",
+            )
+
+            try:
+                with open(
+                    ADS_FILE,
+                    "r",
+                    encoding="utf-8",
+                ) as file:
+                    seed_ads = normalize_ads(
+                        json.load(file)
+                    )
+
+                for item in seed_ads.values():
+                    image_url = str(
+                        item.get("image_url", "")
+                        if isinstance(item, dict)
+                        else ""
+                    ).strip()
+
+                    if not image_url.startswith("/static/ads/"):
+                        continue
+
+                    filename = os.path.basename(image_url)
+                    local_image = os.path.join(
+                        ADS_UPLOAD_DIR,
+                        filename,
+                    )
+
+                    if os.path.exists(local_image):
+                        supabase_storage_upload(
+                            local_image,
+                            f"ads/{filename}",
+                        )
+
+            except Exception as exc:
+                print(
+                    "SUPABASE REKLAM SEED HATASI: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
     if not os.path.exists(
         ADS_FILE
     ):
