@@ -7258,62 +7258,59 @@ body {
     margin-top: 18px;
 }
 
-/* Fabrika alanı tam genişlikte; önce 10 fabrika 5+5, sonra 6 reklam tek sıra. */
+/* FABRİKA LAYOUT — MASAÜSTÜ: 3 REKLAM | 10 FABRİKA | 3 REKLAM */
 @media (min-width: 1024px) {
     .factory-layout {
         display: grid !important;
-        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        grid-template-columns: 250px minmax(0, 1fr) 250px !important;
         gap: 18px !important;
-        align-items: start;
+        align-items: start !important;
     }
 
     .factory-layout > main {
-        grid-column: 1 / -1 !important;
+        grid-column: 2 !important;
         grid-row: 1 !important;
         width: 100% !important;
         max-width: none !important;
+        min-width: 0 !important;
     }
 
-    /* İki mevcut reklam kolonu tek satırda 6 ayrı kutuya dönüşür. */
-    .factory-layout > .desktop-ad-column {
-        display: contents !important;
+    .factory-layout > .desktop-ad-column:first-child {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        grid-template-rows: repeat(3, minmax(0, auto)) !important;
+        gap: 14px !important;
+        width: 100% !important;
+        height: auto !important;
+        align-items: start !important;
+    }
+
+    .factory-layout > .desktop-ad-column:last-child {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        grid-template-rows: repeat(3, minmax(0, auto)) !important;
+        gap: 14px !important;
+        width: 100% !important;
+        height: auto !important;
+        align-items: start !important;
     }
 
     .factory-layout > .desktop-ad-column .ad-box {
         width: 100% !important;
         max-width: none !important;
         aspect-ratio: 4 / 3 !important;
-        grid-row: 2 !important;
     }
 
-    .factory-layout > .desktop-ad-column:first-child .ad-box:first-child {
-        grid-column: 1 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(2) {
-        grid-column: 2 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:first-child .ad-box:nth-child(3) {
-        grid-column: 3 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:first-child {
-        grid-column: 4 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(2) {
-        grid-column: 5 !important;
-    }
-
-    .factory-layout > .desktop-ad-column:last-child .ad-box:nth-child(3) {
-        grid-column: 6 !important;
-    }
-
-    /* 10 fabrika: 5 + 5. */
+    /* Ortadaki 10 fabrika: 2 sütun x 5 satır. */
     .factory-price-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 16px !important;
+        width: 100% !important;
+        min-width: 0 !important;
     }
 }
 
