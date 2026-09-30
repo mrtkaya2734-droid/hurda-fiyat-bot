@@ -897,25 +897,96 @@ def firmalari_sirala(data):
 
 
 def firma_siralarini_duzelt(data):
-    firmalar = firmalari_sirala(        data
-    )
-
-    for index, firma in enumerate(
-        firmalar
-    ):
-
-        firma_id = firma.get(
-            "firma_id"
-        )
-
-        if firma_id in data.get(
+    """
+    Mevcut sıralamayı korur.
+    Sadece sırası bulunmayan/geçersiz kayıtları mevcut listenin sonuna yerleştirir.
+    Kullanıcının elle verdiği sıra numarasını yeniden yazmaz.
+    """
+    firmalar = list(
+        data.get(
             "firms",
             {},
-        ):
+        ).values()
+    )
 
-            data["firms"][
-                firma_id
-            ]["sira"] = index
+    if not firmalar:
+        return data
+
+    try:
+        firmalar.sort(
+            key=lambda firma: (
+                int(firma.get("sira")),
+                str(firma.get("firma_id", "")).lower(),
+            )
+        )
+    except Exception:
+        firmalar = firmalari_sirala(data)
+
+    sonraki_sira = len(firmalar)
+
+    for firma in firmalar:
+        firma_id = firma.get("firma_id")
+        if firma_id not in data.get("firms", {}):
+            continue
+
+        try:
+            int(firma.get("sira"))
+        except (TypeError, ValueError):
+            data["firms"][firma_id]["sira"] = sonraki_sira
+            sonraki_sira += 1
+
+    return data
+
+
+def firma_sirasini_uygula(data, firma_id, istenen_sira):
+    """
+    Admin panelindeki 'Ana Sayfa Sıra Numarası' alanını gerçek bir
+    konumlandırma komutu olarak uygular.
+
+    Örn. 5 firmada bir firmaya 2 yazılırsa firma 2. sıraya gelir;
+    diğer firmalar otomatik olarak bir basamak aşağı kayar.
+    """
+    firmalar = firmalari_sirala(data)
+
+    hedef = None
+
+    for firma in firmalar:
+        if firma.get("firma_id") == firma_id:
+            hedef = firma
+            break
+
+    if hedef is None:
+        return data
+
+    try:
+        hedef_index = max(
+            0,
+            int(istenen_sira),
+        )
+    except (TypeError, ValueError):
+        hedef_index = 0
+
+    firmalar = [
+        firma
+        for firma in firmalar
+        if firma.get("firma_id") != firma_id
+    ]
+
+    hedef_index = min(
+        hedef_index,
+        len(firmalar),
+    )
+
+    firmalar.insert(
+        hedef_index,
+        hedef,
+    )
+
+    for index, firma in enumerate(firmalar):
+        kayit_id = firma.get("firma_id")
+
+        if kayit_id in data.get("firms", {}):
+            data["firms"][kayit_id]["sira"] = index
 
     return data
 
@@ -1557,8 +1628,10 @@ def firma_verisini_cek(
         "durum"
     ] = "basarili"
 
-    firma_siralarini_duzelt(
-        data
+    firma_sirasini_uygula(
+        data,
+        firma_id,
+        yeni_sira - 1,
     )
 
     save_data(
@@ -5480,10 +5553,30 @@ body {
     height: auto;
     display: flex;
     flex-direction: column;
+}
+
+.firma-toggle {
+    height: 116px;
+    min-height: 116px !important;
+    display: flex;
+    align-items: center;
+}
+
+.firma-toggle > div {
+    width: 100%;
+}
+
+@media (max-width: 639px) {
+    .firma-toggle {
+        height: 112px;
+        min-height: 112px !important;
+    }
     transition:
         transform .2s ease,
         box-shadow .2s ease,
         border-color .2s ease;
+}
+
 }
 
 .price-card * {
@@ -7034,7 +7127,7 @@ async function fiyatlariGetir() {
                   "</span>";
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full min-h-[112px] sm:min-h-[116px] text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
+                '<button type="button" class="firma-toggle w-full text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
                     panelId +
                     '" aria-expanded="false">' +
 
