@@ -65,6 +65,9 @@ def _supabase_enabled():
 def _supabase_headers(content_type=None):
     headers = {
         "apikey": SUPABASE_SECRET_KEY,
+        # Supabase secret key sunucu tarafında service key olarak
+        # Storage RLS kontrollerini bypass edebilir.
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
     }
 
     if content_type:
@@ -73,23 +76,14 @@ def _supabase_headers(content_type=None):
     return headers
 
 
-def _supabase_object_url(
-    object_name,
-    authenticated=False,
-):
+def _supabase_object_url(object_name):
     object_name = str(
         object_name or ""
     ).strip().lstrip("/")
 
-    prefix = (
-        "authenticated/"
-        if authenticated
-        else ""
-    )
-
     return (
         f"{SUPABASE_URL}/storage/v1/object/"
-        f"{prefix}{SUPABASE_BUCKET}/{object_name}"
+        f"{SUPABASE_BUCKET}/{object_name}"
     )
 
 
@@ -101,7 +95,6 @@ def supabase_storage_download(object_name):
         response = requests.get(
             _supabase_object_url(
                 object_name,
-                authenticated=True,
             ),
             headers=_supabase_headers(),
             timeout=20,
