@@ -5608,8 +5608,8 @@ body {
 }
 
 .firma-toggle {
-    height: 116px;
-    min-height: 116px !important;
+    height: 132px;
+    min-height: 132px !important;
     display: flex;
     align-items: center;
 }
@@ -5620,8 +5620,8 @@ body {
 
 @media (max-width: 639px) {
     .firma-toggle {
-        height: 112px;
-        min-height: 112px !important;
+        height: 124px;
+        min-height: 124px !important;
     }
 }
 
@@ -6361,19 +6361,19 @@ id="leftBottomAd"
 <main class="min-w-0 w-full max-w-[760px] mx-auto">
 
 <div class="text-center mb-3 sm:mb-4 px-1">
-<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+<div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-cyan-300">
 Güncel Hurda Fiyatları
 </div>
-<div class="text-lg sm:text-xl font-black text-slate-900 mt-1">
+<div class="text-lg sm:text-xl font-black text-white mt-1">
 Fabrika Fiyatları
 </div>
-<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-400">
+<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-1.5 text-[10px] font-bold text-slate-200">
 <span class="inline-flex items-center gap-1.5">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-Canlı takip
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.7)]"></span>
+<span class="text-emerald-300 font-black">Canlı takip</span>
 </span>
-<span class="text-slate-300">•</span>
-<span>Firmaların son yayınladığı fiyatlar</span>
+<span class="text-slate-500">•</span>
+<span class="text-slate-200">Firmaların son yayınladığı fiyatlar</span>
 </div>
 </div>
 
