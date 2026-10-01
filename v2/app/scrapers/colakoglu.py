@@ -16,6 +16,52 @@ API = "https://client.colakoglu.com.tr/webservice/scrap-price"
 API_HOST = "client.colakoglu.com.tr"
 
 
+def _resmi_api_proxy_istegi():
+    """
+    Render -> client.colakoglu.com.tr doğrudan bağlantısı timeout olursa,
+    resmi Çolakoğlu API URL'sini bir HTTP fetch proxy üzerinden ister.
+    Proxy yalnızca resmi API cevabını taşır; fiyat kaynağı yine Çolakoğlu API'sidir.
+    """
+    proxy_url = (
+        "https://r.jina.ai/http://"
+        "client.colakoglu.com.tr/webservice/scrap-price"
+    )
+
+    response = requests.get(
+        proxy_url,
+        headers={
+            "User-Agent": "HurdaFiyatBot/2.0",
+            "Accept": "application/json,text/plain,*/*",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+
+    text = response.text.strip()
+
+    try:
+        return response, response.json()
+    except ValueError:
+        pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start < 0 or end <= start:
+        raise ValueError(
+            "Resmi API proxy cevabında JSON bulunamadı."
+        )
+
+    try:
+        veri = json.loads(text[start:end + 1])
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "Resmi API proxy cevabı geçerli JSON değil."
+        ) from exc
+
+    return response, veri
+
+
 def _resmi_api_istegi():
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
@@ -160,7 +206,14 @@ def cek() -> FirmaSonuc:
                     continue
 
         if veri is None:
-            raise son_hata or requests.RequestException("Bilinmeyen API hatası")
+            try:
+                _, veri = _resmi_api_proxy_istegi()
+            except Exception as proxy_error:
+                raise requests.RequestException(
+                    "Resmi API doğrudan ve proxy üzerinden alınamadı. "
+                    f"Doğrudan hata: {son_hata}; "
+                    f"proxy hatası: {proxy_error}"
+                ) from proxy_error
 
     except requests.RequestException as e:
         raise ScraperHatasi(
