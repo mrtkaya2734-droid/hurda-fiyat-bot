@@ -4146,7 +4146,7 @@ async def admin_source_order(
     firma_sirasini_uygula(
         data,
         firma_id,
-        hedef_sira - 1,
+        hedef_sira,
     )
 
     save_data(data)
@@ -4222,40 +4222,11 @@ async def admin_source_move(
         )
 
     if yeni_index != mevcut_index:
-
-        firmalar[
-            mevcut_index
-        ], firmalar[
-            yeni_index
-        ] = (
-            firmalar[
-                yeni_index
-            ],
-            firmalar[
-                mevcut_index
-            ],
+        firma_sirasini_uygula(
+            data,
+            firma_id,
+            yeni_index + 1,
         )
-
-    for index, firma in enumerate(
-        firmalar
-    ):
-
-        id_degeri = firma.get(
-            "firma_id"
-        )
-
-        if id_degeri in data.get(
-            "firms",
-            {},
-        ):
-
-            data[
-                "firms"
-            ][
-                id_degeri
-            ][
-                "sira"
-            ] = index
 
     save_data(
         data
