@@ -1177,12 +1177,49 @@ def fiyat_format(fiyat):
         return str(fiyat)
 
 
+def kalem_kanonik_adi(value):
+    """
+    Eski/bozuk kaynak kayıtlarında görülen:
+    - "DKP DKP Hurda Fiyat geçmişi"
+    - "Top Şiş Top Şiş Hurda Fiyat geçmişi"
+    gibi tekrarları yalnızca gösterim ve karşılaştırma sırasında düzeltir.
+    Kalıcı veri kaydı silinmez veya değiştirilmez.
+    """
+    text = " ".join(
+        str(value or "").strip().split()
+    )
+
+    if not text:
+        return ""
+
+    text = re.sub(
+        r"\\s+Hurda\\s+Fiyat\\s+geçmişi\\s*$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    words = text.split()
+
+    if len(words) >= 2 and len(words) % 2 == 0:
+        half = len(words) // 2
+        if (
+            " ".join(words[:half]).casefold()
+            == " ".join(words[half:]).casefold()
+        ):
+            text = " ".join(words[:half])
+
+    return " ".join(text.split())
+
+
 def son_fiyat_degisim(
     data,
     firma_id,
     kalem,
     fiyat,
 ):
+
+    hedef_kalem = kalem_kanonik_adi(kalem).casefold()
 
     gecmis = [
         x
@@ -1193,9 +1230,9 @@ def son_fiyat_degisim(
         if x.get(
             "firma_id"
         ) == firma_id
-        and x.get(
-            "kalem"
-        ) == kalem
+        and kalem_kanonik_adi(
+            x.get("kalem")
+        ).casefold() == hedef_kalem
     ]
 
     if not gecmis:
@@ -2221,11 +2258,50 @@ def fiyat_verilerini_olustur():
         firma_kalemleri = []
 
         # Kaynakta gelen / kayıtlı kalem sırasını koru.
-        # Güncelleme tarihine göre sıralamak, fiyat kalemlerinin
-        # doğal sırasını bozuyordu.
-        sirali_fiyatlar = list(
-            fiyatlar.items()
-        )
+        # Eski kayıtlarda aynı kalem iki kez veya tekrarlı adla tutulmuşsa
+        # yalnızca ekranda tek, kanonik ad gösterilir. Kalıcı veri silinmez.
+        sirali_fiyatlar = []
+        gorulen_kalemler = {}
+
+        for kayit_kalemi, bilgi in fiyatlar.items():
+            kanonik_kalem = kalem_kanonik_adi(kayit_kalemi)
+
+            if not kanonik_kalem:
+                continue
+
+            anahtar = kanonik_kalem.casefold()
+
+            if anahtar in gorulen_kalemler:
+                onceki_index, onceki_kalem = gorulen_kalemler[anahtar]
+
+                # Temiz/kanonik kayıt varsa onu tercih et.
+                if (
+                    str(kayit_kalemi).strip().casefold()
+                    == kanonik_kalem.casefold()
+                    and str(onceki_kalem).strip().casefold()
+                    != kanonik_kalem.casefold()
+                ):
+                    sirali_fiyatlar[onceki_index] = (
+                        kanonik_kalem,
+                        bilgi,
+                    )
+                    gorulen_kalemler[anahtar] = (
+                        onceki_index,
+                        kanonik_kalem,
+                    )
+
+                continue
+
+            gorulen_kalemler[anahtar] = (
+                len(sirali_fiyatlar),
+                kayit_kalemi,
+            )
+            sirali_fiyatlar.append(
+                (
+                    kanonik_kalem,
+                    bilgi,
+                )
+            )
 
         for kalem, bilgi in sirali_fiyatlar:
 
