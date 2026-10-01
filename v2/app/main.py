@@ -5121,6 +5121,43 @@ def admin_panel(
         ]
     )
 
+    guncellenen_24_saat = [
+        x for x in firmalar
+        if son_24_saatte_mi(
+            x.get("son_basarili_cekme")
+        )
+    ]
+
+    firma_guncelleme_siralama = sorted(
+        guncellenen_24_saat,
+        key=lambda x: str(
+            x.get("son_basarili_cekme") or ""
+        ),
+        reverse=True,
+    )
+
+    guncelleme_rows = "".join(
+        (
+            '<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">'
+            '<div class="font-black text-sm text-slate-900 break-words">'
+            + esc(firma.get("baslik", firma.get("firma_id", "-")))
+            + '</div>'
+            '<div class="text-[10px] text-slate-500 mt-1">Son başarılı çekim</div>'
+            '<div class="text-xs font-black text-emerald-700 mt-0.5">'
+            + esc(firma.get("son_basarili_cekme") or "-")
+            + '</div>'
+            '</div>'
+        )
+        for firma in firma_guncelleme_siralama
+    )
+
+    if not guncelleme_rows:
+        guncelleme_rows = '''
+<div class="sm:col-span-2 lg:col-span-3 rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500">
+Son 24 saatte başarılı fabrika güncellemesi bulunmuyor.
+</div>
+'''
+
     firma_rows = ""
 
     for index, firma in enumerate(
@@ -5219,6 +5256,14 @@ ID: {esc(firma_id)}
 <div class="text-xs text-slate-500 mt-1 break-words">
 Son başarılı çekim: {esc(son_cekim)}
 </div>
+
+{
+    (
+        '<div class="mt-2 inline-flex items-center rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700">SON 24 SAATTE GÜNCELLENDİ</div>'
+    )
+    if son_24_saatte_mi(son_cekim)
+    else ''
+}
 
 <div class="flex items-center gap-2 mt-2">
 <form
@@ -6120,6 +6165,24 @@ Yedekleme: AKTİF
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim</div><div class="text-xl font-black mt-1">{len(notifications)}</div></div>
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Otomatik takip</div><div class="text-xl font-black mt-1">{"AÇIK" if AUTO_UPDATE_ENABLED else "KAPALI"}</div></div>
 </div>
+</div>
+
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+<div>
+<h2 class="text-xl font-bold">Son 24 Saat Güncellemeleri</h2>
+<p class="text-sm text-slate-500 mt-1">Bugün başarılı veri alan fabrikaların son çekim zamanı.</p>
+</div>
+<div class="text-xs bg-sky-50 text-sky-700 px-3 py-2 rounded-xl font-black">
+{len(guncellenen_24_saat)} firma güncellendi
+</div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+{guncelleme_rows}
+</div>
+
 </div>
 
 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
