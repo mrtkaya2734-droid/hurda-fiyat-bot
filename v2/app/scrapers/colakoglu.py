@@ -1,6 +1,8 @@
 from datetime import datetime
 
 import json
+import socket
+
 import requests
 
 from app.models import FirmaSonuc, Kalem
@@ -29,9 +31,10 @@ def _resmi_api_istegi():
             timeout=12,
         )
     except requests.RequestException as normal_error:
-        # Render ortamında client.colakoglu.com.tr zaman zaman DNS
-        # çözülemiyor. Bu durumda alan adını Google DNS-over-HTTPS
-        # üzerinden çözerek yine Çolakoğlu'nun kendi API'sine bağlan.
+        # Render'da client.colakoglu.com.tr zaman zaman DNS çözümlemiyor.
+        # Önce resmi DNS kaydını alıyoruz; ardından isteği IP adresine değil,
+        # yine alan adına gönderiyoruz. Böylece HTTPS SNI/certificate doğrulaması
+        # client.colakoglu.com.tr olarak kalıyor.
         try:
             dns = requests.get(
                 "https://dns.google/resolve",
@@ -40,33 +43,65 @@ def _resmi_api_istegi():
                 timeout=6,
             )
             dns.raise_for_status()
-            cevap = dns.json()
+
             adresler = [
                 item.get("data")
-                for item in cevap.get("Answer", [])
+                for item in dns.json().get("Answer", [])
                 if item.get("type") == 1 and item.get("data")
             ]
 
             if not adresler:
-                raise RuntimeError("DNS A kaydı bulunamadı.")
+                raise RuntimeError("Çolakoğlu API için DNS A kaydı bulunamadı.")
 
-            son_hata = normal_error
+            original_getaddrinfo = socket.getaddrinfo
+
             for ip in adresler:
+                def resolved_getaddrinfo(
+                    host,
+                    port,
+                    family=0,
+                    type=0,
+                    proto=0,
+                    flags=0,
+                    _ip=ip,
+                ):
+                    if host == API_HOST:
+                        return [
+                            (
+                                socket.AF_INET,
+                                socket.SOCK_STREAM,
+                                socket.IPPROTO_TCP,
+                                "",
+                                (_ip, int(port)),
+                            )
+                        ]
+                    return original_getaddrinfo(
+                        host,
+                        port,
+                        family,
+                        type,
+                        proto,
+                        flags,
+                    )
+
+                socket.getaddrinfo = resolved_getaddrinfo
+
                 try:
                     response = requests.get(
-                        f"https://{ip}/webservice/scrap-price",
-                        headers={
-                            **headers,
-                            "Host": API_HOST,
-                        },
+                        API,
+                        headers=headers,
                         verify=False,
                         timeout=12,
                     )
                     return response
-                except requests.RequestException as ip_error:
-                    son_hata = ip_error
+                except requests.RequestException:
+                    continue
+                finally:
+                    socket.getaddrinfo = original_getaddrinfo
 
-            raise son_hata
+            raise RuntimeError(
+                "Resmi Çolakoğlu API adresine DNS üzerinden ulaşılamadı."
+            )
 
         except Exception as dns_error:
             raise normal_error from dns_error
