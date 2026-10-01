@@ -4,11 +4,11 @@
             "firma_id": "colakoglu",
             "baslik": "Çolakoğlu Metalurji",
             "url": "https://www.colakoglu.com.tr/hurda",
-            "otomatik": true,
+            "otomatik": false,
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:42",
             "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "basarili",
+            "durum": "manuel",
             "sira": 0
         },
         "erdemir": {
