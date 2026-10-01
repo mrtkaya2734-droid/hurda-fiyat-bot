@@ -6026,6 +6026,69 @@ body {{
     flex: 0 0 auto !important;
 }}
 
+.market-design .factory-price-grid .factory-card-price-badge {{
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    min-width: 0 !important;
+    padding: 7px 11px !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-price-label {{
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .06em !important;
+    color: #94a3b8 !important;
+}}
+
+.market-design .factory-price-grid .factory-card-price {{
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    white-space: nowrap !important;
+}}
+
+.market-design .factory-price-grid .factory-card-updated {{
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 7px 10px !important;
+    border-radius: 12px !important;
+    background: #ecfdf5 !important;
+    border: 1px solid #a7f3d0 !important;
+    color: #047857 !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+}}
+
+@media (max-width: 639px) {{
+    .market-design .factory-price-grid .factory-card-actions {{
+        gap: 6px !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-price-badge {{
+        padding: 6px 8px !important;
+        gap: 5px !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-price-label {{
+        display: none !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-price {{
+        font-size: 11px !important;
+    }}
+
+    .market-design .factory-price-grid .factory-card-updated {{
+        padding: 6px 8px !important;
+        font-size: 8px !important;
+    }}
+}}
+
 .market-design .factory-price-grid .factory-price-panel:not(.hidden) {{
     display: block !important;
     width: 100% !important;
@@ -9864,10 +9927,6 @@ async function fiyatlariGetir() {
 
                         '<div class="factory-card-main">' +
 
-                            '<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] sm:text-xs font-black shadow-sm shrink-0">' +
-                                String(index + 1).padStart(2, "0") +
-                            "</div>" +
-
                             '<div class="factory-card-info">' +
 
                                 '<div class="factory-card-title-line">' +
@@ -9876,24 +9935,6 @@ async function fiyatlariGetir() {
                                         escapeHtml(item.baslik) +
                                     "</h2>" +
 
-                                    "" +
-
-                                "</div>" +
-
-                                '<div class="factory-card-meta mt-1">' +
-                                    '<span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>' +
-                                    '<span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold">' +
-                                        "Fiyat tarihi: " +
-                                        escapeHtml(item.tarih || "-") +
-                                    "</span>" +
-                                    '<span class="text-slate-300 shrink-0">•</span>' +
-                                    '<span class="text-[10px] text-slate-400 font-bold whitespace-nowrap">' +
-                                        kalemSayisi +
-                                        " kalem" +
-                                    "</span>" +
-                                    (item.son_24_saatte_guncellendi
-                                        ? '<span class="text-slate-300 shrink-0">•</span><span class="inline-flex items-center rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">BUGÜN GÜNCELLENDİ · ' + escapeHtml(item.son_kontrol || '-') + '</span>'
-                                        : '') +
                                 "</div>" +
 
                             "</div>" +
@@ -9902,31 +9943,23 @@ async function fiyatlariGetir() {
 
                         '<div class="factory-card-actions">' +
 
+                            '<div class="factory-card-price-badge">' +
+                                '<span class="factory-card-price-label">Fiyat</span>' +
+                                '<span class="factory-card-price">' +
+                                    escapeHtml(
+                                        item.kalemler &&
+                                        item.kalemler.length
+                                            ? item.kalemler[0].fiyat
+                                            : "-"
+                                    ) +
+                                "</span>" +
+                            "</div>" +
+
                             (
-                                artisSayisi || dususSayisi
-                                    ? '<span class="hidden sm:inline-flex items-center gap-2 text-[10px] font-black mr-1 whitespace-nowrap">' +
-                                        (
-                                            artisSayisi
-                                                ? '<span class="text-emerald-600">▲ ' + artisSayisi + "</span>"
-                                                : ""
-                                        ) +
-                                        (
-                                            artisSayisi && dususSayisi
-                                                ? '<span class="text-slate-300">•</span>'
-                                                : ""
-                                        ) +
-                                        (
-                                            dususSayisi
-                                                ? '<span class="text-red-600">▼ ' + dususSayisi + "</span>"
-                                                : ""
-                                        ) +
-                                      "</span>"
+                                item.son_24_saatte_guncellendi
+                                    ? '<span class="factory-card-updated">BUGÜN GÜNCELLENDİ</span>'
                                     : ""
                             ) +
-
-                            '<span class="hidden md:inline-flex items-center rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-500 whitespace-nowrap">' +
-                                "Fiyatları Gör" +
-                            "</span>" +
 
                             '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
                                 "▼" +
