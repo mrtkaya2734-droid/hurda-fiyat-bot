@@ -2901,9 +2901,23 @@ def get_today_changes():
         reverse=True,
     )
 
+    yukselen_sayisi = sum(
+        1
+        for item in sonuc
+        if float(item.get("fark", 0)) > 0
+    )
+
+    dusen_sayisi = sum(
+        1
+        for item in sonuc
+        if float(item.get("fark", 0)) < 0
+    )
+
     return {
         "status": "success",
-        "data": sonuc[:30],
+        "yukselen": yukselen_sayisi,
+        "dusen": dusen_sayisi,
+        "data": sonuc[:500],
     }
 
 
@@ -9208,7 +9222,10 @@ function marketToolsInit(result) {
             return firma.son_24_saatte_guncellendi;
         });
 
-        todayUpdates.innerHTML =
+        let todayChangesByFirm = {};
+
+        function renderTodayUpdates(updateFirmalar, changesByFirm) {
+            todayUpdates.innerHTML =
             '<div class="rounded-2xl border border-sky-200 bg-sky-50/80 p-3 sm:p-4">' +
                 '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">' +
                     '<div><div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Son 24 Saat</div>' +
@@ -9219,24 +9236,44 @@ function marketToolsInit(result) {
                 (updates.length
                     ? '<div class="flex flex-wrap gap-2 mt-3">' +
                         updates.map(function(firma) {
-                            const kalemler = Array.isArray(firma.kalemler)
-                                ? firma.kalemler
-                                    .map(function(kalem) {
-                                        return String(kalem.cins || "").trim();
-                                    })
-                                    .filter(Boolean)
-                                    .filter(function(kalem, index, liste) {
-                                        return liste.indexOf(kalem) === index;
-                                    })
-                                : [];
+                            const firmaDegisimleri = changesByFirm[
+                                String(firma.firma_id || "").trim().toLowerCase()
+                            ] || [];
+
+                            const kalemler = firmaDegisimleri
+                                .map(function(change) {
+                                    return String(change.kalem || "").trim();
+                                })
+                                .filter(Boolean)
+                                .filter(function(kalem, index, liste) {
+                                    return liste.indexOf(kalem) === index;
+                                });
 
                             const kalemListesi = kalemler.length
                                 ? kalemler.map(function(kalem) {
-                                    return '<span class="inline-flex items-center rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[9px] sm:text-[10px] font-bold text-slate-600 whitespace-nowrap">' +
+                                    const change = firmaDegisimleri.find(function(item) {
+                                        return String(item.kalem || "").trim() === kalem;
+                                    });
+
+                                    const fark = change
+                                        ? Number(change.fark || 0)
+                                        : 0;
+
+                                    const yukselis = fark > 0;
+
+                                    return '<span class="inline-flex items-center gap-1 rounded-lg ' +
+                                        (yukselis
+                                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                            : 'bg-red-50 border border-red-200 text-red-700') +
+                                        ' px-2 py-1 text-[9px] sm:text-[10px] font-black whitespace-nowrap">' +
+                                        (yukselis ? '▲ ' : '▼ ') +
                                         escapeHtml(kalem) +
-                                    '</span>';
+                                        ' ' +
+                                        (yukselis ? '+' : '') +
+                                        Number(fark).toLocaleString("tr-TR") +
+                                        ' TL</span>';
                                 }).join("")
-                                : '<span class="text-[9px] font-semibold text-slate-400">Kalem bilgisi yok</span>';
+                                : '<span class="text-[9px] font-semibold text-slate-400">Bu güncellemede fiyat değişimi yok</span>';
 
                             const panelId = "today-update-" + String(firma.firma_id || "").replace(/[^a-zA-Z0-9_-]/g, "");
 
@@ -9273,6 +9310,45 @@ function marketToolsInit(result) {
                 }
             });
         });
+        }
+
+        fetch("/today-changes", {cache:"no-store"})
+            .then(function(r){ return r.json(); })
+            .then(function(payload){
+                todayChangesByFirm = {};
+
+                (payload.data || []).forEach(function(change) {
+                    const id = String(change.firma_id || "").trim().toLowerCase();
+                    if (!id) return;
+
+                    if (!todayChangesByFirm[id]) {
+                        todayChangesByFirm[id] = [];
+                    }
+
+                    todayChangesByFirm[id].push(change);
+                });
+
+                renderTodayUpdates(
+                    updates,
+                    todayChangesByFirm
+                );
+
+                if (summaryUpCount) {
+                    summaryUpCount.textContent =
+                        Number(payload.yukselen || 0);
+                }
+
+                if (summaryDownCount) {
+                    summaryDownCount.textContent =
+                        Number(payload.dusen || 0);
+                }
+            })
+            .catch(function(){
+                renderTodayUpdates(
+                    updates,
+                    {}
+                );
+            });
     }
 
     const search = document.getElementById("fiyatArama");
@@ -9395,6 +9471,16 @@ function marketToolsInit(result) {
                 if (!box) return;
                 box.dataset.loaded = "1";
                 const rows = payload.data || [];
+
+                if (summaryUpCount) {
+                    summaryUpCount.textContent =
+                        Number(payload.yukselen || 0);
+                }
+
+                if (summaryDownCount) {
+                    summaryDownCount.textContent =
+                        Number(payload.dusen || 0);
+                }
                 if (!rows.length) {
                     box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte kayda değer fiyat değişimi yok.</div>';
                 } else {
