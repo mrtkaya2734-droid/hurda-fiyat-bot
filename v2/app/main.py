@@ -1166,7 +1166,7 @@ def son_fiyat_degisim(
     gecmis = [
         x
         for x in data.get(
-            "price_history",
+            "history",
             [],
         )
         if x.get(
@@ -5671,6 +5671,9 @@ body {{
     border-radius: 18px;
     padding: 12px;
     box-shadow: 0 8px 22px rgba(15,23,42,.045);
+    max-height: 320px;
+    overflow-y: auto;
+    scrollbar-width: thin;
 }}
 
 .market-design #todayChanges > div:first-child {{
