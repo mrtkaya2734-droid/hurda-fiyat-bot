@@ -2652,60 +2652,63 @@ def get_history(
 )
 def get_today_changes():
     data = load_data()
-    now = datetime.now()
+    now = datetime.now(ISTANBUL).replace(tzinfo=None)
     sonuc = []
 
-    # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
+    # Kayıt sırasına güvenme. Her firma/kalemi kendi içinde tarihe göre
+    # sırala ve son 24 saatte gerçekleşen gerçek fiyat değişimini bul.
     gruplar = {}
 
     for item in data.get("history", []):
-        firma_id = str(item.get("firma_id", "")).strip().lower()
+        firma_id = str(item.get("firma_id", "")).strip().casefold()
         kalem = str(item.get("kalem", "")).strip()
 
-        if not firma_id or not kalem:
+        if not firma_id or not kalem or item.get("fiyat") is None:
             continue
-
-        anahtar = (firma_id, kalem)
-        gruplar.setdefault(anahtar, []).append(item)
-
-    for (firma_id, kalem), kayitlar in gruplar.items():
-        sonlar = list(reversed(kayitlar))
-        bulunan = []
-
-        for item in sonlar:
-            try:
-                zaman = datetime.fromisoformat(
-                    str(item.get("tarih", "")).replace("Z", "")
-                )
-            except Exception:
-                continue
-
-            if (
-                now.replace(tzinfo=None) - zaman
-            ).total_seconds() > 24 * 60 * 60:
-                break
-
-            fiyat = item.get("fiyat")
-            if fiyat is None:
-                continue
-
-            if not bulunan or bulunan[-1].get("fiyat") != fiyat:
-                bulunan.append(item)
-
-            if len(bulunan) >= 2:
-                break
-
-        if len(bulunan) < 2:
-            continue
-
-        yeni = bulunan[0].get("fiyat")
-        eski = bulunan[1].get("fiyat")
 
         try:
-            fark = float(yeni) - float(eski)
+            zaman = datetime.fromisoformat(
+                str(item.get("tarih", "")).replace("Z", "+00:00")
+            )
+            if zaman.tzinfo is not None:
+                zaman = zaman.astimezone(ISTANBUL).replace(tzinfo=None)
+        except Exception:
+            continue
+
+        gruplar.setdefault((firma_id, kalem), []).append(
+            (zaman, item)
+        )
+
+    for (firma_id, kalem), kayitlar in gruplar.items():
+        kayitlar.sort(key=lambda x: x[0])
+
+        # Son 24 saatte kaydedilmiş en yeni fiyatı bul.
+        son_zaman, son_kayit = kayitlar[-1]
+        if (now - son_zaman).total_seconds() > 24 * 60 * 60:
+            continue
+
+        try:
+            yeni = float(son_kayit.get("fiyat"))
         except (TypeError, ValueError):
             continue
 
+        # Önceki farklı fiyatı, 24 saat sınırının dışında olsa bile bul.
+        # Çünkü önemli olan değişimin son kayıtta gerçekleşmiş olmasıdır.
+        eski = None
+        for zaman, item in reversed(kayitlar[:-1]):
+            try:
+                aday = float(item.get("fiyat"))
+            except (TypeError, ValueError):
+                continue
+
+            if aday != yeni:
+                eski = aday
+                break
+
+        if eski is None:
+            continue
+
+        fark = yeni - eski
         if fark == 0:
             continue
 
@@ -2718,7 +2721,7 @@ def get_today_changes():
             "eski": eski,
             "yeni": yeni,
             "fark": fark,
-            "tarih": bulunan[0].get("tarih"),
+            "tarih": son_kayit.get("tarih"),
         })
 
     sonuc.sort(
