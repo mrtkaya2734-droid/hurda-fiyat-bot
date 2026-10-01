@@ -18,17 +18,31 @@ def cek() -> FirmaSonuc:
     # ayrıca gitmeye çalışılmaz. Bu sayfa Render tarafında robots
     # nedeniyle engellendiği için her dakika gereksiz bekleme oluşturuyordu.
     try:
-        cevap = requests.get(
-            API,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "application/json",
-            },
-            verify=False,
-            timeout=4,
-        )
-        cevap.raise_for_status()
-        veri = cevap.json()
+        son_hata = None
+        veri = None
+
+        for deneme in range(2):
+            try:
+                cevap = requests.get(
+                    API,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+                        "Accept": "application/json",
+                        "Cache-Control": "no-cache",
+                    },
+                    verify=False,
+                    timeout=12,
+                )
+                cevap.raise_for_status()
+                veri = cevap.json()
+                break
+            except requests.RequestException as exc:
+                son_hata = exc
+                if deneme == 0:
+                    continue
+
+        if veri is None:
+            raise son_hata or requests.RequestException("Bilinmeyen API hatası")
 
     except requests.RequestException as e:
         raise ScraperHatasi(
