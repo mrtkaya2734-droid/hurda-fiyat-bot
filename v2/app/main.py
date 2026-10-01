@@ -10020,6 +10020,32 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
+                        '<div class="factory-card-actions">' +
+
+                            '<div class="factory-card-price-badge">' +
+                                '<span class="factory-card-price-label">Fiyat</span>' +
+                                '<span class="factory-card-price">' +
+                                    escapeHtml(
+                                        item.kalemler &&
+                                        item.kalemler.length
+                                            ? item.kalemler[0].fiyat
+                                            : "-"
+                                    ) +
+                                "</span>" +
+                            "</div>" +
+
+                            (
+                                item.son_24_saatte_guncellendi
+                                    ? '<span class="factory-card-updated">BUGÜN GÜNCELLENDİ</span>'
+                                    : ""
+                            ) +
+
+                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
+                                "▼" +
+                            "</span>" +
+
+                        "</div>" +
+
                     "</div>" +
 
                 "</button>" +
