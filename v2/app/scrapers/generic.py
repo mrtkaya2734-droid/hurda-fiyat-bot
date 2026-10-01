@@ -112,20 +112,26 @@ def _normalize_text(text: str):
 def _dedupe_repeated_label(text: str):
     """
     Kaynak sayfalarında aynı ürün adı iki kez art arda gelebiliyor:
-    'DKP DKP', 'Top Şiş Top Şiş', '1. Kalite 1. Kalite' gibi.
+    'DKP DKP', 'Top Şiş Top Şiş', 'Talaş Talaş' gibi.
     Yalnızca metnin tamamı iki eş parçadan oluşuyorsa tekilleştirir.
     """
     value = _normalize_text(text)
     if not value:
         return ""
 
-    parts = value.split()
-    if len(parts) >= 2 and len(parts) % 2 == 0:
-        half = len(parts) // 2
-        left = " ".join(parts[:half])
-        right = " ".join(parts[half:])
-        if left.casefold() == right.casefold():
-            return left
+    while True:
+        match = re.fullmatch(
+            r"(.+?)\s+\1",
+            value,
+            flags=re.IGNORECASE,
+        )
+
+        if not match:
+            break
+
+        value = _normalize_text(
+            match.group(1)
+        )
 
     return value
 
