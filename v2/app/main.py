@@ -1217,67 +1217,183 @@ def son_fiyat_degisim(
     kalem,
     fiyat,
 ):
+    """
+    Ana sayfadaki 2x5 fabrika kartlarının değişim bilgisini üretir.
 
-    hedef_kalem = kalem_kanonik_adi(kalem).casefold()
+    Otomatik sistem her dakika aynı fiyatı history'ye yazabildiği için
+    yalnızca son iki kayda bakılmaz. Son fiyatın tekrarları geriye doğru
+    atlanır ve mevcut fiyatın önceki farklı fiyata geçtiği gerçek değişim
+    bulunur.
 
-    gecmis = [
-        x
-        for x in data.get(
-            "history",
-            [],
+    Gerçek değişim son 24 saat içindeyse kartta gösterilir.
+    """
+    hedef_firma = str(
+        firma_id or ""
+    ).strip().casefold()
+
+    hedef_kalem = kalem_kanonik_adi(
+        kalem
+    ).casefold()
+
+    kayitlar = []
+
+    for item in data.get(
+        "history",
+        [],
+    ):
+        item_firma = str(
+            item.get(
+                "firma_id",
+                "",
+            )
+        ).strip().casefold()
+
+        item_kalem = kalem_kanonik_adi(
+            item.get(
+                "kalem",
+                "",
+            )
+        ).casefold()
+
+        if (
+            item_firma != hedef_firma
+            or item_kalem != hedef_kalem
+        ):
+            continue
+
+        try:
+            zaman = datetime.fromisoformat(
+                str(
+                    item.get(
+                        "tarih",
+                        "",
+                    )
+                ).replace(
+                    "Z",
+                    "+00:00",
+                )
+            )
+
+            if zaman.tzinfo is None:
+                zaman = zaman.replace(
+                    tzinfo=ISTANBUL
+                )
+            else:
+                zaman = zaman.astimezone(
+                    ISTANBUL
+                )
+
+        except Exception:
+            continue
+
+        try:
+            deger = float(
+                item.get(
+                    "fiyat"
+                )
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+
+        kayitlar.append(
+            (
+                zaman,
+                deger,
+            )
         )
-        if x.get(
-            "firma_id"
-        ) == firma_id
-        and kalem_kanonik_adi(
-            x.get("kalem")
-        ).casefold() == hedef_kalem
-    ]
 
-    if len(gecmis) < 2:
+    if not kayitlar:
         return ""
 
-    # Her kalemi yalnızca bir önceki fiyatıyla karşılaştır.
-    # Fabrika bölümündeki Yükselen/Düşen sayaçları bu sonuca göre
-    # değişen kalem adedini sayar.
-    onceki = gecmis[
-        -2
-    ].get(
-        "fiyat"
+    kayitlar.sort(
+        key=lambda pair: pair[0]
     )
 
-    if onceki is None:
-        return ""
-
     try:
-        fark = (
-            fiyat - onceki
-        )
-    except Exception:
+        mevcut_fiyat = float(fiyat)
+    except (
+        TypeError,
+        ValueError,
+    ):
         return ""
 
-    if fark > 0:
+    # Son kayıttaki mevcut fiyat döneminin başlangıcını bul.
+    son_ayni_index = None
+
+    for index in range(
+        len(kayitlar) - 1,
+        -1,
+        -1,
+    ):
+        if kayitlar[index][1] == mevcut_fiyat:
+            son_ayni_index = index
+            break
+
+    if son_ayni_index is None:
+        return ""
+
+    # Mevcut fiyatın hemen öncesindeki farklı fiyatı bul.
+    onceki_farkli_index = None
+
+    for index in range(
+        son_ayni_index - 1,
+        -1,
+        -1,
+    ):
+        if kayitlar[index][1] != mevcut_fiyat:
+            onceki_farkli_index = index
+            break
+
+    if onceki_farkli_index is None:
+        return ""
+
+    eski_fiyat = kayitlar[
+        onceki_farkli_index
+    ][1]
+
+    fark = mevcut_fiyat - eski_fiyat
+
+    if fark == 0:
+        return ""
+
+    # Gerçek fiyat geçişinin ilk kaydı değişim zamanıdır.
+    degisim_zamani = kayitlar[
+        onceki_farkli_index + 1
+    ][0]
+
+    saat_farki = (
+        now_istanbul()
+        - degisim_zamani
+    ).total_seconds()
+
+    if not (
+        0 <= saat_farki <= 24 * 60 * 60
+    ):
+        return ""
+
+    fark_int = int(fark)
+
+    if fark_int > 0:
         return (
-            f"+{fark:,}".replace(
+            f"+{fark_int:,}".replace(
                 ",",
                 ".",
             )
             + " TL"
         )
 
-    if fark < 0:
-        return (
-            f"{fark:,}".replace(
-                ",",
-                ".",
-            )
-            + " TL"
+    return (
+        f"{fark_int:,}".replace(
+            ",",
+            ".",
         )
+        + " TL"
+    )
 
-    return "0 TL"
 
-
-# =========================================================
 # ADMİN GİRİŞİ
 # =========================================================
 
@@ -6071,6 +6187,30 @@ body {{
     overflow-wrap: anywhere !important;
 }}
 
+.market-design .factory-price-grid .factory-card-change {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 28px !important;
+    padding: 0 8px !important;
+    border-radius: 10px !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+}
+
+.market-design .factory-price-grid .factory-card-change-up {
+    color: #047857 !important;
+    background: #ecfdf5 !important;
+    border: 1px solid #a7f3d0 !important;
+}
+
+.market-design .factory-price-grid .factory-card-change-down {
+    color: #b91c1c !important;
+    background: #fef2f2 !important;
+    border: 1px solid #fecaca !important;
+}
+
 .market-design .factory-price-grid .factory-card-actions {{
     display: flex !important;
     width: 100% !important;
@@ -9281,22 +9421,51 @@ function marketToolsInit(result) {
     let upCount = 0;
     let downCount = 0;
     let updated24Count = 0;
+    const factoryChangesByFirm = {};
 
     firmalar.forEach(function(firma) {
         if (firma.son_24_saatte_guncellendi) {
             updated24Count++;
         }
+
         const kalemler = Array.isArray(firma.kalemler)
             ? firma.kalemler
             : [];
 
         itemCount += kalemler.length;
 
+        const firmaDegisimleri = [];
+
         kalemler.forEach(function(kalem) {
-            const degisim = String(kalem.degisim || "").trim();
-            if (degisim.startsWith("+")) upCount++;
-            if (degisim.startsWith("-")) downCount++;
+            const degisim = String(
+                kalem.degisim || ""
+            ).trim();
+
+            if (degisim.startsWith("+")) {
+                upCount++;
+                firmaDegisimleri.push({
+                    firma_id: firma.firma_id,
+                    firma: firma.baslik,
+                    kalem: kalem.cins,
+                    fark: degisim,
+                });
+            }
+            else if (degisim.startsWith("-")) {
+                downCount++;
+                firmaDegisimleri.push({
+                    firma_id: firma.firma_id,
+                    firma: firma.baslik,
+                    kalem: kalem.cins,
+                    fark: degisim,
+                });
+            }
         });
+
+        if (firmaDegisimleri.length) {
+            factoryChangesByFirm[
+                String(firma.firma_id || "").trim().toLowerCase()
+            ] = firmaDegisimleri;
+        }
     });
 
     if (summaryFirmCount) summaryFirmCount.textContent = firmalar.length;
@@ -9308,195 +9477,129 @@ function marketToolsInit(result) {
     const todayUpdates = document.getElementById("todayUpdates");
     if (todayUpdates) {
         const updates = firmalar.filter(function(firma) {
-            return firma.son_24_saatte_guncellendi;
+            const id = String(
+                firma.firma_id || ""
+            ).trim().toLowerCase();
+
+            return Boolean(
+                factoryChangesByFirm[id]
+                && factoryChangesByFirm[id].length
+            );
         });
 
-        let todayChangesByFirm = {};
-
-        function renderTodayUpdates(changesByFirm) {
-            todayUpdates.innerHTML =
-                '<div class="rounded-2xl border border-sky-200 bg-sky-50/80 p-3 sm:p-4">' +
-                    '<div class="flex items-center justify-between gap-2">' +
-                        '<div>' +
-                            '<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Son 24 Saat</div>' +
-                            '<div class="text-sm sm:text-base font-black text-slate-900 mt-0.5">Bugün güncelleme alan fabrikalar</div>' +
-                        '</div>' +
-                        '<div class="inline-flex items-center rounded-xl bg-white border border-sky-200 px-2.5 py-1.5 text-[10px] font-black text-sky-700">' +
-                            updated24Count + ' / ' + firmalar.length + ' firma' +
-                        '</div>' +
+        todayUpdates.innerHTML =
+            '<div class="rounded-2xl border border-sky-200 bg-sky-50/80 p-3 sm:p-4">' +
+                '<div class="flex items-center justify-between gap-2">' +
+                    '<div>' +
+                        '<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Son 24 Saat</div>' +
+                        '<div class="text-sm sm:text-base font-black text-slate-900 mt-0.5">Fiyatı değişen fabrikalar</div>' +
                     '</div>' +
-                    (updates.length
-                        ? '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">' +
-                            updates.map(function(firma, index) {
-                                const firmaId = String(
-                                    firma.firma_id || ""
-                                ).trim().toLowerCase();
+                    '<div class="inline-flex items-center rounded-xl bg-white border border-sky-200 px-2.5 py-1.5 text-[10px] font-black text-sky-700">' +
+                        upCount + ' ↑ · ' + downCount + ' ↓' +
+                    '</div>' +
+                '</div>' +
+                (updates.length
+                    ? '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">' +
+                        updates.map(function(firma, index) {
+                            const firmaId = String(
+                                firma.firma_id || ""
+                            ).trim().toLowerCase();
 
-                                const firmaDegisimleri =
-                                    changesByFirm[firmaId] || [];
+                            const firmaDegisimleri =
+                                factoryChangesByFirm[firmaId] || [];
 
-                                const panelId =
-                                    "today-update-" +
-                                    firmaId.replace(
-                                        /[^a-zA-Z0-9_-]/g,
-                                        ""
-                                    ) +
-                                    "-" +
-                                    index;
+                            const panelId =
+                                "today-update-" +
+                                firmaId.replace(
+                                    /[^a-zA-Z0-9_-]/g,
+                                    ""
+                                ) +
+                                "-" +
+                                index;
 
-                                const kalemListesi =
-                                    firmaDegisimleri.length
-                                        ? firmaDegisimleri.map(function(change) {
-                                            const fark =
-                                                Number(
-                                                    change.fark || 0
-                                                );
+                            const kalemListesi =
+                                firmaDegisimleri.map(function(change) {
+                                    const farkText =
+                                        String(change.fark || "");
 
-                                            const yukselis =
-                                                fark > 0;
+                                    const yukselis =
+                                        farkText.startsWith("+");
 
-                                            return '<span class="inline-flex items-center gap-1 rounded-lg ' +
-                                                (
-                                                    yukselis
-                                                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                                                        : 'bg-red-50 border border-red-200 text-red-700'
-                                                ) +
-                                                ' px-2 py-1 text-[9px] sm:text-[10px] font-black whitespace-nowrap">' +
-                                                (
-                                                    yukselis
-                                                        ? '▲ '
-                                                        : '▼ '
-                                                ) +
-                                                escapeHtml(
-                                                    change.kalem || ""
-                                                ) +
-                                                ' ' +
-                                                (
-                                                    yukselis
-                                                        ? '+'
-                                                        : ''
-                                                ) +
-                                                Number(
-                                                    fark
-                                                ).toLocaleString(
-                                                    "tr-TR"
-                                                ) +
-                                                ' TL</span>';
-                                        }).join("")
-                                        : '<span class="text-[9px] font-semibold text-slate-400">Bu güncellemede fiyat değişimi yok</span>';
+                                    return '<span class="inline-flex items-center gap-1 rounded-lg ' +
+                                        (
+                                            yukselis
+                                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                                : 'bg-red-50 border border-red-200 text-red-700'
+                                        ) +
+                                        ' px-2 py-1 text-[9px] sm:text-[10px] font-black whitespace-nowrap">' +
+                                        (
+                                            yukselis
+                                                ? '▲ '
+                                                : '▼ '
+                                        ) +
+                                        escapeHtml(change.kalem || "") +
+                                        ' ' +
+                                        escapeHtml(farkText) +
+                                        '</span>';
+                                }).join("");
 
-                                return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
-                                    '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 text-center hover:bg-slate-50 transition" aria-expanded="false" data-update-panel="' +
-                                        panelId +
-                                    '">' +
-                                        '<span class="block w-full text-[12px] sm:text-[13px] font-black text-slate-800 leading-5">' +
-                                            escapeHtml(
-                                                firma.baslik ||
-                                                firma.firma_id ||
-                                                "-"
-                                            ) +
-                                        '</span>' +
-                                    '</button>' +
-                                    '<div id="' +
-                                        panelId +
-                                        '" class="today-update-panel hidden border-t border-slate-100 px-3 py-2.5">' +
-                                        '<div class="flex flex-wrap items-center gap-1.5">' +
-                                            kalemListesi +
-                                        '</div>' +
+                            return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
+                                '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 text-center hover:bg-slate-50 transition" aria-expanded="false">' +
+                                    '<span class="block w-full text-[12px] sm:text-[13px] font-black text-slate-800 leading-5">' +
+                                        escapeHtml(
+                                            firma.baslik ||
+                                            firma.firma_id ||
+                                            "-"
+                                        ) +
+                                    '</span>' +
+                                '</button>' +
+                                '<div id="' + panelId + '" class="today-update-panel hidden border-t border-slate-100 px-3 py-2.5">' +
+                                    '<div class="flex flex-wrap items-center gap-1.5">' +
+                                        kalemListesi +
                                     '</div>' +
-                                '</div>';
-                            }).join("") +
-                        '</div>'
-                        : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte başarılı fabrika güncellemesi bulunmuyor.</div>') +
-                '</div>';
+                                '</div>' +
+                            '</div>';
+                        }).join("") +
+                    '</div>'
+                    : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte değişen fiyat bulunmuyor.</div>') +
+            '</div>';
 
-            todayUpdates
-                .querySelectorAll(".today-update-toggle")
-                .forEach(function(toggle) {
-                    toggle.addEventListener(
-                        "click",
-                        function() {
-                            const card =
-                                toggle.closest(
-                                    ".today-update-card"
-                                );
-
-                            if (!card) return;
-
-                            const panel =
-                                card.querySelector(
-                                    ".today-update-panel"
-                                );
-
-                            if (!panel) return;
-
-                            const acik =
-                                !panel.classList.contains(
-                                    "hidden"
-                                );
-
-                            panel.classList.toggle(
-                                "hidden",
-                                acik
+        todayUpdates
+            .querySelectorAll(".today-update-toggle")
+            .forEach(function(toggle) {
+                toggle.addEventListener(
+                    "click",
+                    function() {
+                        const card =
+                            toggle.closest(
+                                ".today-update-card"
                             );
 
-                            toggle.setAttribute(
-                                "aria-expanded",
-                                String(!acik)
+                        if (!card) return;
+
+                        const panel =
+                            card.querySelector(
+                                ".today-update-panel"
                             );
-                        }
-                    );
-                });
-        }
 
-        fetch(
-            "/today-changes",
-            {cache:"no-store"}
-        )
-            .then(function(r) {
-                return r.json();
-            })
-            .then(function(payload) {
-                todayChangesByFirm = {};
+                        if (!panel) return;
 
-                (payload.data || []).forEach(
-                    function(change) {
-                        const id = String(
-                            change.firma_id || ""
-                        ).trim().toLowerCase();
+                        const acik =
+                            !panel.classList.contains(
+                                "hidden"
+                            );
 
-                        if (!id) return;
+                        panel.classList.toggle(
+                            "hidden",
+                            acik
+                        );
 
-                        if (!todayChangesByFirm[id]) {
-                            todayChangesByFirm[id] = [];
-                        }
-
-                        todayChangesByFirm[id].push(
-                            change
+                        toggle.setAttribute(
+                            "aria-expanded",
+                            String(!acik)
                         );
                     }
                 );
-
-                renderTodayUpdates(
-                    todayChangesByFirm
-                );
-
-                if (summaryUpCount) {
-                    summaryUpCount.textContent =
-                        Number(
-                            payload.yukselen || 0
-                        );
-                }
-
-                if (summaryDownCount) {
-                    summaryDownCount.textContent =
-                        Number(
-                            payload.dusen || 0
-                        );
-                }
-            })
-            .catch(function() {
-                renderTodayUpdates({});
             });
     }
 
@@ -9612,49 +9715,9 @@ function marketToolsInit(result) {
         firmSelect.dataset.bound = "1";
     }
 
-    if (document.getElementById("todayChanges")?.dataset.loaded !== "1") {
-        fetch("/today-changes", {cache:"no-store"})
-            .then(function(r){ return r.json(); })
-            .then(function(payload){
-                const box = document.getElementById("todayChanges");
-                if (!box) return;
-                box.dataset.loaded = "1";
-                const rows = payload.data || [];
-
-                if (summaryUpCount) {
-                    summaryUpCount.textContent =
-                        Number(payload.yukselen || 0);
-                }
-
-                if (summaryDownCount) {
-                    summaryDownCount.textContent =
-                        Number(payload.dusen || 0);
-                }
-                if (!rows.length) {
-                    box.innerHTML = '<div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte kayda değer fiyat değişimi yok.</div>';
-                } else {
-                    box.innerHTML =
-                        '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
-                        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
-                        rows.map(function(x){
-                            const up = Number(x.fark) > 0;
-                            return '<div class="today-change-card rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
-                                '<div class="text-xs font-black text-slate-800">' + escapeHtml(x.firma) + ' · ' + escapeHtml(x.kalem) + '</div>' +
-                                '<div class="mt-1 text-sm font-black ' + (up ? 'text-emerald-700' : 'text-red-700') + '">' +
-                                    (up ? '▲ +' : '▼ ') + Number(x.fark).toLocaleString("tr-TR") + ' TL' +
-                                    ' <span class="text-slate-500 font-bold">(' + Number(x.yeni).toLocaleString("tr-TR") + ' TL)</span>' +
-                                '</div>' +
-                                '<div class="mt-1 text-[9px] font-bold ' + (up ? 'text-emerald-600' : 'text-red-600') + '">' +
-                                    (up ? 'Fiyat yükseldi' : 'Fiyat düştü') +
-                                '</div>' +
-                            '</div>';
-                        }).join("") +
-                        '</div>';
-                    box.classList.remove("hidden");
-                }
-            })
-            .catch(function(){});
-    }
+    // Özet sayaçları doğrudan alttaki 2x5 fabrika kartlarının
+    // /prices verisindeki kalem.degisim değerlerinden gelir.
+    // Ayrı bir /today-changes çağrısı bu değerleri ezmez.
 
     const comparePanel = document.getElementById("comparePanel");
     const historyPanel = document.getElementById("historyPanel");
@@ -10184,8 +10247,20 @@ async function fiyatlariGetir() {
                             "</div>" +
 
                             (
+                                artisSayisi > 0
+                                    ? '<span class="factory-card-change factory-card-change-up">▲ ' + artisSayisi + '</span>'
+                                    : ""
+                            ) +
+
+                            (
+                                dususSayisi > 0
+                                    ? '<span class="factory-card-change factory-card-change-down">▼ ' + dususSayisi + '</span>'
+                                    : ""
+                            ) +
+
+                            (
                                 item.son_24_saatte_guncellendi
-                                    ? '<span class="factory-card-updated">BUGÜN GÜNCELLENDİ</span>'
+                                    ? '<span class="factory-card-updated">24 SAAT İÇİNDE GÜNCELLENDİ</span>'
                                     : ""
                             ) +
 
