@@ -2318,6 +2318,102 @@ def fiyat_verilerini_olustur():
 
 scheduler = BackgroundScheduler()
 
+
+def kaynak_migrasyonunu_uygula():
+    """
+    Kaynak değişikliklerini canlı kalıcı veriye bir kez uygular.
+
+    - Eski Çolakoğlu kayıtlarını tamamen temizler; yeni scraper ilk
+      otomatik güncellemede kaynağı yeniden oluşturur.
+    - Ekinciler firma, fiyat, geçmiş ve bildirim kayıtlarını kaldırır.
+    - Cansan'ı yeni otomatik kaynak olarak ekler.
+    """
+    data = load_data()
+
+    if data.get("kaynak_migrasyonu_20261001_v1"):
+        return
+
+    firms = data.setdefault("firms", {})
+    prices = data.setdefault("prices", {})
+    history = data.setdefault("history", {})
+    notifications = data.setdefault("notifications", [])
+
+    # Eski Çolakoğlu verisini tamamen kaldır.
+    firms.pop("colakoglu", None)
+    prices.pop("colakoglu", None)
+
+    if isinstance(history, dict):
+        history.pop("colakoglu", None)
+    elif isinstance(history, list):
+        history[:] = [
+            item for item in history
+            if str(item.get("firma_id", "")).strip() != "colakoglu"
+        ]
+
+    if isinstance(notifications, list):
+        notifications[:] = [
+            item for item in notifications
+            if str(item.get("firma_id", "")).strip() != "colakoglu"
+        ]
+
+    # Ekinciler ile ilgili tüm kayıtları kaldır.
+    firms.pop("Ekinciler", None)
+    firms.pop("ekinciler", None)
+    prices.pop("Ekinciler", None)
+    prices.pop("ekinciler", None)
+
+    if isinstance(history, dict):
+        history.pop("Ekinciler", None)
+        history.pop("ekinciler", None)
+        for key in list(history.keys()):
+            if str(key).casefold() == "ekinciler":
+                history.pop(key, None)
+    elif isinstance(history, list):
+        history[:] = [
+            item for item in history
+            if str(item.get("firma_id", "")).casefold() != "ekinciler"
+        ]
+
+    if isinstance(notifications, list):
+        notifications[:] = [
+            item for item in notifications
+            if str(item.get("firma_id", "")).casefold() != "ekinciler"
+        ]
+
+    if isinstance(data.get("silinen_firmalar"), list):
+        data["silinen_firmalar"] = [
+            item for item in data["silinen_firmalar"]
+            if str(item).casefold() != "ekinciler"
+        ]
+
+    # Cansan yeni otomatik fabrika olarak eklenir.
+    cansan = firms.get("cansan")
+
+    if not isinstance(cansan, dict):
+        cansan = {
+            "firma_id": "cansan",
+            "baslik": "Cansan Metalurji",
+            "url": "https://www.hammaddepiyasasi.com/fabrika/cansan",
+            "otomatik": True,
+            "aktif": True,
+            "son_basarili_cekme": None,
+            "kaynak_fiyat_tarihi": None,
+            "durum": "bekliyor",
+            "sira": len(firms),
+        }
+        firms["cansan"] = cansan
+    else:
+        cansan["firma_id"] = "cansan"
+        cansan["baslik"] = "Cansan Metalurji"
+        cansan["url"] = "https://www.hammaddepiyasasi.com/fabrika/cansan"
+        cansan["otomatik"] = True
+        cansan["aktif"] = True
+
+    data["kaynak_migrasyonu_20261001_v1"] = True
+
+    save_data(data)
+
+
 # Otomatik fiyat çekimi aktiftir.
 # AUTO_UPDATE_ENABLED=0 verilirse tamamen kapatılabilir.
 # Mevcut manuel fiyatlar fiyat_kaydet() tarafından korunur.
@@ -2334,6 +2430,9 @@ AUTO_UPDATE_ENABLED = (
 async def lifespan(app):
 
     load_ads()
+
+    # Kaynak değişikliklerini canlı kalıcı veriye deploy sırasında bir kez uygula.
+    kaynak_migrasyonunu_uygula()
 
     if AUTO_UPDATE_ENABLED:
         print(
