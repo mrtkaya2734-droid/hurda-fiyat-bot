@@ -12,6 +12,7 @@ from app.scrapers.generic import cek_url
 
 
 COLAKOGLU_URL = "https://www.hammaddepiyasasi.com/fabrika/colakoglu"
+EKINCILER_URL = "https://www.hammaddepiyasasi.com/fabrika/ekinciler"
 CANSAN_URL = "https://www.hammaddepiyasasi.com/fabrika/cansan"
 
 
@@ -22,16 +23,24 @@ colakoglu = partial(
     COLAKOGLU_URL,
 )
 
+ekinciler = partial(
+    cek_url,
+    "ekinciler",
+    "Ekinciler Demir Çelik",
+    EKINCILER_URL,
+)
+
 cansan = partial(
     cek_url,
     "cansan",
-    "Cansan Metalurji",
+    "Cansan",
     CANSAN_URL,
 )
 
 
 TUMU = [
     ("colakoglu", colakoglu),
+    ("ekinciler", ekinciler),
     ("cansan", cansan),
     ("erdemir", erdemir.erdemir),
     ("isdemir", erdemir.isdemir),
