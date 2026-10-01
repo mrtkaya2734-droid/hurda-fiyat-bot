@@ -1,5 +1,6 @@
 from app.scrapers import (
     asil,
+    colakoglu,
     diler,
     erdemir,
     hascelik,
@@ -8,6 +9,7 @@ from app.scrapers import (
 )
 
 TUMU = [
+    ("colakoglu", colakoglu.cek),
     ("erdemir", erdemir.erdemir),
     ("isdemir", erdemir.isdemir),
     ("asil", asil.cek),
