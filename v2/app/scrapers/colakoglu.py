@@ -191,27 +191,17 @@ def cek() -> FirmaSonuc:
     # ayrıca gitmeye çalışılmaz. Bu sayfa Render tarafında robots
     # nedeniyle engellendiği için her dakika gereksiz bekleme oluşturuyordu.
     try:
-        son_hata = None
-        veri = None
-
-        for deneme in range(2):
-            try:
-                cevap = _resmi_api_istegi()
-                cevap.raise_for_status()
-                veri = cevap.json()
-                break
-            except requests.RequestException as exc:
-                son_hata = exc
-                if deneme == 0:
-                    continue
-
-        if veri is None:
+        try:
+            cevap = _resmi_api_istegi()
+            cevap.raise_for_status()
+            veri = cevap.json()
+        except requests.RequestException as direct_error:
             try:
                 _, veri = _resmi_api_proxy_istegi()
             except Exception as proxy_error:
                 raise requests.RequestException(
                     "Resmi API doğrudan ve proxy üzerinden alınamadı. "
-                    f"Doğrudan hata: {son_hata}; "
+                    f"Doğrudan hata: {direct_error}; "
                     f"proxy hatası: {proxy_error}"
                 ) from proxy_error
 
