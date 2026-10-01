@@ -2,6 +2,8 @@ import json
 import os
 import re
 import shutil
+import tempfile
+import threading
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -52,6 +54,7 @@ SUPABASE_BUCKET = os.getenv(
 ).strip()
 
 _SUPABASE_DATA_SYNCED = False
+_SAVE_LOCK = threading.Lock()
 
 
 def _supabase_enabled():
@@ -603,35 +606,53 @@ def save_data(data):
         exist_ok=True,
     )
 
-    _periyodik_veri_yedegi()
+    # Aynı anda gelen kayıtlar aynı .tmp dosyasını paylaşmasın.
+    # Özellikle Render üzerinde zamanlayıcı + admin işlemleri
+    # çakıştığında veri dosyasının kaybolmasını önler.
+    with _SAVE_LOCK:
+        _periyodik_veri_yedegi()
 
-    temporary_file = DATA_FILE + ".tmp"
+        temporary_file = None
 
-    with open(
-        temporary_file,
-        "w",
-        encoding="utf-8"
-    ) as file:
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=os.path.dirname(DATA_FILE),
+                prefix=".data-",
+                suffix=".tmp",
+                delete=False,
+            ) as file:
+                temporary_file = file.name
+                json.dump(
+                    data,
+                    file,
+                    ensure_ascii=False,
+                    indent=4,
+                )
+                file.flush()
+                os.fsync(file.fileno())
 
-        json.dump(
-            data,
-            file,
-            ensure_ascii=False,
-            indent=4
-        )
+            os.replace(
+                temporary_file,
+                DATA_FILE,
+            )
+            temporary_file = None
 
-    os.replace(
-        temporary_file,
-        DATA_FILE
-    )
+            # Render Free yerel dosyası kalıcı olmadığından,
+            # her başarılı veri kaydından sonra Supabase'i güncelle.
+            if _supabase_enabled():
+                supabase_upload_json(
+                    DATA_FILE,
+                    "data.json",
+                )
 
-    # Render Free yerel dosyası kalıcı olmadığından,
-    # her başarılı veri kaydından sonra Supabase'i güncelle.
-    if _supabase_enabled():
-        supabase_upload_json(
-            DATA_FILE,
-            "data.json",
-        )
+        finally:
+            if temporary_file:
+                try:
+                    os.remove(temporary_file)
+                except OSError:
+                    pass
 
 
 # =========================================================
