@@ -1235,34 +1235,25 @@ def son_fiyat_degisim(
         ).casefold() == hedef_kalem
     ]
 
-    if not gecmis:
+    if len(gecmis) < 2:
         return ""
 
-    # Sistem otomatik güncelleme sırasında aynı fiyatı tekrar tekrar
-    # geçmişe yazabiliyor. Bu nedenle yalnızca bir önceki kayda bakmak
-    # yerine, mevcut fiyattan farklı olan son gerçek fiyatı bul.
-    onceki = None
-
-    for kayit in reversed(gecmis):
-        kayit_fiyati = kayit.get("fiyat")
-
-        if kayit_fiyati is None:
-            continue
-
-        try:
-            kayit_fiyati = int(kayit_fiyati)
-        except (TypeError, ValueError):
-            continue
-
-        if kayit_fiyati != fiyat:
-            onceki = kayit_fiyati
-            break
+    # Her kalemi yalnızca bir önceki fiyatıyla karşılaştır.
+    # Fabrika bölümündeki Yükselen/Düşen sayaçları bu sonuca göre
+    # değişen kalem adedini sayar.
+    onceki = gecmis[
+        -2
+    ].get(
+        "fiyat"
+    )
 
     if onceki is None:
         return ""
 
     try:
-        fark = fiyat - onceki
+        fark = (
+            fiyat - onceki
+        )
     except Exception:
         return ""
 
@@ -1284,7 +1275,7 @@ def son_fiyat_degisim(
             + " TL"
         )
 
-    return ""
+    return "0 TL"
 
 
 # =========================================================
