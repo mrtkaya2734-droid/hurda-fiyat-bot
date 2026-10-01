@@ -800,11 +800,20 @@ def fiyat_kaydet(
     fiyat_tarihi=None
 ):
 
-    firma_id = firma_id_normalize(
-        firma_id
-    )
-
+    firma_id_gelen = str(firma_id or "").strip()
     data = load_data()
+
+    # Mevcut fiyat anahtarını büyük/küçük harf duyarsız bul.
+    # Böylece "Ekinciler" ile "ekinciler" için ikinci bir kayıt oluşmaz.
+    firma_id = next(
+        (
+            mevcut_id
+            for mevcut_id in data.get("prices", {})
+            if str(mevcut_id).strip().casefold()
+            == firma_id_gelen.casefold()
+        ),
+        firma_id_normalize(firma_id_gelen),
+    )
 
     if firma_id not in data["prices"]:
         data["prices"][firma_id] = {}
@@ -976,11 +985,18 @@ def manuel_fiyat_sil(
     kalem
 ):
 
-    firma_id = firma_id_normalize(
-        firma_id
-    )
-
+    firma_id_gelen = str(firma_id or "").strip()
     data = load_data()
+
+    firma_id = next(
+        (
+            mevcut_id
+            for mevcut_id in data.get("prices", {})
+            if str(mevcut_id).strip().casefold()
+            == firma_id_gelen.casefold()
+        ),
+        firma_id_normalize(firma_id_gelen),
+    )
 
     firma_fiyatlari = data["prices"].get(
         firma_id
