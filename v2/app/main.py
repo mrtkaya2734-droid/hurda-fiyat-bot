@@ -9262,7 +9262,7 @@ function marketToolsInit(result) {
                 '</div>' +
                 (updates.length
                     ? '<div class="flex flex-wrap gap-2 mt-3">' +
-                        updates.map(function(firma) {
+                        updates.map(function(firma, index) {
                             const firmaDegisimleri = changesByFirm[
                                 String(firma.firma_id || "").trim().toLowerCase()
                             ] || [];
