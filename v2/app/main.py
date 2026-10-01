@@ -1198,30 +1198,38 @@ def son_fiyat_degisim(
         ) == kalem
     ]
 
-    if len(gecmis) < 2:
+    if not gecmis:
         return ""
 
-    onceki = gecmis[
-        -2
-    ].get(
-        "fiyat"
-    )
+    # Sistem otomatik güncelleme sırasında aynı fiyatı tekrar tekrar
+    # geçmişe yazabiliyor. Bu nedenle yalnızca bir önceki kayda bakmak
+    # yerine, mevcut fiyattan farklı olan son gerçek fiyatı bul.
+    onceki = None
+
+    for kayit in reversed(gecmis):
+        kayit_fiyati = kayit.get("fiyat")
+
+        if kayit_fiyati is None:
+            continue
+
+        try:
+            kayit_fiyati = int(kayit_fiyati)
+        except (TypeError, ValueError):
+            continue
+
+        if kayit_fiyati != fiyat:
+            onceki = kayit_fiyati
+            break
 
     if onceki is None:
         return ""
 
     try:
-
-        fark = (
-            fiyat - onceki
-        )
-
+        fark = fiyat - onceki
     except Exception:
-
         return ""
 
     if fark > 0:
-
         return (
             f"+{fark:,}".replace(
                 ",",
@@ -1231,7 +1239,6 @@ def son_fiyat_degisim(
         )
 
     if fark < 0:
-
         return (
             f"{fark:,}".replace(
                 ",",
@@ -1240,7 +1247,7 @@ def son_fiyat_degisim(
             + " TL"
         )
 
-    return "0 TL"
+    return ""
 
 
 # =========================================================
@@ -7239,10 +7246,19 @@ body {
 
 .market-design .factory-card-actions {
     flex: 0 0 auto !important;
-    min-width: max-content !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     display: flex !important;
     align-items: center !important;
-    gap: 8px !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+}
+
+.market-design .factory-card-actions > * {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    line-height: 1.1 !important;
 }
 
 .market-design .factory-price-panel {
