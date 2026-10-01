@@ -2323,14 +2323,14 @@ def kaynak_migrasyonunu_uygula():
     """
     Kaynak değişikliklerini canlı kalıcı veriye bir kez uygular.
 
-    - Eski Çolakoğlu kayıtlarını tamamen temizler; yeni scraper ilk
-      otomatik güncellemede kaynağı yeniden oluşturur.
-    - Ekinciler firma, fiyat, geçmiş ve bildirim kayıtlarını kaldırır.
+    - Eski Çolakoğlu kayıtlarını tamamen temizler.
+    - Eski Ekinciler kayıtlarını temizler ve aynı firmayı yeni Hammadde
+      Piyasası kaynağından otomatik çekilecek şekilde yeniden oluşturur.
     - Cansan'ı yeni otomatik kaynak olarak ekler.
     """
     data = load_data()
 
-    if data.get("kaynak_migrasyonu_20261001_v1"):
+    if data.get("kaynak_migrasyonu_20261001_v2"):
         return
 
     firms = data.setdefault("firms", {})
@@ -2338,78 +2338,69 @@ def kaynak_migrasyonunu_uygula():
     history = data.setdefault("history", {})
     notifications = data.setdefault("notifications", [])
 
-    # Eski Çolakoğlu verisini tamamen kaldır.
-    firms.pop("colakoglu", None)
-    prices.pop("colakoglu", None)
+    def remove_firm_records(firma_ids):
+        ids = {str(item).casefold() for item in firma_ids}
 
-    if isinstance(history, dict):
-        history.pop("colakoglu", None)
-    elif isinstance(history, list):
-        history[:] = [
-            item for item in history
-            if str(item.get("firma_id", "")).strip() != "colakoglu"
-        ]
+        for key in list(firms.keys()):
+            if str(key).casefold() in ids:
+                firms.pop(key, None)
 
-    if isinstance(notifications, list):
-        notifications[:] = [
-            item for item in notifications
-            if str(item.get("firma_id", "")).strip() != "colakoglu"
-        ]
+        for key in list(prices.keys()):
+            if str(key).casefold() in ids:
+                prices.pop(key, None)
 
-    # Ekinciler ile ilgili tüm kayıtları kaldır.
-    firms.pop("Ekinciler", None)
-    firms.pop("ekinciler", None)
-    prices.pop("Ekinciler", None)
-    prices.pop("ekinciler", None)
+        if isinstance(history, dict):
+            for key in list(history.keys()):
+                if str(key).casefold() in ids:
+                    history.pop(key, None)
+        elif isinstance(history, list):
+            history[:] = [
+                item for item in history
+                if str(item.get("firma_id", "")).casefold() not in ids
+            ]
 
-    if isinstance(history, dict):
-        history.pop("Ekinciler", None)
-        history.pop("ekinciler", None)
-        for key in list(history.keys()):
-            if str(key).casefold() == "ekinciler":
-                history.pop(key, None)
-    elif isinstance(history, list):
-        history[:] = [
-            item for item in history
-            if str(item.get("firma_id", "")).casefold() != "ekinciler"
-        ]
+        if isinstance(notifications, list):
+            notifications[:] = [
+                item for item in notifications
+                if str(item.get("firma_id", "")).casefold() not in ids
+            ]
 
-    if isinstance(notifications, list):
-        notifications[:] = [
-            item for item in notifications
-            if str(item.get("firma_id", "")).casefold() != "ekinciler"
-        ]
+    # Çolakoğlu: eski fiyatlar tamamen silinir; yeni kaynak ilk çekimde
+    # güncel fiyatları yeniden oluşturur.
+    remove_firm_records({"colakoglu"})
 
-    if isinstance(data.get("silinen_firmalar"), list):
-        data["silinen_firmalar"] = [
-            item for item in data["silinen_firmalar"]
-            if str(item).casefold() != "ekinciler"
-        ]
+    # Ekinciler: eski manuel/otomatik kayıtlar tamamen silinir.
+    # Firma yeniden yeni otomatik kaynak olarak aşağıda oluşturulur.
+    remove_firm_records({"ekinciler", "Ekinciler"})
 
-    # Cansan yeni otomatik fabrika olarak eklenir.
-    cansan = firms.get("cansan")
+    # Cansan: varsa eski/yarım kayıt temizlenir ve doğru kaynakla yeniden kurulur.
+    remove_firm_records({"cansan"})
 
-    if not isinstance(cansan, dict):
-        cansan = {
-            "firma_id": "cansan",
-            "baslik": "Cansan Metalurji",
-            "url": "https://www.hammaddepiyasasi.com/fabrika/cansan",
-            "otomatik": True,
-            "aktif": True,
-            "son_basarili_cekme": None,
-            "kaynak_fiyat_tarihi": None,
-            "durum": "bekliyor",
-            "sira": len(firms),
-        }
-        firms["cansan"] = cansan
-    else:
-        cansan["firma_id"] = "cansan"
-        cansan["baslik"] = "Cansan Metalurji"
-        cansan["url"] = "https://www.hammaddepiyasasi.com/fabrika/cansan"
-        cansan["otomatik"] = True
-        cansan["aktif"] = True
+    firms["ekinciler"] = {
+        "firma_id": "ekinciler",
+        "baslik": "Ekinciler Demir Çelik",
+        "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler",
+        "otomatik": True,
+        "aktif": True,
+        "son_basarili_cekme": None,
+        "kaynak_fiyat_tarihi": None,
+        "durum": "bekliyor",
+        "sira": len(firms),
+    }
 
-    data["kaynak_migrasyonu_20261001_v1"] = True
+    firms["cansan"] = {
+        "firma_id": "cansan",
+        "baslik": "Cansan",
+        "url": "https://www.hammaddepiyasasi.com/fabrika/cansan",
+        "otomatik": True,
+        "aktif": True,
+        "son_basarili_cekme": None,
+        "kaynak_fiyat_tarihi": None,
+        "durum": "bekliyor",
+        "sira": len(firms),
+    }
+
+    data["kaynak_migrasyonu_20261001_v2"] = True
 
     save_data(data)
 
