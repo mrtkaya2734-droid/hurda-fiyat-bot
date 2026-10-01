@@ -9087,14 +9087,61 @@ function marketToolsInit(result) {
                 (updates.length
                     ? '<div class="flex flex-wrap gap-2 mt-3">' +
                         updates.map(function(firma) {
-                            return '<div class="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-sm">' +
-                                '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>' +
-                                '<span class="text-[11px] font-black text-slate-800">' + escapeHtml(firma.baslik) + '</span>' +
-                                '<span class="text-[9px] font-bold text-slate-400">' + escapeHtml(firma.son_kontrol || '-') + '</span>' +
+                            const kalemler = Array.isArray(firma.kalemler)
+                                ? firma.kalemler
+                                    .map(function(kalem) {
+                                        return String(kalem.cins || "").trim();
+                                    })
+                                    .filter(Boolean)
+                                    .filter(function(kalem, index, liste) {
+                                        return liste.indexOf(kalem) === index;
+                                    })
+                                : [];
+
+                            const kalemListesi = kalemler.length
+                                ? kalemler.map(function(kalem) {
+                                    return '<span class="inline-flex items-center rounded-lg bg-slate-50 border border-slate-200 px-2 py-1 text-[9px] sm:text-[10px] font-bold text-slate-600 whitespace-nowrap">' +
+                                        escapeHtml(kalem) +
+                                    '</span>';
+                                }).join("")
+                                : '<span class="text-[9px] font-semibold text-slate-400">Kalem bilgisi yok</span>';
+
+                            const panelId = "today-update-" + String(firma.firma_id || "").replace(/[^a-zA-Z0-9_-]/g, "");
+
+                            return '<div class="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
+                                '<button type="button" class="today-update-toggle w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 transition" aria-expanded="false" data-update-panel="' + panelId + '">' +
+                                    '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>' +
+                                    '<span class="min-w-0 flex-1 text-[11px] font-black text-slate-800 truncate">' + escapeHtml(firma.baslik) + '</span>' +
+                                    '<span class="text-[9px] font-bold text-slate-400 whitespace-nowrap">' + escapeHtml(firma.son_kontrol || '-') + '</span>' +
+                                    '<span class="today-update-arrow text-[10px] text-slate-400 shrink-0">▼</span>' +
+                                '</button>' +
+                                '<div id="' + panelId + '" class="today-update-panel hidden border-t border-slate-100 px-3 py-2">' +
+                                    '<div class="flex flex-wrap items-center gap-1.5">' +
+                                        kalemListesi +
+                                    '</div>' +
+                                '</div>' +
                             '</div>';
                         }).join("") + '</div>'
                     : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte başarılı fabrika güncellemesi bulunmuyor.</div>') +
             '</div>';
+    }
+
+        todayUpdates.querySelectorAll(".today-update-toggle").forEach(function(toggle) {
+            toggle.addEventListener("click", function() {
+                const panelId = toggle.getAttribute("data-update-panel");
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+
+                const acik = !panel.classList.contains("hidden");
+                panel.classList.toggle("hidden", acik);
+                toggle.setAttribute("aria-expanded", String(!acik));
+
+                const arrow = toggle.querySelector(".today-update-arrow");
+                if (arrow) {
+                    arrow.style.transform = acik ? "rotate(0deg)" : "rotate(180deg)";
+                }
+            });
+        });
     }
 
     const search = document.getElementById("fiyatArama");
