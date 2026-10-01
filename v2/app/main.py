@@ -1193,7 +1193,7 @@ def kalem_kanonik_adi(value):
         return ""
 
     text = re.sub(
-        r"\\s+Hurda\\s+Fiyat\\s+geçmişi\\s*$",
+        r"\s+Hurda\s+Fiyat\s+geçmişi\s*$",
         "",
         text,
         flags=re.IGNORECASE,
