@@ -115,6 +115,27 @@ def now_istanbul_string():
     )
 
 
+def son_24_saatte_mi(deger, simdi=None):
+    if not deger:
+        return False
+
+    try:
+        zaman = datetime.fromisoformat(
+            str(deger).replace("Z", "+00:00")
+        )
+
+        if zaman.tzinfo is None:
+            zaman = zaman.replace(tzinfo=ISTANBUL)
+
+        simdi = simdi or now_istanbul()
+        fark = (simdi - zaman).total_seconds()
+
+        return 0 <= fark <= 24 * 60 * 60
+
+    except Exception:
+        return False
+
+
 # =========================================================
 # LME RESMİ GECİKMELİ FİYATLARI
 # =========================================================
@@ -2292,6 +2313,9 @@ def fiyat_verilerini_olustur():
                 ),
                 "son_kontrol": firma.get(
                     "son_basarili_cekme"
+                ),
+                "son_24_saatte_guncellendi": son_24_saatte_mi(
+                    firma.get("son_basarili_cekme")
                 ),
                 "durum": (
                     "manuel"
@@ -8235,6 +8259,12 @@ Fabrika Fiyatları
 </div>
 </section>
 
+<div
+id="todayUpdates"
+class="mt-3"
+aria-live="polite"
+></div>
+
 <section
 id="marketTools"
 class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
@@ -8965,8 +8995,12 @@ function marketToolsInit(result) {
     let itemCount = 0;
     let upCount = 0;
     let downCount = 0;
+    let updated24Count = 0;
 
     firmalar.forEach(function(firma) {
+        if (firma.son_24_saatte_guncellendi) {
+            updated24Count++;
+        }
         const kalemler = Array.isArray(firma.kalemler)
             ? firma.kalemler
             : [];
@@ -8985,6 +9019,33 @@ function marketToolsInit(result) {
     if (summaryUpCount) summaryUpCount.textContent = upCount;
     if (summaryDownCount) summaryDownCount.textContent = downCount;
     if (summaryLastUpdate) summaryLastUpdate.textContent = result.son_guncelleme || "-";
+
+    const todayUpdates = document.getElementById("todayUpdates");
+    if (todayUpdates) {
+        const updates = firmalar.filter(function(firma) {
+            return firma.son_24_saatte_guncellendi;
+        });
+
+        todayUpdates.innerHTML =
+            '<div class="rounded-2xl border border-sky-200 bg-sky-50/80 p-3 sm:p-4">' +
+                '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">' +
+                    '<div><div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Son 24 Saat</div>' +
+                    '<div class="text-sm sm:text-base font-black text-slate-900 mt-0.5">Bugün güncelleme alan fabrikalar</div></div>' +
+                    '<div class="inline-flex items-center rounded-xl bg-white border border-sky-200 px-2.5 py-1.5 text-[10px] font-black text-sky-700">' +
+                        updated24Count + ' / ' + firmalar.length + ' firma</div>' +
+                '</div>' +
+                (updates.length
+                    ? '<div class="flex flex-wrap gap-2 mt-3">' +
+                        updates.map(function(firma) {
+                            return '<div class="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-sm">' +
+                                '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>' +
+                                '<span class="text-[11px] font-black text-slate-800">' + escapeHtml(firma.baslik) + '</span>' +
+                                '<span class="text-[9px] font-bold text-slate-400">' + escapeHtml(firma.son_kontrol || '-') + '</span>' +
+                            '</div>';
+                        }).join("") + '</div>'
+                    : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte başarılı fabrika güncellemesi bulunmuyor.</div>') +
+            '</div>';
+    }
 
     const search = document.getElementById("fiyatArama");
     if (search && search.dataset.bound !== "1") {
@@ -9658,6 +9719,9 @@ async function fiyatlariGetir() {
                                         kalemSayisi +
                                         " kalem" +
                                     "</span>" +
+                                    (item.son_24_saatte_guncellendi
+                                        ? '<span class="text-slate-300 shrink-0">•</span><span class="inline-flex items-center rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 whitespace-nowrap">BUGÜN GÜNCELLENDİ · ' + escapeHtml(item.son_kontrol || '-') + '</span>'
+                                        : '') +
                                 "</div>" +
 
                             "</div>" +
