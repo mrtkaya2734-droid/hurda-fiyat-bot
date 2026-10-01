@@ -1163,59 +1163,72 @@ def son_fiyat_degisim(
     fiyat,
 ):
 
+    # Geçmiş kayıtlarını firma/kalem adına göre sağlam şekilde eşleştir.
+    # Veri dosyasındaki büyük-küçük harf veya kayıt eklenme sırası değişse
+    # bile son iki farklı fiyat doğru bulunmalıdır.
+    hedef_firma = str(firma_id or "").strip().casefold()
+    hedef_kalem = str(kalem or "").strip().casefold()
+
     gecmis = [
         x
         for x in data.get(
             "history",
             [],
         )
-        if x.get(
-            "firma_id"
-        ) == firma_id
-        and x.get(
-            "kalem"
-        ) == kalem
+        if str(x.get("firma_id", "")).strip().casefold() == hedef_firma
+        and str(x.get("kalem", "")).strip().casefold() == hedef_kalem
+        and x.get("fiyat") is not None
     ]
 
-    if len(gecmis) < 2:
+    if not gecmis:
         return ""
 
-    onceki = gecmis[
-        -2
-    ].get(
-        "fiyat"
+    def tarih_sirala(item):
+        try:
+            return datetime.fromisoformat(
+                str(item.get("tarih", "")).replace("Z", "+00:00")
+            )
+        except Exception:
+            return datetime.min
+
+    gecmis.sort(
+        key=tarih_sirala
     )
 
-    if onceki is None:
-        return ""
-
     try:
-
-        fark = (
-            fiyat - onceki
-        )
-
-    except Exception:
-
+        mevcut = float(fiyat)
+    except (TypeError, ValueError):
         return ""
+
+    # En güncel geçmiş fiyat mevcut fiyatla aynıysa bir önceki farklı
+    # fiyatı bul. Aynı fiyatın tekrar tekrar kaydedilmesi değişim hesabını
+    # bozmasın.
+    vorige = None
+
+    for item in reversed(gecmis):
+        try:
+            aday = float(item.get("fiyat"))
+        except (TypeError, ValueError):
+            continue
+
+        if aday != mevcut:
+            vorige = aday
+            break
+
+    if vorige is None:
+        return ""
+
+    fark = mevcut - vorige
 
     if fark > 0:
-
         return (
-            f"+{fark:,}".replace(
-                ",",
-                ".",
-            )
+            f"+{fark:,.0f}".replace(",", ".")
             + " TL"
         )
 
     if fark < 0:
-
         return (
-            f"{fark:,}".replace(
-                ",",
-                ".",
-            )
+            f"{fark:,.0f}".replace(",", ".")
             + " TL"
         )
 
