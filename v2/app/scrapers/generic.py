@@ -135,6 +135,17 @@ def _clean_label(text: str):
     if not value:
         return ""
 
+    # Hammadde Piyasası bazı başlıklarda ürün adını iki kez yazıp
+    # sonuna "Hurda Fiyat geçmişi" ekleyebiliyor:
+    # "DKP DKP Hurda Fiyat geçmişi" -> "DKP"
+    # "Top Şiş Top Şiş Hurda Fiyat geçmişi" -> "Top Şiş"
+    value = re.sub(
+        r"\s+Hurda\s+Fiyat\s+geçmişi\s*$",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    ).strip()
+
     value = _dedupe_repeated_label(value)
     value = PRICE_RE.sub("", value)
     value = re.sub(
