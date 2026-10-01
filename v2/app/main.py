@@ -9124,7 +9124,6 @@ function marketToolsInit(result) {
                         }).join("") + '</div>'
                     : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte başarılı fabrika güncellemesi bulunmuyor.</div>') +
             '</div>';
-    }
 
         todayUpdates.querySelectorAll(".today-update-toggle").forEach(function(toggle) {
             toggle.addEventListener("click", function() {
