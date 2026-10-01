@@ -5939,162 +5939,189 @@ body {{
 }}
 
 /* =========================================================
-   FABRİKA KARTLARI — SON VE TEK LAYOUT KURALI
-   Bu blok önceki fabrika flex kurallarını bilinçli olarak ezer.
+   FABRİKA KARTLARI — OKUNAKLI VE SABİT LAYOUT
    ========================================================= */
-.market-design .factory-price-grid > .price-card {{
+.market-design .factory-price-grid > .price-card {
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
-}}
+}
 
-.market-design .factory-price-grid .firma-toggle {{
+.market-design .factory-price-grid .firma-toggle {
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
     height: auto !important;
-    min-height: 132px !important;
-    padding: 16px !important;
+    min-height: 124px !important;
+    padding: 14px !important;
     text-align: left !important;
-}}
+    background: #ffffff !important;
+    border: 0 !important;
+}
 
-.market-design .factory-price-grid .factory-card-header {{
-    display: block !important;
+.market-design .factory-price-grid .firma-toggle:hover {
+    background: #f8fafc !important;
+}
+
+.market-design .factory-price-grid .factory-card-header {
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     min-width: 0 !important;
-    text-align: center !important;
-}}
+    gap: 12px !important;
+    text-align: left !important;
+}
 
-.market-design .factory-price-grid .factory-card-main {{
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
+.market-design .factory-price-grid .factory-card-main {
+    display: flex !important;
     width: 100% !important;
     min-width: 0 !important;
-    gap: 0 !important;
     align-items: center !important;
-    justify-items: center !important;
-}}
+    justify-content: flex-start !important;
+}
 
-.market-design .factory-price-grid .factory-card-info {{
+.market-design .factory-price-grid .factory-card-info {
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
-}}
+}
 
-.market-design .factory-price-grid .factory-card-title-line {{
+.market-design .factory-price-grid .factory-card-title-line {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+}
+
+.market-design .factory-price-grid .factory-card-title {
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
-    line-height: 1.25 !important;
-}}
-
-.market-design .factory-price-grid .factory-card-title {{
-    display: inline !important;
-    width: auto !important;
     max-width: none !important;
-    min-width: 0 !important;
+    color: #0f172a !important;
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    line-height: 1.3 !important;
     white-space: normal !important;
     word-break: normal !important;
-    overflow-wrap: normal !important;
-    line-height: 1.25 !important;
-}}
+    overflow-wrap: anywhere !important;
+}
 
-.market-design .factory-price-grid .factory-card-title-line > span {{
-    display: inline-flex !important;
-    vertical-align: middle !important;
-    margin-left: 6px !important;
-}}
-
-.market-design .factory-price-grid .factory-card-meta {{
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    gap: 5px !important;
-    margin-top: 6px !important;
-}}
-
-.market-design .factory-price-grid .factory-card-actions {{
+.market-design .factory-price-grid .factory-card-actions {
     display: flex !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
-    justify-content: flex-end !important;
     align-items: center !important;
+    justify-content: flex-start !important;
     gap: 8px !important;
-    margin-top: 12px !important;
+    margin-top: 0 !important;
     padding-top: 10px !important;
-    border-top: 1px solid #f1f5f9 !important;
-}}
+    border-top: 1px solid #e2e8f0 !important;
+}
 
-.market-design .factory-price-grid .factory-card-actions > * {{
+.market-design .factory-price-grid .factory-card-actions > * {
     flex: 0 0 auto !important;
-}}
+}
 
-.market-design .factory-price-grid .factory-card-price-badge {{
+.market-design .factory-price-grid .factory-card-price-badge {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 7px !important;
+    gap: 8px !important;
     min-width: 0 !important;
     padding: 7px 11px !important;
-    border-radius: 12px !important;
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-}}
+    border-radius: 10px !important;
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 6px rgba(15,23,42,.05) !important;
+}
 
-.market-design .factory-price-grid .factory-card-price-label {{
+.market-design .factory-price-grid .factory-card-price-label {
     font-size: 9px !important;
     font-weight: 900 !important;
     text-transform: uppercase !important;
-    letter-spacing: .06em !important;
-    color: #94a3b8 !important;
-}}
+    letter-spacing: .07em !important;
+    color: #475569 !important;
+}
 
-.market-design .factory-price-grid .factory-card-price {{
-    font-size: 12px !important;
+.market-design .factory-price-grid .factory-card-price {
+    font-size: 13px !important;
     font-weight: 900 !important;
     color: #0f172a !important;
     white-space: nowrap !important;
-}}
+}
 
-.market-design .factory-price-grid .factory-card-updated {{
+.market-design .factory-price-grid .factory-card-updated {
     display: inline-flex !important;
     align-items: center !important;
     padding: 7px 10px !important;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     background: #ecfdf5 !important;
-    border: 1px solid #a7f3d0 !important;
+    border: 1px solid #86efac !important;
     color: #047857 !important;
     font-size: 9px !important;
     font-weight: 900 !important;
     white-space: nowrap !important;
-}}
+}
 
-@media (max-width: 639px) {{
-    .market-design .factory-price-grid .factory-card-actions {{
+.market-design .factory-price-grid .firma-ok-icon {
+    width: 36px !important;
+    height: 36px !important;
+    margin-left: auto !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 6px rgba(15,23,42,.06) !important;
+    font-weight: 900 !important;
+}
+
+.market-design .factory-price-grid .firma-toggle:hover .firma-ok-icon {
+    background: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+@media (max-width: 639px) {
+    .market-design .factory-price-grid .firma-toggle {
+        min-height: 116px !important;
+        padding: 12px !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-header {
+        gap: 10px !important;
+    }
+
+    .market-design .factory-price-grid .factory-card-actions {
         gap: 6px !important;
-    }}
+        padding-top: 8px !important;
+    }
 
-    .market-design .factory-price-grid .factory-card-price-badge {{
+    .market-design .factory-price-grid .factory-card-price-badge {
         padding: 6px 8px !important;
         gap: 5px !important;
-    }}
+    }
 
-    .market-design .factory-price-grid .factory-card-price-label {{
+    .market-design .factory-price-grid .factory-card-price-label {
         display: none !important;
-    }}
+    }
 
-    .market-design .factory-price-grid .factory-card-price {{
+    .market-design .factory-price-grid .factory-card-price {
         font-size: 11px !important;
-    }}
+    }
 
-    .market-design .factory-price-grid .factory-card-updated {{
+    .market-design .factory-price-grid .factory-card-updated {
         padding: 6px 8px !important;
         font-size: 8px !important;
-    }}
-}}
+    }
+
+    .market-design .factory-price-grid .firma-ok-icon {
+        width: 34px !important;
+        height: 34px !important;
+    }
+}
 
 .market-design .factory-price-grid .factory-price-panel:not(.hidden) {{
     display: block !important;
@@ -9275,9 +9302,9 @@ function marketToolsInit(result) {
                                 }).join("")
                                 : '<span class="text-[9px] font-semibold text-slate-400">Bu güncellemede fiyat değişimi yok</span>';
 
-                            const panelId = "today-update-" + String(firma.firma_id || "").replace(/[^a-zA-Z0-9_-]/g, "");
+                            const panelId = "today-update-" + String(firma.firma_id || "").replace(/[^a-zA-Z0-9_-]/g, "") + "-" + String(index);
 
-                            return '<div class="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
+                            return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
                                 '<button type="button" class="today-update-toggle w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 transition" aria-expanded="false" data-update-panel="' + panelId + '">' +
                                     '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>' +
                                     '<span class="min-w-0 flex-1 text-[11px] font-black text-slate-800 truncate">' + escapeHtml(firma.baslik) + '</span>' +
@@ -9296,8 +9323,10 @@ function marketToolsInit(result) {
 
         todayUpdates.querySelectorAll(".today-update-toggle").forEach(function(toggle) {
             toggle.addEventListener("click", function() {
-                const panelId = toggle.getAttribute("data-update-panel");
-                const panel = document.getElementById(panelId);
+                const card = toggle.closest(".today-update-card");
+                if (!card) return;
+
+                const panel = card.querySelector(".today-update-panel");
                 if (!panel) return;
 
                 const acik = !panel.classList.contains("hidden");
