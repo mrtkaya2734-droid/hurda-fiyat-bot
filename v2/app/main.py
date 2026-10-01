@@ -9171,14 +9171,14 @@ function marketToolsInit(result) {
 
             const toplam = rawPrice * miktar;
             const fiyatText = rawPrice.toLocaleString("tr-TR", {minimumFractionDigits: 0, maximumFractionDigits: 2});
-            const toplamText = toplam.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            const toplamText = toplam.toLocaleString("tr-TR", {minimumFractionDigits: 0, maximumFractionDigits: 0});
 
             if (calcResult) {
                 calcResult.innerHTML =
                     '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
                         '<div class="rounded-xl bg-white border border-slate-200 p-3"><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Seçilen fiyat</div><div class="text-lg font-black text-slate-900 mt-1">' + fiyatText + ' TL / ton</div></div>' +
                         '<div class="rounded-xl bg-white border border-slate-200 p-3"><div class="text-[9px] uppercase tracking-wide font-black text-slate-400">Miktar</div><div class="text-lg font-black text-slate-900 mt-1">' + miktar.toLocaleString("tr-TR", {maximumFractionDigits: 2}) + ' ton</div></div>' +
-                        '<div class="rounded-xl bg-emerald-600 p-3 text-white"><div class="text-[9px] uppercase tracking-wide font-black text-emerald-100">Tahmini toplam</div><div class="text-lg font-black mt-1">' + toplamText + ' TL</div></div>' +
+                        '<div class="min-w-0 rounded-xl bg-emerald-600 p-2.5 text-white"><div class="text-[8px] uppercase tracking-[0.04em] font-black text-emerald-100 leading-tight whitespace-nowrap">Tahmini toplam</div><div class="text-base sm:text-lg font-black mt-1 leading-tight break-words">' + toplamText + ' TL</div></div>' +
                     '</div>' +
                     '<div class="text-[9px] text-slate-500 mt-2">Hesaplama: seçilen fiyat × ton miktarı. Taşıma, fire, kesinti ve diğer ticari şartlar dahil değildir.</div>';
             }
