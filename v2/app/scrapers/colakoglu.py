@@ -31,80 +31,112 @@ def _resmi_api_istegi():
             timeout=12,
         )
     except requests.RequestException as normal_error:
-        # Render'da client.colakoglu.com.tr zaman zaman DNS çözümlemiyor.
-        # Önce resmi DNS kaydını alıyoruz; ardından isteği IP adresine değil,
-        # yine alan adına gönderiyoruz. Böylece HTTPS SNI/certificate doğrulaması
-        # client.colakoglu.com.tr olarak kalıyor.
-        try:
-            dns = requests.get(
-                "https://dns.google/resolve",
-                params={"name": API_HOST, "type": "A"},
-                headers={"Accept": "application/dns-json"},
-                timeout=6,
-            )
-            dns.raise_for_status()
+        # Resmi API alan adı Render'da doğrudan bağlantıda zaman aşımına
+        # uğrayabiliyor. Önce resmi DNS kaydını dış DNS servislerinden al,
+        # sonra isteği yine alan adıyla ve doğru SNI ile yap.
+        dns_urls = (
+            "https://dns.google/resolve",
+            "https://cloudflare-dns.com/dns-query",
+        )
 
-            adresler = [
-                item.get("data")
-                for item in dns.json().get("Answer", [])
-                if item.get("type") == 1 and item.get("data")
-            ]
+        dns_hatalari = []
 
-            if not adresler:
-                raise RuntimeError("Çolakoğlu API için DNS A kaydı bulunamadı.")
+        for dns_url in dns_urls:
+            try:
+                if "cloudflare" in dns_url:
+                    dns = requests.get(
+                        dns_url,
+                        params={"name": API_HOST, "type": "A"},
+                        headers={
+                            "Accept": "application/dns-json",
+                            **headers,
+                        },
+                        verify=False,
+                        timeout=6,
+                    )
+                else:
+                    dns = requests.get(
+                        dns_url,
+                        params={"name": API_HOST, "type": "A"},
+                        headers={"Accept": "application/dns-json"},
+                        verify=False,
+                        timeout=6,
+                    )
 
-            original_getaddrinfo = socket.getaddrinfo
+                dns.raise_for_status()
 
-            for ip in adresler:
-                def resolved_getaddrinfo(
-                    host,
-                    port,
-                    family=0,
-                    type=0,
-                    proto=0,
-                    flags=0,
-                    _ip=ip,
-                ):
-                    if host == API_HOST:
-                        return [
-                            (
-                                socket.AF_INET,
-                                socket.SOCK_STREAM,
-                                socket.IPPROTO_TCP,
-                                "",
-                                (_ip, int(port)),
-                            )
-                        ]
-                    return original_getaddrinfo(
+                cevap = dns.json()
+                adresler = [
+                    item.get("data")
+                    for item in cevap.get("Answer", [])
+                    if item.get("type") == 1 and item.get("data")
+                ]
+
+                if not adresler:
+                    dns_hatalari.append(
+                        f"{dns_url}: A kaydı yok"
+                    )
+                    continue
+
+                original_getaddrinfo = socket.getaddrinfo
+
+                for ip in adresler:
+                    def resolved_getaddrinfo(
                         host,
                         port,
-                        family,
-                        type,
-                        proto,
-                        flags,
-                    )
+                        family=0,
+                        type=0,
+                        proto=0,
+                        flags=0,
+                        _ip=ip,
+                    ):
+                        if host == API_HOST:
+                            return [
+                                (
+                                    socket.AF_INET,
+                                    socket.SOCK_STREAM,
+                                    socket.IPPROTO_TCP,
+                                    "",
+                                    (_ip, int(port)),
+                                )
+                            ]
 
-                socket.getaddrinfo = resolved_getaddrinfo
+                        return original_getaddrinfo(
+                            host,
+                            port,
+                            family,
+                            type,
+                            proto,
+                            flags,
+                        )
 
-                try:
-                    response = requests.get(
-                        API,
-                        headers=headers,
-                        verify=False,
-                        timeout=12,
-                    )
-                    return response
-                except requests.RequestException:
-                    continue
-                finally:
-                    socket.getaddrinfo = original_getaddrinfo
+                    socket.getaddrinfo = resolved_getaddrinfo
 
-            raise RuntimeError(
-                "Resmi Çolakoğlu API adresine DNS üzerinden ulaşılamadı."
-            )
+                    try:
+                        response = requests.get(
+                            API,
+                            headers=headers,
+                            verify=False,
+                            timeout=12,
+                        )
+                        return response
+                    except requests.RequestException as ip_error:
+                        dns_hatalari.append(
+                            f"{ip}: {ip_error}"
+                        )
+                    finally:
+                        socket.getaddrinfo = original_getaddrinfo
 
-        except Exception as dns_error:
-            raise normal_error from dns_error
+            except Exception as dns_error:
+                dns_hatalari.append(
+                    f"{dns_url}: {dns_error}"
+                )
+
+        raise requests.RequestException(
+            "Resmi API bağlantısı başarısız. "
+            f"İlk hata: {normal_error}; "
+            f"DNS/bağlantı denemeleri: {' | '.join(dns_hatalari[-6:])}"
+        ) from normal_error
 
 
 def cek() -> FirmaSonuc:
