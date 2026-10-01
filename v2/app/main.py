@@ -5949,15 +5949,17 @@ body {{
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
+    text-align: center !important;
 }}
 
 .market-design .factory-price-grid .factory-card-main {{
     display: grid !important;
-    grid-template-columns: 40px minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     width: 100% !important;
     min-width: 0 !important;
-    gap: 10px !important;
+    gap: 0 !important;
     align-items: center !important;
+    justify-items: center !important;
 }}
 
 .market-design .factory-price-grid .factory-card-info {{
@@ -9929,32 +9931,6 @@ async function fiyatlariGetir() {
                                 "</div>" +
 
                             "</div>" +
-
-                        "</div>" +
-
-                        '<div class="factory-card-actions">' +
-
-                            '<div class="factory-card-price-badge">' +
-                                '<span class="factory-card-price-label">Fiyat</span>' +
-                                '<span class="factory-card-price">' +
-                                    escapeHtml(
-                                        item.kalemler &&
-                                        item.kalemler.length
-                                            ? item.kalemler[0].fiyat
-                                            : "-"
-                                    ) +
-                                "</span>" +
-                            "</div>" +
-
-                            (
-                                item.son_24_saatte_guncellendi
-                                    ? '<span class="factory-card-updated">BUGÜN GÜNCELLENDİ</span>'
-                                    : ""
-                            ) +
-
-                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
-                                "▼" +
-                            "</span>" +
 
                         "</div>" +
 
