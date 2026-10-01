@@ -5684,7 +5684,7 @@ body {{
     border-radius: 18px;
     padding: 12px;
     box-shadow: 0 8px 22px rgba(15,23,42,.045);
-    max-height: 250px;
+    max-height: 430px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
@@ -5698,6 +5698,11 @@ body {{
 }}
 
 .market-design #todayChanges .today-changes-list {{
+    min-width: 0;
+}}
+
+.market-design #todayChanges .today-changes-list {{
+    max-height: none;
     min-width: 0;
 }}
 
@@ -9041,7 +9046,7 @@ function marketToolsInit(result) {
                 } else {
                     box.innerHTML =
                         '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
-                        '<div class="today-changes-list grid grid-cols-1 gap-2">' +
+                        '<div class="today-changes-list grid grid-cols-1 sm:grid-cols-2 gap-2">' +
                         rows.map(function(x){
                             const up = Number(x.fark) > 0;
                             return '<div class="today-change-card rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
