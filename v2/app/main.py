@@ -1163,72 +1163,59 @@ def son_fiyat_degisim(
     fiyat,
 ):
 
-    # Geçmiş kayıtlarını firma/kalem adına göre sağlam şekilde eşleştir.
-    # Veri dosyasındaki büyük-küçük harf veya kayıt eklenme sırası değişse
-    # bile son iki farklı fiyat doğru bulunmalıdır.
-    hedef_firma = str(firma_id or "").strip().casefold()
-    hedef_kalem = str(kalem or "").strip().casefold()
-
     gecmis = [
         x
         for x in data.get(
             "history",
             [],
         )
-        if str(x.get("firma_id", "")).strip().casefold() == hedef_firma
-        and str(x.get("kalem", "")).strip().casefold() == hedef_kalem
-        and x.get("fiyat") is not None
+        if x.get(
+            "firma_id"
+        ) == firma_id
+        and x.get(
+            "kalem"
+        ) == kalem
     ]
 
-    if not gecmis:
+    if len(gecmis) < 2:
         return ""
 
-    def tarih_sirala(item):
-        try:
-            return datetime.fromisoformat(
-                str(item.get("tarih", "")).replace("Z", "+00:00")
-            )
-        except Exception:
-            return datetime.min
-
-    gecmis.sort(
-        key=tarih_sirala
+    onceki = gecmis[
+        -2
+    ].get(
+        "fiyat"
     )
 
+    if onceki is None:
+        return ""
+
     try:
-        mevcut = float(fiyat)
-    except (TypeError, ValueError):
+
+        fark = (
+            fiyat - onceki
+        )
+
+    except Exception:
+
         return ""
-
-    # En güncel geçmiş fiyat mevcut fiyatla aynıysa bir önceki farklı
-    # fiyatı bul. Aynı fiyatın tekrar tekrar kaydedilmesi değişim hesabını
-    # bozmasın.
-    vorige = None
-
-    for item in reversed(gecmis):
-        try:
-            aday = float(item.get("fiyat"))
-        except (TypeError, ValueError):
-            continue
-
-        if aday != mevcut:
-            vorige = aday
-            break
-
-    if vorige is None:
-        return ""
-
-    fark = mevcut - vorige
 
     if fark > 0:
+
         return (
-            f"+{fark:,.0f}".replace(",", ".")
+            f"+{fark:,}".replace(
+                ",",
+                ".",
+            )
             + " TL"
         )
 
     if fark < 0:
+
         return (
-            f"{fark:,.0f}".replace(",", ".")
+            f"{fark:,}".replace(
+                ",",
+                ".",
+            )
             + " TL"
         )
 
@@ -2652,63 +2639,60 @@ def get_history(
 )
 def get_today_changes():
     data = load_data()
-    now = datetime.now(ISTANBUL).replace(tzinfo=None)
+    now = datetime.now()
     sonuc = []
 
-    # Kayıt sırasına güvenme. Her firma/kalemi kendi içinde tarihe göre
-    # sırala ve son 24 saatte gerçekleşen gerçek fiyat değişimini bul.
+    # Son 24 saatteki her firma/kalem için son iki farklı fiyatı bul.
     gruplar = {}
 
     for item in data.get("history", []):
-        firma_id = str(item.get("firma_id", "")).strip().casefold()
+        firma_id = str(item.get("firma_id", "")).strip().lower()
         kalem = str(item.get("kalem", "")).strip()
 
-        if not firma_id or not kalem or item.get("fiyat") is None:
+        if not firma_id or not kalem:
             continue
 
-        try:
-            zaman = datetime.fromisoformat(
-                str(item.get("tarih", "")).replace("Z", "+00:00")
-            )
-            if zaman.tzinfo is not None:
-                zaman = zaman.astimezone(ISTANBUL).replace(tzinfo=None)
-        except Exception:
-            continue
-
-        gruplar.setdefault((firma_id, kalem), []).append(
-            (zaman, item)
-        )
+        anahtar = (firma_id, kalem)
+        gruplar.setdefault(anahtar, []).append(item)
 
     for (firma_id, kalem), kayitlar in gruplar.items():
-        kayitlar.sort(key=lambda x: x[0])
+        sonlar = list(reversed(kayitlar))
+        bulunan = []
 
-        # Son 24 saatte kaydedilmiş en yeni fiyatı bul.
-        son_zaman, son_kayit = kayitlar[-1]
-        if (now - son_zaman).total_seconds() > 24 * 60 * 60:
+        for item in sonlar:
+            try:
+                zaman = datetime.fromisoformat(
+                    str(item.get("tarih", "")).replace("Z", "")
+                )
+            except Exception:
+                continue
+
+            if (
+                now.replace(tzinfo=None) - zaman
+            ).total_seconds() > 24 * 60 * 60:
+                break
+
+            fiyat = item.get("fiyat")
+            if fiyat is None:
+                continue
+
+            if not bulunan or bulunan[-1].get("fiyat") != fiyat:
+                bulunan.append(item)
+
+            if len(bulunan) >= 2:
+                break
+
+        if len(bulunan) < 2:
             continue
 
+        yeni = bulunan[0].get("fiyat")
+        eski = bulunan[1].get("fiyat")
+
         try:
-            yeni = float(son_kayit.get("fiyat"))
+            fark = float(yeni) - float(eski)
         except (TypeError, ValueError):
             continue
 
-        # Önceki farklı fiyatı, 24 saat sınırının dışında olsa bile bul.
-        # Çünkü önemli olan değişimin son kayıtta gerçekleşmiş olmasıdır.
-        eski = None
-        for zaman, item in reversed(kayitlar[:-1]):
-            try:
-                aday = float(item.get("fiyat"))
-            except (TypeError, ValueError):
-                continue
-
-            if aday != yeni:
-                eski = aday
-                break
-
-        if eski is None:
-            continue
-
-        fark = yeni - eski
         if fark == 0:
             continue
 
@@ -2721,7 +2705,7 @@ def get_today_changes():
             "eski": eski,
             "yeni": yeni,
             "fark": fark,
-            "tarih": son_kayit.get("tarih"),
+            "tarih": bulunan[0].get("tarih"),
         })
 
     sonuc.sort(
@@ -5687,9 +5671,8 @@ body {{
     border-radius: 18px;
     padding: 12px;
     box-shadow: 0 8px 22px rgba(15,23,42,.045);
-    max-height: 430px;
+    max-height: 320px;
     overflow-y: auto;
-    overflow-x: hidden;
     scrollbar-width: thin;
 }}
 
@@ -5700,19 +5683,8 @@ body {{
     margin-bottom: 9px;
 }}
 
-.market-design #todayChanges .today-changes-list {{
-    min-width: 0;
-}}
-
-.market-design #todayChanges .today-changes-list {{
-    max-height: none;
-    min-width: 0;
-}}
-
 .market-design #todayChanges .today-change-card {{
-    min-height: 62px;
-    width: 100%;
-    min-width: 0;
+    min-height: 74px;
     transition: transform .16s ease, box-shadow .16s ease;
 }}
 
@@ -9049,7 +9021,7 @@ function marketToolsInit(result) {
                 } else {
                     box.innerHTML =
                         '<div class="text-[10px] uppercase tracking-wide font-black text-slate-500 mb-2">Son 24 Saatte Değişenler</div>' +
-                        '<div class="today-changes-list grid grid-cols-1 sm:grid-cols-2 gap-2">' +
+                        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
                         rows.map(function(x){
                             const up = Number(x.fark) > 0;
                             return '<div class="today-change-card rounded-xl border ' + (up ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50') + ' p-3">' +
