@@ -11031,16 +11031,16 @@ class="w-full overflow-x-auto rounded-xl border border-slate-200"
 Metal
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-Alış (Nakit)
+Alış (Nakit) $
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-Satış (Nakit)
+Satış (Nakit) $
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-3 Ay Alış
+3 Ay Alış $
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
-3 Ay Satış
+3 Ay Satış $
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
 3 Ay TL / Ton
@@ -11839,6 +11839,26 @@ async function lmeFiyatlariniGetir() {
             );
         }
 
+        const usdYaz =
+            function(value) {
+                if (
+                    value === null
+                    || value === undefined
+                ) {
+                    return "-";
+                }
+
+                return "$" + Number(
+                    value
+                ).toLocaleString(
+                    "tr-TR",
+                    {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }
+                );
+            };
+
         const formatFiyat =
             function(value) {
 
@@ -11873,13 +11893,16 @@ async function lmeFiyatlariniGetir() {
             const tickerItems =
                 result.veriler.map(
                     function(item) {
-                        const deger =
-                            item.three_month_tl !== null
-                            && item.three_month_tl !== undefined
-                                ? formatFiyat(
-                                    item.three_month_tl
-                                  ) + " TL"
-                                : "-";
+                        const bid = item.three_month_bid;
+                        const ask = item.three_month_ask;
+                        const usdOrta =
+                            bid !== null && bid !== undefined
+                            && ask !== null && ask !== undefined
+                                ? (Number(bid) + Number(ask)) / 2
+                                : (ask !== null && ask !== undefined
+                                    ? ask
+                                    : bid);
+                        const deger = usdYaz(usdOrta);
 
                         return (
                             '<span class="lme-ticker-item">' +
@@ -11924,25 +11947,25 @@ async function lmeFiyatlariniGetir() {
                     "</td>" +
 
                     '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
-                        formatFiyat(
+                        usdYaz(
                             item.cash_bid
                         ) +
                     "</td>" +
 
                     '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
-                        formatFiyat(
+                        usdYaz(
                             item.cash_ask
                         ) +
                     "</td>" +
 
                     '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
-                        formatFiyat(
+                        usdYaz(
                             item.three_month_bid
                         ) +
                     "</td>" +
 
                     '<td class="px-3 sm:px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">' +
-                        formatFiyat(
+                        usdYaz(
                             item.three_month_ask
                         ) +
                     "</td>" +
