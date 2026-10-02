@@ -901,7 +901,7 @@ def fiyatlari_toplu_kaydet(
     """
     Bir firmanın otomatik fiyatlarını tek load/save ile kaydeder.
 
-    kalemler: [(cins, fiyat), ...]
+    kalemler: [(cins, fiyat[, kaynak_eski_fiyat]), ...]
     Geçmişe yalnızca fiyat gerçekten değiştiğinde (veya ilk kez) kayıt
     eklenir. Dönüş: {cins: onceki_fiyat_veya_None} (yalnız değişenler).
     """
@@ -933,7 +933,9 @@ def fiyatlari_toplu_kaydet(
     simdi = now_string()
     degisenler = {}
 
-    for kalem, fiyat in kalemler:
+    for giris in kalemler:
+        kalem, fiyat = giris[0], giris[1]
+        kaynak_eski = giris[2] if len(giris) > 2 else None
         mevcut = firma_fiyatlari.get(kalem, {})
         onceki = mevcut.get("otomatik_fiyat")
 
@@ -947,6 +949,10 @@ def fiyatlari_toplu_kaydet(
             ),
             "guncelleme": simdi,
         }
+
+        # Kaynağın kendi yayınladığı önceki fiyat (Erdemir/İsdemir gibi).
+        if kaynak_eski is not None:
+            firma_fiyatlari[kalem]["kaynak_eski_fiyat"] = kaynak_eski
 
         if kalem not in son_gecmis or son_gecmis[kalem] != fiyat:
             history.append(

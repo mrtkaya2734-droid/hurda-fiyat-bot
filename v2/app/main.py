@@ -1212,7 +1212,7 @@ def kalem_kanonik_adi(value):
     return " ".join(text.split())
 
 
-def son_fiyat_degisim(
+def son_fiyat_degisim_detay(
     data,
     firma_id,
     kalem,
@@ -1307,7 +1307,7 @@ def son_fiyat_degisim(
         )
 
     if not kayitlar:
-        return ""
+        return None
 
     kayitlar.sort(
         key=lambda pair: pair[0]
@@ -1319,7 +1319,7 @@ def son_fiyat_degisim(
         TypeError,
         ValueError,
     ):
-        return ""
+        return None
 
     # Son kayıttaki mevcut fiyat döneminin başlangıcını bul.
     son_ayni_index = None
@@ -1334,7 +1334,7 @@ def son_fiyat_degisim(
             break
 
     if son_ayni_index is None:
-        return ""
+        return None
 
     # Mevcut fiyatın hemen öncesindeki farklı fiyatı bul.
     onceki_farkli_index = None
@@ -1349,7 +1349,7 @@ def son_fiyat_degisim(
             break
 
     if onceki_farkli_index is None:
-        return ""
+        return None
 
     eski_fiyat = kayitlar[
         onceki_farkli_index
@@ -1358,41 +1358,41 @@ def son_fiyat_degisim(
     fark = mevcut_fiyat - eski_fiyat
 
     if fark == 0:
-        return ""
+        return None
 
     # Gerçek fiyat geçişinin ilk kaydı değişim zamanıdır.
     degisim_zamani = kayitlar[
         onceki_farkli_index + 1
     ][0]
 
-    saat_farki = (
-        now_istanbul()
-        - degisim_zamani
-    ).total_seconds()
+    return fark, degisim_zamani
 
-    if not (
-        0 <= saat_farki <= 24 * 60 * 60
-    ):
+
+def _fark_metni(fark):
+    fark_int = int(fark)
+    metin = f"{abs(fark_int):,}".replace(",", ".") + " TL"
+    return ("+" if fark_int > 0 else "-") + metin
+
+
+def son_fiyat_degisim(
+    data,
+    firma_id,
+    kalem,
+    fiyat,
+):
+    """Yalnızca son 24 saat içindeki gerçek değişimi metin olarak döndürür."""
+    detay = son_fiyat_degisim_detay(data, firma_id, kalem, fiyat)
+
+    if not detay:
         return ""
 
-    fark_int = int(fark)
+    fark, zaman = detay
+    saniye = (now_istanbul() - zaman).total_seconds()
 
-    if fark_int > 0:
-        return (
-            f"+{fark_int:,}".replace(
-                ",",
-                ".",
-            )
-            + " TL"
-        )
+    if not (0 <= saniye <= 24 * 60 * 60):
+        return ""
 
-    return (
-        f"{fark_int:,}".replace(
-            ",",
-            ".",
-        )
-        + " TL"
-    )
+    return _fark_metni(fark)
 
 
 # ADMİN GİRİŞİ
@@ -1874,7 +1874,7 @@ def firma_verisini_cek(
             continue
 
         kaydedilecek.append(
-            (kalem.cins, kalem.fiyat)
+            (kalem.cins, kalem.fiyat, kalem.eski_fiyat)
         )
         gorunen.append(kalem)
 
@@ -2433,6 +2433,33 @@ def fiyat_verilerini_olustur():
                 kullanilan,
             )
 
+            # Süreden bağımsız, kayıtlı eski fiyata göre son değişim.
+            onceki_degisim = ""
+            degisim_tarihi = ""
+            detay = son_fiyat_degisim_detay(
+                data,
+                firma_id,
+                kalem,
+                kullanilan,
+            )
+
+            if detay:
+                onceki_degisim = _fark_metni(detay[0])
+                degisim_tarihi = detay[1].strftime("%d.%m.%Y %H:%M")
+            elif (
+                manuel is None
+                and otomatik is not None
+                and bilgi.get("kaynak_eski_fiyat") not in (None, otomatik)
+            ):
+                # Geçmiş henüz birikmediyse kaynağın kendi eski fiyatı.
+                onceki_degisim = _fark_metni(
+                    otomatik - bilgi["kaynak_eski_fiyat"]
+                )
+                degisim_tarihi = fiyat_tarih_yaz(
+                    bilgi.get("fiyat_tarihi")
+                    or firma.get("kaynak_fiyat_tarihi")
+                )
+
             firma_kalemleri.append(
                 {
                     "cins": kalem,
@@ -2440,6 +2467,8 @@ def fiyat_verilerini_olustur():
                         kullanilan
                     ),
                     "degisim": degisim,
+                    "onceki_degisim": onceki_degisim,
+                    "degisim_tarihi": degisim_tarihi,
                     "durum": kaynak_tipi,
                     "otomatik_fiyat": otomatik,
                     "manuel_fiyat": manuel,
@@ -9644,6 +9673,9 @@ function marketToolsInit(result) {
     let downCount = 0;
     let updated24Count = 0;
     const factoryChangesByFirm = {};
+    const allChangesByFirm = {};
+    let allUpCount = 0;
+    let allDownCount = 0;
 
     firmalar.forEach(function(firma) {
         if (firma.son_24_saatte_guncellendi) {
@@ -9688,6 +9720,30 @@ function marketToolsInit(result) {
                 String(firma.firma_id || "").trim().toLowerCase()
             ] = firmaDegisimleri;
         }
+
+        // Kayıtlı eski fiyatlarla karşılaştırma (süreden bağımsız).
+        const tumDegisimler = [];
+        kalemler.forEach(function(kalem) {
+            const fark = String(
+                kalem.degisim || kalem.onceki_degisim || ""
+            ).trim();
+
+            if (!fark.startsWith("+") && !fark.startsWith("-")) return;
+
+            tumDegisimler.push({
+                kalem: kalem.cins,
+                fark: fark,
+                yukselis: fark.startsWith("+"),
+                son24: Boolean(kalem.degisim),
+                tarih: kalem.degisim_tarihi || "",
+            });
+        });
+
+        allChangesByFirm[
+            String(firma.firma_id || "").trim().toLowerCase()
+        ] = tumDegisimler;
+        allUpCount += tumDegisimler.filter(function(c) { return c.yukselis; }).length;
+        allDownCount += tumDegisimler.filter(function(c) { return !c.yukselis; }).length;
     });
 
     if (summaryFirmCount) summaryFirmCount.textContent = firmalar.length;
@@ -9698,130 +9754,72 @@ function marketToolsInit(result) {
 
     const todayUpdates = document.getElementById("todayUpdates");
     if (todayUpdates) {
-        const updates = firmalar.filter(function(firma) {
-            const id = String(
-                firma.firma_id || ""
-            ).trim().toLowerCase();
+        const kartlar = firmalar.map(function(firma, index) {
+            const firmaId = String(firma.firma_id || "").trim().toLowerCase();
+            const degisimler = allChangesByFirm[firmaId] || [];
+            const yukselen = degisimler.filter(function(c) { return c.yukselis; }).length;
+            const dusen = degisimler.length - yukselen;
+            const panelId = "today-update-" + firmaId.replace(/[^a-zA-Z0-9_-]/g, "") + "-" + index;
 
-            return Boolean(
-                factoryChangesByFirm[id]
-                && factoryChangesByFirm[id].length
-            );
-        });
+            const rozetler = degisimler.length
+                ? (yukselen ? '<span class="fc-chip fc-chip-up">▲ ' + yukselen + '</span>' : "") +
+                  (dusen ? '<span class="fc-chip fc-chip-down">▼ ' + dusen + '</span>' : "")
+                : '<span class="text-[10px] font-bold text-slate-400">Değişim yok</span>';
+
+            const liste = degisimler.length
+                ? degisimler.map(function(c) {
+                    return '<span class="inline-flex items-center gap-1 rounded-lg ' +
+                        (c.yukselis
+                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                            : 'bg-red-50 border border-red-200 text-red-700') +
+                        ' px-2 py-1 text-[9px] sm:text-[10px] font-black whitespace-nowrap">' +
+                        (c.yukselis ? '▲ ' : '▼ ') +
+                        escapeHtml(c.kalem || "") + ' ' + escapeHtml(c.fark) +
+                        (c.son24 ? ' · 24s' : (c.tarih ? ' · ' + escapeHtml(c.tarih) : '')) +
+                        '</span>';
+                  }).join("")
+                : '<span class="text-[11px] font-semibold text-slate-500">Kayıtlı eski fiyata göre değişen kalem yok.</span>';
+
+            return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
+                '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 hover:bg-slate-50 transition flex items-center justify-between gap-2 text-left" aria-expanded="false">' +
+                    '<span class="text-[12px] sm:text-[13px] font-black text-slate-800 leading-5">' +
+                        escapeHtml(firma.baslik || firma.firma_id || "-") +
+                    '</span>' +
+                    '<span class="flex items-center gap-1.5 shrink-0">' + rozetler + '</span>' +
+                '</button>' +
+                '<div id="' + panelId + '" class="today-update-panel hidden border-t border-slate-100 px-3 py-2.5">' +
+                    '<div class="flex flex-wrap items-center gap-1.5">' + liste + '</div>' +
+                '</div>' +
+            '</div>';
+        }).join("");
 
         todayUpdates.innerHTML =
             '<div class="rounded-2xl border border-sky-200 bg-sky-50/80 p-3 sm:p-4">' +
                 '<div class="flex items-center justify-between gap-2">' +
                     '<div>' +
-                        '<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Son 24 Saat</div>' +
+                        '<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Eski fiyatlarla karşılaştırma</div>' +
                         '<div class="text-sm sm:text-base font-black text-slate-900 mt-0.5">Fiyatı değişen fabrikalar</div>' +
+                        '<div class="text-[10px] font-bold text-slate-500 mt-0.5">Son 24 saatte: ' + upCount + ' ↑ · ' + downCount + ' ↓</div>' +
                     '</div>' +
                     '<div class="inline-flex items-center rounded-xl bg-white border border-sky-200 px-2.5 py-1.5 text-[10px] font-black text-sky-700">' +
-                        upCount + ' ↑ · ' + downCount + ' ↓' +
+                        allUpCount + ' ↑ · ' + allDownCount + ' ↓' +
                     '</div>' +
                 '</div>' +
-                (updates.length
-                    ? '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">' +
-                        updates.map(function(firma, index) {
-                            const firmaId = String(
-                                firma.firma_id || ""
-                            ).trim().toLowerCase();
-
-                            const firmaDegisimleri =
-                                factoryChangesByFirm[firmaId] || [];
-
-                            const panelId =
-                                "today-update-" +
-                                firmaId.replace(
-                                    /[^a-zA-Z0-9_-]/g,
-                                    ""
-                                ) +
-                                "-" +
-                                index;
-
-                            const kalemListesi =
-                                firmaDegisimleri.map(function(change) {
-                                    const farkText =
-                                        String(change.fark || "");
-
-                                    const yukselis =
-                                        farkText.startsWith("+");
-
-                                    return '<span class="inline-flex items-center gap-1 rounded-lg ' +
-                                        (
-                                            yukselis
-                                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                                                : 'bg-red-50 border border-red-200 text-red-700'
-                                        ) +
-                                        ' px-2 py-1 text-[9px] sm:text-[10px] font-black whitespace-nowrap">' +
-                                        (
-                                            yukselis
-                                                ? '▲ '
-                                                : '▼ '
-                                        ) +
-                                        escapeHtml(change.kalem || "") +
-                                        ' ' +
-                                        escapeHtml(farkText) +
-                                        '</span>';
-                                }).join("");
-
-                            return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
-                                '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 text-center hover:bg-slate-50 transition" aria-expanded="false">' +
-                                    '<span class="block w-full text-[12px] sm:text-[13px] font-black text-slate-800 leading-5">' +
-                                        escapeHtml(
-                                            firma.baslik ||
-                                            firma.firma_id ||
-                                            "-"
-                                        ) +
-                                    '</span>' +
-                                '</button>' +
-                                '<div id="' + panelId + '" class="today-update-panel hidden border-t border-slate-100 px-3 py-2.5">' +
-                                    '<div class="flex flex-wrap items-center gap-1.5">' +
-                                        kalemListesi +
-                                    '</div>' +
-                                '</div>' +
-                            '</div>';
-                        }).join("") +
-                    '</div>'
-                    : '<div class="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-500 font-semibold">Son 24 saatte değişen fiyat bulunmuyor.</div>') +
+                '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">' + kartlar + '</div>' +
             '</div>';
 
         todayUpdates
             .querySelectorAll(".today-update-toggle")
             .forEach(function(toggle) {
-                toggle.addEventListener(
-                    "click",
-                    function() {
-                        const card =
-                            toggle.closest(
-                                ".today-update-card"
-                            );
-
-                        if (!card) return;
-
-                        const panel =
-                            card.querySelector(
-                                ".today-update-panel"
-                            );
-
-                        if (!panel) return;
-
-                        const acik =
-                            !panel.classList.contains(
-                                "hidden"
-                            );
-
-                        panel.classList.toggle(
-                            "hidden",
-                            acik
-                        );
-
-                        toggle.setAttribute(
-                            "aria-expanded",
-                            String(!acik)
-                        );
-                    }
-                );
+                toggle.addEventListener("click", function() {
+                    const card = toggle.closest(".today-update-card");
+                    if (!card) return;
+                    const panel = card.querySelector(".today-update-panel");
+                    if (!panel) return;
+                    const acik = !panel.classList.contains("hidden");
+                    panel.classList.toggle("hidden", acik);
+                    toggle.setAttribute("aria-expanded", String(!acik));
+                });
             });
     }
 
