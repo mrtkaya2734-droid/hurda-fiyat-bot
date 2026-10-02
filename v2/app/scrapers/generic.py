@@ -431,12 +431,6 @@ def cek_url(
     for label, price in pairs:
         normalized = kalem_adi_temizle(label)
 
-        if normalized != " ".join(str(label or "").split()):
-            print(
-                f"KALEM ADI TEMİZLENDİ [{firma_id}]: "
-                f"{ascii(label)} -> {ascii(normalized)}"
-            )
-
         if not normalized:
             continue
 

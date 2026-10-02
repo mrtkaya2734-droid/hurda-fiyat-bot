@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import uvicorn
@@ -1859,11 +1859,6 @@ def firma_verisini_cek(
         )
         gorunen.append(kalem)
 
-    print(
-        f"KALEMLER [{sonuc.firma_id}]: "
-        + ", ".join(ascii(k.cins) for k in sonuc.kalemler)
-    )
-
     # Tüm kalemler tek load/save ile yazılır; geçmişe yalnızca
     # gerçekten değişen fiyatlar eklenir.
     onceki_fiyatlar = fiyatlari_toplu_kaydet(
@@ -2286,6 +2281,53 @@ def _verileri_guncelle_calistir():
 # ANASAYFA FİYAT VERİLERİ
 # =========================================================
 
+def en_yuksek_isaretle(sonuc):
+    """
+    Aynı cinste (örn. DKP) birden fazla fabrikanın güncel fiyatı varsa en
+    yükseğini 'en_yuksek' işaretler. Fiyatı 3 günden eski fabrikalar ve
+    hepsinin eşit olduğu gruplar dışarıda bırakılır.
+    """
+    gruplar = {}
+
+    for firma in sonuc:
+        yas = firma.get("fiyat_yasi_gun")
+        firma["en_yuksek_sayisi"] = 0
+
+        if yas is not None and yas > 3:
+            continue
+
+        for kalem in firma.get("kalemler", []):
+            deger = (
+                kalem.get("manuel_fiyat")
+                if kalem.get("manuel_fiyat") is not None
+                else kalem.get("otomatik_fiyat")
+            )
+            anahtar = re.sub(
+                r"[^a-z0-9]", "", storage_module._tr_anahtar(kalem.get("cins"))
+            )
+
+            if deger is None or not anahtar:
+                continue
+
+            gruplar.setdefault(anahtar, []).append(
+                (float(deger), firma, kalem)
+            )
+
+    for uyeler in gruplar.values():
+        if len({id(f) for _, f, _ in uyeler}) < 2:
+            continue
+
+        fiyatlar = [d for d, _, _ in uyeler]
+
+        if max(fiyatlar) == min(fiyatlar):
+            continue
+
+        for deger, firma, kalem in uyeler:
+            if deger == max(fiyatlar):
+                kalem["en_yuksek"] = True
+                firma["en_yuksek_sayisi"] += 1
+
+
 def fiyat_verilerini_olustur():
 
     data = load_data()
@@ -2522,9 +2564,28 @@ def fiyat_verilerini_olustur():
             except (TypeError, ValueError):
                 dun_fark = None
 
+            # Son 30 günlük fiyat çizgisi (yalnızca değişim varsa).
+            trend = []
+            try:
+                sinir = now_istanbul() - timedelta(days=30)
+                noktalar = [(z, d) for z, d in kayitlar_dun if z >= sinir]
+                oncesi = [d for z, d in kayitlar_dun if z < sinir]
+                if oncesi:
+                    noktalar.insert(0, (sinir, oncesi[-1]))
+                noktalar.append((now_istanbul(), float(kullanilan)))
+                if len({round(d) for _, d in noktalar}) >= 2:
+                    trend = [
+                        [int(z.timestamp()), int(round(d))]
+                        for z, d in noktalar[-40:]
+                    ]
+            except (TypeError, ValueError):
+                trend = []
+
             firma_kalemleri.append(
                 {
                     "cins": kalem,
+                    "trend": trend,
+                    "en_yuksek": False,
                     "dun_fiyat": (
                         int(dun_fiyat) if dun_fiyat is not None else None
                     ),
@@ -2626,6 +2687,8 @@ def fiyat_verilerini_olustur():
                 "kalemler": firma_kalemleri,
             }
         )
+
+    en_yuksek_isaretle(sonuc)
 
     return sonuc
 
@@ -2845,6 +2908,19 @@ async def lifespan(app):
             max_instances=1,
             coalesce=True,
             misfire_grace_time=30,
+        )
+
+        scheduler.add_job(
+            gunluk_ozet_gonder,
+            "cron",
+            hour=8,
+            minute=30,
+            timezone=ISTANBUL,
+            id="gunluk_ozet",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=1800,
         )
 
         scheduler.start()
@@ -3242,6 +3318,62 @@ def push_alarmlarini_kontrol():
         save_data(data)
 
 
+def gunluk_ozet_gonder():
+    """Her sabah: 'günlük özet' isteyen abonelere son 24 saatin değişim özetini gönderir."""
+    data = load_data()
+    push = data.get("push") or {}
+    abonelikler = push.get("abonelikler") or {}
+    vapid = push.get("vapid")
+    hedefler = {e: k for e, k in abonelikler.items() if k.get("ozet")}
+
+    if not hedefler or not vapid:
+        return
+
+    degisimler = get_today_changes()["data"]
+    yukselen = [d for d in degisimler if d["fark"] > 0]
+    dusen = [d for d in degisimler if d["fark"] < 0]
+
+    if degisimler:
+        en_buyuk = max(degisimler, key=lambda d: abs(d["fark"]))
+        isaret = "+" if en_buyuk["fark"] > 0 else "-"
+        govde = (
+            f"▲ {len(yukselen)} yükseliş · ▼ {len(dusen)} düşüş. En büyük: "
+            f"{en_buyuk['firma']} {en_buyuk['kalem']} {isaret}"
+            + f"{int(abs(en_buyuk['fark'])):,}".replace(",", ".")
+            + " TL"
+        )
+    else:
+        govde = "Son 24 saatte kayıtlı fiyat değişimi yok."
+
+    yuk = {
+        "title": "Günlük hurda özeti",
+        "body": govde,
+        "url": "/",
+        "tag": "gunluk-ozet",
+    }
+
+    gecersiz = []
+    for endpoint, kayit in hedefler.items():
+        try:
+            _, abone_gecersiz = webpush.gonder(
+                kayit["subscription"], yuk, vapid, PUSH_KONU
+            )
+        except Exception as exc:
+            print(f"PUSH ÖZET HATASI: {type(exc).__name__}: {exc}")
+            continue
+
+        if abone_gecersiz:
+            gecersiz.append(endpoint)
+
+    if gecersiz:
+        data = load_data()
+        for endpoint in gecersiz:
+            ((data.get("push") or {}).get("abonelikler") or {}).pop(endpoint, None)
+        save_data(data)
+
+    print(f"GÜNLÜK ÖZET: {len(hedefler)} aboneye gönderildi.")
+
+
 @app.get("/push/public-key")
 def push_public_key():
     return {"key": push_vapid_anahtari(load_data())["public"]}
@@ -3275,7 +3407,9 @@ async def push_subscribe(request: Request):
         raise HTTPException(status_code=503, detail="Abonelik sınırı doldu.")
 
     onceki = abonelikler.get(endpoint, {})
+    gunluk = govde.get("daily")
     abonelikler[endpoint] = {
+        "ozet": bool(gunluk) if gunluk is not None else bool(onceki.get("ozet")),
         "subscription": {
             "endpoint": endpoint,
             "keys": {"p256dh": p256dh, "auth": auth},
@@ -7744,6 +7878,9 @@ content="Güncel hurda ve demir çelik fiyatları."
 <meta name="twitter:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
 <meta name="twitter:description" content="Fabrika hurda alım fiyatları, LME ve döviz verileri tek ekranda.">
 <meta name="twitter:image" content="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
+<script>
+try { if (localStorage.getItem("hurdaTema") === "dark") { document.documentElement.classList.add("dark"); } } catch (e) {}
+</script>
 <link rel="canonical" href="__BASE_URL__/">
 <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
 <script type="application/ld+json">
@@ -9156,11 +9293,395 @@ body {
 .market-design .fc-btn[aria-expanded="true"] {
     border-left-color: #22c55e;
 }
+
+/* ---- Yeni rozetler ---- */
+.market-design .fc-best {
+    display: block;
+    color: #92400e;
+    background: #fef9c3;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.market-design .trend-line {
+    display: block;
+    margin-left: auto;
+    margin-top: 6px;
+}
+
+/* ---- Mobil: yan sütunlardaki araçlar görünür, reklam görselleri gizli ---- */
+@media (max-width: 1023px) {
+    .market-design .feature-ad-stack {
+        display: none !important;
+    }
+
+    .market-design .desktop-feature-column > div {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .market-design {
+        padding-bottom: 88px;
+    }
+}
+
+/* ---- Mobil alt araç çubuğu ---- */
+#mobileBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .96);
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, .10);
+    backdrop-filter: blur(8px);
+}
+
+#mobileBar button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 52px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+#mobileBar button:active {
+    background: #e2e8f0;
+}
+
+#mobileBar button span:first-child {
+    font-size: 19px;
+    line-height: 1;
+}
+
+@media (min-width: 1024px) {
+    #mobileBar {
+        display: none;
+    }
+}
+
+#themeToggleDesktop {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 50;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .18);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+@media (max-width: 1023px) {
+    #themeToggleDesktop {
+        display: none;
+    }
+}
+
+/* ---- Karanlık mod ---- */
+html.dark {
+    color-scheme: dark;
+}
+
+html.dark .market-design {
+    background:
+        radial-gradient(circle at 8% 0%, rgba(30, 41, 59, .55), transparent 30%),
+        radial-gradient(circle at 92% 8%, rgba(30, 58, 138, .20), transparent 32%),
+        #0a101d !important;
+    color: #e2e8f0;
+}
+
+html.dark .bg-white,
+html.dark [class*="bg-white/9"],
+html.dark [class*="bg-white/8"],
+html.dark [class*="bg-white/7"],
+html.dark [class*="bg-white/6"] {
+    background-color: #111a2e !important;
+}
+
+html.dark .bg-slate-50,
+html.dark [class*="bg-slate-50/"] {
+    background-color: #0e1627 !important;
+}
+
+html.dark .bg-slate-100 {
+    background-color: #162036 !important;
+}
+
+html.dark [class*="hover:bg-slate-50"]:hover {
+    background-color: #162036 !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark [class*="border-slate-200/"],
+html.dark [class*="border-white/7"] {
+    border-color: #24324d !important;
+}
+
+html.dark .divide-slate-100 > * + * {
+    border-color: #1e2b44 !important;
+}
+
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+    color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700 {
+    color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+    color: #9aa8bf !important;
+}
+
+html.dark .text-slate-400 {
+    color: #7c8aa3 !important;
+}
+
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-100 {
+    background-color: rgba(16, 185, 129, .15) !important;
+}
+
+html.dark .text-emerald-700,
+html.dark .text-emerald-600 {
+    color: #6ee7b7 !important;
+}
+
+html.dark .border-emerald-200 {
+    border-color: rgba(16, 185, 129, .35) !important;
+}
+
+html.dark .bg-red-50 {
+    background-color: rgba(239, 68, 68, .15) !important;
+}
+
+html.dark .text-red-700,
+html.dark .text-red-600 {
+    color: #fca5a5 !important;
+}
+
+html.dark .border-red-200 {
+    border-color: rgba(239, 68, 68, .35) !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-amber-100 {
+    background-color: rgba(245, 158, 11, .15) !important;
+}
+
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 {
+    color: #fcd34d !important;
+}
+
+html.dark .border-amber-200 {
+    border-color: rgba(245, 158, 11, .35) !important;
+}
+
+html.dark .bg-sky-50,
+html.dark [class*="bg-sky-50/"] {
+    background-color: rgba(14, 165, 233, .12) !important;
+}
+
+html.dark .text-sky-700,
+html.dark .text-sky-600 {
+    color: #7dd3fc !important;
+}
+
+html.dark .border-sky-200 {
+    border-color: rgba(14, 165, 233, .35) !important;
+}
+
+html.dark .bg-indigo-100 {
+    background-color: rgba(99, 102, 241, .2) !important;
+}
+
+html.dark .text-indigo-700 {
+    color: #a5b4fc !important;
+}
+
+html.dark .bg-yellow-100 {
+    background-color: rgba(234, 179, 8, .18) !important;
+}
+
+html.dark .text-yellow-800 {
+    color: #fde047 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+    background-color: #0e1627 !important;
+    color: #e2e8f0 !important;
+    border-color: #24324d !important;
+}
+
+html.dark input::placeholder {
+    color: #6b7a93 !important;
+}
+
+html.dark .fc-btn {
+    background: linear-gradient(180deg, #111a2e 0%, #0e1627 100%) !important;
+}
+
+html.dark .fc-btn:hover {
+    background: #162036 !important;
+}
+
+html.dark .fc-title {
+    color: #f1f5f9;
+}
+
+html.dark .fc-meta {
+    color: #9aa8bf;
+}
+
+html.dark .fc-cta {
+    background: #1e40af;
+}
+
+html.dark .fc-stale {
+    color: #fcd34d;
+    background: rgba(245, 158, 11, .15);
+    border-color: rgba(245, 158, 11, .35);
+}
+
+html.dark .fc-best {
+    color: #fde047;
+    background: rgba(234, 179, 8, .16);
+    border-color: rgba(234, 179, 8, .35);
+}
+
+html.dark .fc-chip-up {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, .15);
+    border-color: rgba(16, 185, 129, .35);
+}
+
+html.dark .fc-chip-down {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, .15);
+    border-color: rgba(239, 68, 68, .35);
+}
+
+html.dark .market-summary-card {
+    background: #111a2e !important;
+    border-color: #24324d !important;
+}
+
+html.dark .market-summary-value {
+    color: #f1f5f9;
+}
+
+html.dark .market-summary-card.up .market-summary-value {
+    color: #34d399;
+}
+
+html.dark .market-summary-card.down .market-summary-value {
+    color: #f87171;
+}
+
+html.dark #mobileBar {
+    background: rgba(10, 16, 29, .96);
+    border-top-color: #24324d;
+}
+
+html.dark #mobileBar button {
+    color: #cbd5e1;
+}
+
+html.dark #mobileBar button:active {
+    background: #162036;
+}
+
+html.dark #themeToggleDesktop {
+    background: #111a2e;
+    border-color: #24324d;
+}
+
+html.dark .ad-box {
+    filter: brightness(.9);
+}
+
+/* Eski kimlik/sınıf tabanlı beyaz arka planları karanlık modda ez */
+html.dark .market-design #marketTools {
+    background-color: #111a2e !important;
+    border-color: #24324d !important;
+}
+
+html.dark .market-design #marketTools input,
+html.dark .market-design #marketTools select {
+    background-color: #0e1627 !important;
+}
+
+html.dark .market-design .price-card .firma-toggle,
+html.dark .market-design .price-card .fc-btn {
+    background: linear-gradient(180deg, #111a2e 0%, #0e1627 100%) !important;
+}
+
+html.dark .market-design .price-card .firma-toggle:hover,
+html.dark .market-design .price-card .fc-btn:hover {
+    background: #162036 !important;
+}
+
+html.dark .market-design .price-card .price-row,
+html.dark .price-card .price-row {
+    background: #111a2e !important;
+}
+
+html.dark .market-design .price-card .price-row:hover {
+    background: #162036 !important;
+}
+
+html.dark .market-design .bg-slate-900:not(header *) {
+    background-color: #1e293b !important;
+    border: 1px solid #334155;
+}
+
+html.dark [class*="bg-emerald-50/"] {
+    background-color: rgba(16, 185, 129, .13) !important;
+}
 </style>
 
 </head>
 
 <body class="market-design min-h-screen">
+
+<nav id="mobileBar" aria-label="Hızlı işlemler">
+<button type="button" data-bar="ara"><span>🔍</span><span>Ara</span></button>
+<button type="button" data-bar="alarm"><span>🔔</span><span>Alarm</span></button>
+<button type="button" data-bar="paylas"><span>💬</span><span>Paylaş</span></button>
+<button type="button" data-bar="tema"><span data-tema-ikon>🌙</span><span>Tema</span></button>
+</nav>
+<button type="button" id="themeToggleDesktop" aria-label="Karanlık / aydınlık tema" data-bar="tema"><span data-tema-ikon>🌙</span></button>
+
 
 <div class="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
 
@@ -9475,7 +9996,7 @@ Kaynak: LME Official Prices
 
 <div class="factory-layout grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_250px] gap-4 lg:gap-5 items-start">
 
-<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sol piyasa araçları">
+<aside class="desktop-feature-column grid gap-4 order-2 lg:order-none" aria-label="Sol piyasa araçları">
 <div id="calculatorSidePanel" class="w-full max-w-[250px] mr-auto" aria-label="Hurda değeri hesaplama">
 <div
 id="calculatorPanel"
@@ -9509,7 +10030,7 @@ class="mt-0 border-t border-slate-200 pt-0"
 </div>
 </aside>
 
-<main class="min-w-0 w-full mx-auto">
+<main class="min-w-0 w-full mx-auto order-1 lg:order-none">
 
 <div class="text-center mb-3 sm:mb-4 px-1">
 <div class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] text-cyan-300">
@@ -9692,6 +10213,10 @@ Alarmı Kaydet
 </button>
 <span id="pushStatus" class="text-[11px] font-semibold text-slate-500"></span>
 </div>
+<label id="dailyDigestRow" class="hidden mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+<input type="checkbox" id="dailyDigest" class="h-4 w-4 rounded border-slate-300">
+Her sabah 08:30'da günlük fiyat özeti bildirimi al
+</label>
 </div>
 
 </section>
@@ -9713,7 +10238,7 @@ class="factory-price-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 items-s
 
 </main>
 
-<aside class="desktop-feature-column hidden lg:grid gap-4" aria-label="Sağ piyasa araçları">
+<aside class="desktop-feature-column grid gap-4 order-3 lg:order-none" aria-label="Sağ piyasa araçları">
 <div id="historySidePanel" class="w-full max-w-[250px] ml-auto" aria-label="Fiyat geçmişi ve grafik">
 <div
 id="historyPanel"
@@ -9788,6 +10313,36 @@ function escapeHtml(value) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+
+function trendCizgisi(trend) {
+    if (!Array.isArray(trend) || trend.length < 2) return "";
+
+    const w = 72, h = 24, pad = 2;
+    const ts = trend.map(function(p) { return p[0]; });
+    const vs = trend.map(function(p) { return p[1]; });
+    const t0 = Math.min.apply(null, ts), t1 = Math.max.apply(null, ts);
+    const vmin = Math.min.apply(null, vs), vmax = Math.max.apply(null, vs);
+
+    const x = function(t) { return pad + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (w - 2 * pad); };
+    const y = function(v) { return h - pad - (vmax === vmin ? 0.5 : (v - vmin) / (vmax - vmin)) * (h - 2 * pad); };
+
+    // Fiyat değişim anlarında sıçrayan basamaklı çizgi.
+    let yol = "M" + x(ts[0]).toFixed(1) + " " + y(vs[0]).toFixed(1);
+    for (let i = 1; i < trend.length; i++) {
+        yol += " H" + x(ts[i]).toFixed(1) + " V" + y(vs[i]).toFixed(1);
+    }
+
+    const renk = vs[vs.length - 1] > vs[0] ? "#10b981" : (vs[vs.length - 1] < vs[0] ? "#ef4444" : "#94a3b8");
+    const fark = vs[vs.length - 1] - vs[0];
+
+    return '<svg class="trend-line" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h +
+        '" role="img" aria-label="Son 30 gün: ' + (fark > 0 ? '+' : '') + fark.toLocaleString("tr-TR") + ' TL">' +
+        '<title>Son 30 gün: ' + (fark > 0 ? '+' : '') + fark.toLocaleString("tr-TR") + ' TL</title>' +
+        '<path d="' + yol + '" fill="none" stroke="' + renk + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<circle cx="' + x(ts[ts.length - 1]).toFixed(1) + '" cy="' + y(vs[vs.length - 1]).toFixed(1) + '" r="2.2" fill="' + renk + '"/>' +
+        '</svg>';
 }
 
 
@@ -10459,7 +11014,11 @@ async function hurdaPushSenkron() {
         await fetch("/push/subscribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subscription: sub.toJSON(), alarms: alarms }),
+            body: JSON.stringify({
+                subscription: sub.toJSON(),
+                alarms: alarms,
+                daily: localStorage.getItem("hurdaGunlukOzet") === "1",
+            }),
         });
     } catch (e) {
         console.error("Push senkron hatası", e);
@@ -10487,6 +11046,14 @@ async function hurdaPushDurumuYaz() {
     const sub = reg ? await reg.pushManager.getSubscription() : null;
 
     localStorage.setItem("hurdaPushAktif", sub ? "1" : "0");
+
+    const ozetSatiri = document.getElementById("dailyDigestRow");
+    const ozetKutusu = document.getElementById("dailyDigest");
+    if (ozetSatiri && ozetKutusu) {
+        ozetSatiri.classList.toggle("hidden", !sub);
+        ozetKutusu.checked = localStorage.getItem("hurdaGunlukOzet") === "1";
+    }
+
     dugme.textContent = sub ? "🔕 Bildirimleri kapat" : "🔔 Bildirimleri aç";
     durum.textContent = sub
         ? "Açık: site kapalıyken de alarm bildirimi gelir."
@@ -10534,6 +11101,15 @@ function marketToolsInit(result) {
         data: firmalar,
         son_guncelleme: result.son_guncelleme || "",
     };
+
+    const ozetKutusu = document.getElementById("dailyDigest");
+    if (ozetKutusu && ozetKutusu.dataset.bound !== "1") {
+        ozetKutusu.addEventListener("change", function() {
+            localStorage.setItem("hurdaGunlukOzet", ozetKutusu.checked ? "1" : "0");
+            hurdaPushSenkron();
+        });
+        ozetKutusu.dataset.bound = "1";
+    }
 
     const pushBtn = document.getElementById("pushToggle");
     if (pushBtn && pushBtn.dataset.bound !== "1") {
@@ -11335,9 +11911,17 @@ async function fiyatlariGetir() {
                                     escapeHtml(kalem.fiyat_tarihi || "-") +
                                 "</span>" +
 
-                                '<span class="ml-0.5">' +
-                                    durumEtiketi(kalem.durum) +
-                                "</span>" +
+                                (
+                                    kalem.durum === "manuel"
+                                        ? '<span class="ml-0.5">' + durumEtiketi("manuel") + "</span>"
+                                        : ""
+                                ) +
+
+                                (
+                                    kalem.en_yuksek
+                                        ? '<span class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-lg font-black whitespace-nowrap">🏆 En yüksek</span>'
+                                        : ""
+                                ) +
 
                                 (
                                     kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined && kalem.dun_fark
@@ -11366,6 +11950,8 @@ async function fiyatlariGetir() {
                                       "</div>"
                                     : ""
                             ) +
+
+                            trendCizgisi(kalem.trend) +
 
                         "</div>" +
 
@@ -11437,6 +12023,12 @@ async function fiyatlariGetir() {
                                     ? '<span class="fc-fresh">● 24 saat içinde güncellendi</span>'
                                     : ""
                             )
+                    ) +
+
+                    (
+                        item.en_yuksek_sayisi > 0
+                            ? '<span class="fc-best">🏆 ' + item.en_yuksek_sayisi + ' kalemde en yüksek fiyat</span>'
+                            : ""
                     ) +
 
                     '<span class="fc-cta">' +
@@ -11648,6 +12240,53 @@ if (
 
 }
 
+</script>
+
+<script>
+(function() {
+    function temaUygula(koyu) {
+        document.documentElement.classList.toggle("dark", koyu);
+        try { localStorage.setItem("hurdaTema", koyu ? "dark" : "light"); } catch (e) {}
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", koyu ? "#0a101d" : "#0f172a");
+        document.querySelectorAll("[data-tema-ikon]").forEach(function(el) {
+            el.textContent = koyu ? "☀️" : "🌙";
+        });
+    }
+
+    temaUygula(document.documentElement.classList.contains("dark"));
+
+    function araca(hedefId) {
+        const el = document.getElementById(hedefId);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.querySelectorAll("[data-bar]").forEach(function(dugme) {
+        dugme.addEventListener("click", function() {
+            const islem = dugme.dataset.bar;
+
+            if (islem === "tema") {
+                temaUygula(!document.documentElement.classList.contains("dark"));
+            }
+            else if (islem === "ara") {
+                araca("marketTools");
+                setTimeout(function() {
+                    const kutu = document.getElementById("fiyatArama");
+                    if (kutu) kutu.focus({ preventScroll: true });
+                }, 350);
+            }
+            else if (islem === "alarm") {
+                araca("marketTools");
+                const panel = document.getElementById("alarmPanel");
+                const buton = document.getElementById("alarmButton");
+                if (panel && buton && panel.classList.contains("hidden")) buton.click();
+            }
+            else if (islem === "paylas") {
+                if (typeof hurdaPaylas === "function") hurdaPaylas(hurdaTumMetin());
+            }
+        });
+    });
+})();
 </script>
 
 </body>
