@@ -816,6 +816,13 @@ def lme_gecmisi_kaydet(veriler, tarih):
         save_data(data)
 
 
+def lme_grafik_aktif_mi():
+    ayarlar = load_data().get("ayarlar")
+    if not isinstance(ayarlar, dict):
+        return True
+    return ayarlar.get("lme_grafik_aktif", True) is not False
+
+
 def lme_gecmisi_oku(gun_sayisi=180):
     gecmis = load_data().get("lme_gecmisi", {})
     return {ad: seri[-gun_sayisi:] for ad, seri in gecmis.items()}
@@ -4358,6 +4365,21 @@ def admin_degisim_tani(
     )
 
 
+@app.post("/admin/lme-grafik")
+async def admin_lme_grafik(username: str = Depends(verify_admin)):
+    data = load_data()
+    ayarlar = data.get("ayarlar")
+    if not isinstance(ayarlar, dict):
+        ayarlar = data["ayarlar"] = {}
+    yeni = not lme_grafik_aktif_mi()
+    ayarlar["lme_grafik_aktif"] = yeni
+    save_data(data)
+    return RedirectResponse(
+        "/admin?m=" + ("lme_grafik_acik" if yeni else "lme_grafik_kapali"),
+        status_code=303,
+    )
+
+
 @app.post("/admin/yedek-al")
 async def admin_yedek_al(username: str = Depends(verify_admin)):
     storage_module.manuel_yedek_al({"ads": ADS_FILE})
@@ -6264,6 +6286,8 @@ def admin_panel(
         "calisiyor": "Güncelleme zaten çalışıyor, bitmesini bekleyin.",
         "sifre": "Şifre değiştirildi.",
         "yedek": "Yeni yedek alındı (yerel + Supabase).",
+        "lme_grafik_acik": "LME grafik alanı aktif edildi.",
+        "lme_grafik_kapali": "LME grafik alanı pasif edildi; ana sayfada gizlenir.",
     }
     banner_html = (
         '<div class="mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold p-3">'
@@ -7611,6 +7635,11 @@ Manuel
 <a href="/admin/yedek-indir" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 ⬇ Yedeği indir
 </a>
+<form method="post" action="/admin/lme-grafik">
+<button type="submit" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
+{'📈 LME grafiği: AKTİF (kapat)' if lme_grafik_aktif_mi() else '📉 LME grafiği: PASİF (aç)'}
+</button>
+</form>
 <a href="/admin/degisim-tani" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 🔍 Değişim tanılama
 </a>
@@ -8131,6 +8160,7 @@ def lme_fiyatlari():
             "cekilme": sonuc["cekilme"],
             "veriler": sonuc["veriler"],
             "gecmis": lme_gecmisi_oku(),
+            "grafik_aktif": lme_grafik_aktif_mi(),
         }
 
     except Exception as exc:
@@ -11266,6 +11296,9 @@ function lmeSayi(n) {
 }
 
 function lmeGrafikCiz(result) {
+    const kutu = document.getElementById("lmeChartBox");
+    if (kutu) kutu.style.display = result.grafik_aktif === false ? "none" : "";
+    if (result.grafik_aktif === false) return;
     const veriler = Array.isArray(result.veriler) ? result.veriler : [];
     const gecmis = result.gecmis || {};
     const sekmeler = document.getElementById("lmeMetalTabs");
