@@ -4286,6 +4286,78 @@ async def admin_sifre_degistir(
     return cevap
 
 
+@app.get("/admin/degisim-tani", response_class=HTMLResponse)
+def admin_degisim_tani(
+    username: str = Depends(verify_admin),
+    q: str = "",
+):
+    """Her kalem için gösterilen fiyat, kaynağı ve değişim hesabının dayandığı geçmiş kayıtları."""
+    data = load_data()
+    indeks = gecmis_indeksi(data)
+    arama = str(q or "").strip().casefold()
+    satirlar = ""
+    sayi = 0
+
+    for firma in fiyat_verilerini_olustur():
+        for kalem in firma.get("kalemler", []):
+            if arama and arama not in (
+                str(firma.get("baslik", "")) + " " + str(kalem.get("cins", ""))
+            ).casefold():
+                continue
+
+            anahtar = (
+                str(firma["firma_id"]).strip().casefold(),
+                kalem_kanonik_adi(kalem["cins"]).casefold(),
+            )
+            kayitlar = indeks.get(anahtar, [])
+            son = "".join(
+                f'<div>{esc(z.strftime("%d.%m %H:%M"))} → <b>{esc(int(d))}</b></div>'
+                for z, d in kayitlar[-4:]
+            ) or '<span class="text-red-600 font-bold">GEÇMİŞ YOK</span>'
+
+            kaynak = "manuel" if kalem.get("manuel_fiyat") is not None else "otomatik"
+            degisim = kalem.get("degisim") or "—"
+            sayi += 1
+
+            satirlar += (
+                "<tr class='border-b border-slate-200 align-top'>"
+                f"<td class='px-3 py-2 font-bold'>{esc(firma.get('baslik'))}</td>"
+                f"<td class='px-3 py-2'>{esc(kalem.get('cins'))}</td>"
+                f"<td class='px-3 py-2 whitespace-nowrap'>{esc(kalem.get('fiyat'))}</td>"
+                f"<td class='px-3 py-2'>{kaynak}</td>"
+                f"<td class='px-3 py-2 font-black'>{esc(degisim)}</td>"
+                f"<td class='px-3 py-2 text-xs'>{esc(kalem.get('degisim_tarihi') or '—')}</td>"
+                f"<td class='px-3 py-2 text-xs'>{son}</td>"
+                f"<td class='px-3 py-2 text-xs'>{len(kayitlar)}</td>"
+                "</tr>"
+            )
+
+    return HTMLResponse(
+        "<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<meta name='robots' content='noindex,nofollow'>"
+        "<title>Değişim Tanılama</title>"
+        "<script src='https://cdn.tailwindcss.com'></script></head>"
+        "<body class='bg-slate-100 p-3 sm:p-5 text-slate-900'>"
+        "<div class='max-w-7xl mx-auto'>"
+        "<div class='flex flex-wrap items-center justify-between gap-3 mb-4'>"
+        "<div><h1 class='text-xl font-black'>Değişim Tanılama</h1>"
+        "<p class='text-xs text-slate-500'>Yükselen/düşen, kalemin son farklı fiyata göre değişimidir. "
+        "'GEÇMİŞ YOK' görünen kalemde değişim hesaplanamaz.</p></div>"
+        "<a href='/admin#genel' class='px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold'>← Panele dön</a></div>"
+        f"<form class='mb-3'><input name='q' value='{esc(q)}' placeholder='Firma veya kalem ara...' "
+        "class='w-full sm:w-72 h-10 rounded-xl border border-slate-300 px-3 text-sm'></form>"
+        "<div class='overflow-x-auto bg-white rounded-2xl border border-slate-200'>"
+        "<table class='w-full text-sm text-left'><thead class='bg-slate-50 text-xs uppercase text-slate-500'><tr>"
+        "<th class='px-3 py-2'>Firma</th><th class='px-3 py-2'>Kalem</th><th class='px-3 py-2'>Gösterilen fiyat</th>"
+        "<th class='px-3 py-2'>Kaynak</th><th class='px-3 py-2'>Değişim</th><th class='px-3 py-2'>Değişim zamanı</th>"
+        "<th class='px-3 py-2'>Son geçmiş kayıtları</th><th class='px-3 py-2'>Kayıt</th></tr></thead>"
+        f"<tbody>{satirlar}</tbody></table></div>"
+        f"<p class='text-xs text-slate-500 mt-3'>{sayi} kalem</p>"
+        "</div></body></html>"
+    )
+
+
 @app.post("/admin/yedek-al")
 async def admin_yedek_al(username: str = Depends(verify_admin)):
     storage_module.manuel_yedek_al({"ads": ADS_FILE})
@@ -7538,6 +7610,9 @@ Manuel
 </form>
 <a href="/admin/yedek-indir" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 ⬇ Yedeği indir
+</a>
+<a href="/admin/degisim-tani" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
+🔍 Değişim tanılama
 </a>
 <form method="post" action="/admin/update-all" onsubmit="return confirm('Tüm kaynaklar şimdi güncellensin mi?');">
 <button type="submit" class="text-xs bg-slate-900 hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-black transition">
