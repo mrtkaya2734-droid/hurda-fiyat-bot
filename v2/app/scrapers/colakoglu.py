@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi, fiyat_sayi, tarih_bul
+from app.storage import kalem_adi_temizle
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -68,7 +69,7 @@ def _gecerli(cins: str, fiyat: Optional[int]) -> bool:
 def _temiz_cins(metin: str) -> str:
     m = " ".join(str(metin or "").split())
     m = re.sub(r"\b(?:TL|TRY|₺)(?:\s*/\s*(?:ton|mt|kg))?\b", "", m, flags=re.I)
-    return m.strip(" :-–—|")
+    return kalem_adi_temizle(m.strip(" :-–—|"))
 
 
 def _json_kalemler(obj) -> list:

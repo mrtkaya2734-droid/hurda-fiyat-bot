@@ -1,4 +1,5 @@
 import json
+import unicodedata
 import os
 import re
 import shutil
@@ -893,6 +894,126 @@ def fiyat_kaydet(
     return data["prices"][firma_id][kalem]
 
 
+_GORUNMEZ = re.compile(r"[\u200b-\u200f\u2060\ufeff\u00ad]")
+_FIYAT_GECMISI = re.compile(
+    r"\s+Hurda\s+Fiyat\s+geçmişi\s*$",
+    re.IGNORECASE,
+)
+
+
+def _tr_anahtar(metin):
+    """Türkçe büyük/küçük harf farkını yok sayan karşılaştırma anahtarı."""
+    return (
+        str(metin or "")
+        .replace("İ", "i")
+        .replace("I", "ı")
+        .lower()
+    )
+
+
+def kalem_adi_temizle(deger):
+    """
+    Kalem adını tek biçime getirir.
+
+    'Talaş Talaş', 'TALAŞ Talaş', 'TalaşTalaş', 'Talaş\u200b Talaş' ve
+    'Talaş Talaş Hurda Fiyat geçmişi' gibi tekrarlı adlar 'Talaş' olur.
+    """
+    metin = unicodedata.normalize("NFKC", str(deger or ""))
+    metin = _GORUNMEZ.sub("", metin)
+    metin = " ".join(metin.split())
+    metin = _FIYAT_GECMISI.sub("", metin).strip()
+
+    # Kelime düzeyinde tekrar: "Talaş Talaş", "1. Grup 1. Grup" ...
+    kelimeler = metin.split(" ")
+    n = len(kelimeler)
+
+    for k in range(1, n // 2 + 1):
+        if n % k:
+            continue
+        ilk = _tr_anahtar(" ".join(kelimeler[:k]))
+        if all(
+            _tr_anahtar(" ".join(kelimeler[i:i + k])) == ilk
+            for i in range(k, n, k)
+        ):
+            metin = " ".join(kelimeler[:k])
+            break
+
+    # Bitişik tekrar: "TalaşTalaş"
+    eslesme = re.fullmatch(r"(.{3,}?)\1", metin, flags=re.IGNORECASE)
+    if eslesme:
+        metin = eslesme.group(1)
+
+    return metin.strip()
+
+
+def veriyi_duzelt(data):
+    """
+    Mevcut kayıtları temizler (idempotent). Değişiklik olduysa True döner.
+
+    - Kalem adlarındaki tekrarları birleştirir (fiyat + geçmiş + gizli liste).
+    - Geçmişte aynı fiyatın art arda tekrarlarını tek kayda indirir.
+    """
+    degisti = False
+
+    prices = data.get("prices", {})
+    for firma_id, kalemler in list(prices.items()):
+        yeni = {}
+        for kalem, bilgi in kalemler.items():
+            temiz = kalem_adi_temizle(kalem) or kalem
+            if temiz != kalem:
+                degisti = True
+            if temiz in yeni:
+                # Aynı kalem iki adla tutulmuş: en yeni güncellemeyi seç.
+                eski = yeni[temiz]
+                if str(bilgi.get("guncelleme", "")) >= str(eski.get("guncelleme", "")):
+                    if eski.get("manuel_fiyat") is not None and bilgi.get("manuel_fiyat") is None:
+                        bilgi = dict(bilgi, manuel_fiyat=eski["manuel_fiyat"])
+                    yeni[temiz] = bilgi
+                elif eski.get("manuel_fiyat") is None and bilgi.get("manuel_fiyat") is not None:
+                    eski["manuel_fiyat"] = bilgi["manuel_fiyat"]
+                degisti = True
+            else:
+                yeni[temiz] = bilgi
+        prices[firma_id] = yeni
+
+    gizli = data.get("gizlenen_kalemler", {})
+    for firma_id, liste in list(gizli.items()):
+        temiz_liste = []
+        for x in liste:
+            t = kalem_adi_temizle(x) or x
+            if t not in temiz_liste:
+                temiz_liste.append(t)
+        if temiz_liste != liste:
+            gizli[firma_id] = temiz_liste
+            degisti = True
+
+    history = data.get("history", [])
+    if isinstance(history, list):
+        sirali = sorted(
+            history,
+            key=lambda h: str(h.get("tarih", "")),
+        )
+        son = {}
+        yeni_gecmis = []
+        for h in sirali:
+            h = dict(h)
+            temiz = kalem_adi_temizle(h.get("kalem")) or h.get("kalem")
+            h["kalem"] = temiz
+            anahtar = (str(h.get("firma_id", "")).strip().casefold(), temiz)
+            if anahtar in son and son[anahtar] == h.get("fiyat"):
+                continue
+            son[anahtar] = h.get("fiyat")
+            yeni_gecmis.append(h)
+        if len(yeni_gecmis) != len(history) or any(
+            a.get("kalem") != b.get("kalem")
+            for a, b in zip(sirali, yeni_gecmis)
+        ):
+            data["history"] = yeni_gecmis
+            degisti = True
+
+    return degisti
+
+
 def fiyatlari_toplu_kaydet(
     firma_id,
     kalemler,
@@ -934,7 +1055,7 @@ def fiyatlari_toplu_kaydet(
     degisenler = {}
 
     for giris in kalemler:
-        kalem, fiyat = giris[0], giris[1]
+        kalem, fiyat = kalem_adi_temizle(giris[0]) or giris[0], giris[1]
         kaynak_eski = giris[2] if len(giris) > 2 else None
         mevcut = firma_fiyatlari.get(kalem, {})
         onceki = mevcut.get("otomatik_fiyat")

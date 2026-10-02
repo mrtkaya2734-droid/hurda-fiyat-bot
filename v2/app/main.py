@@ -39,6 +39,8 @@ from app.storage import (
     firma_sil,
     fiyat_kaydet,
     fiyatlari_toplu_kaydet,
+    kalem_adi_temizle,
+    veriyi_duzelt,
     manuel_fiyat_kaydet,
     manuel_fiyat_sil,
     bildirim_ekle,
@@ -780,11 +782,27 @@ def lme_verilerini_cek():
             fiyatlar, tarih = _westmetall_lme_verilerini_cek()
             kaynak = "Westmetall · Official LME Prices"
         except Exception as yedek_exc:
+            print(
+                "LME HATASI: "
+                f"{type(exc).__name__}: {exc} | "
+                f"{type(yedek_exc).__name__}: {yedek_exc}"
+            )
+
+            # Kaynaklar geçici olarak erişilemezse son bilinen veriyi göster.
+            if _LME_CACHE["veriler"]:
+                return {
+                    "tarih": _LME_CACHE["tarih"],
+                    "veriler": _LME_CACHE["veriler"],
+                    "cekilme": _LME_CACHE["cekilme"].strftime(
+                        "%d.%m.%Y %H:%M:%S"
+                    ),
+                    "kaynak": (_LME_CACHE["kaynak"] or "LME")
+                    + " · son bilinen veri",
+                    "usd_tl": _LME_CACHE["usd_tl"],
+                }
+
             raise RuntimeError(
-                "LME verisi alınamadı: "
-                + str(exc)
-                + " | "
-                + str(yedek_exc)
+                "LME verisi şu anda alınamıyor."
             ) from yedek_exc
 
     usd_tl = None
@@ -1179,37 +1197,38 @@ def fiyat_format(fiyat):
 
 
 def kalem_kanonik_adi(value):
-    """
-    Kaynaklardan gelen tekrarları yalnızca gösterim ve karşılaştırma
-    sırasında temizler. Kalıcı fiyat/geçmiş kayıtları silmez.
-    """
-    text = " ".join(
-        str(value or "").strip().split()
-    )
+    """Gösterim/karşılaştırma için kalem adını tek biçime getirir."""
+    return kalem_adi_temizle(value)
 
-    if not text:
-        return ""
 
-    text = re.sub(
-        r"\s+Hurda\s+Fiyat\s+geçmişi\s*$",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    ).strip()
+def gecmis_indeksi(data):
+    """(firma, kalem) -> zamana göre sıralı [(zaman, fiyat)]. Tek geçişte kurulur."""
+    indeks = {}
 
-    # "DKP DKP", "Top Şiş Top Şiş", "Talaş Talaş" gibi
-    # tam tekrarları güvenli biçimde tekilleştir.
-    while True:
-        eslesme = re.fullmatch(
-            r"(.+?)\s+\1",
-            text,
-            flags=re.IGNORECASE,
+    for item in data.get("history", []):
+        try:
+            zaman = datetime.fromisoformat(
+                str(item.get("tarih", "")).replace("Z", "+00:00")
+            )
+            zaman = (
+                zaman.replace(tzinfo=ISTANBUL)
+                if zaman.tzinfo is None
+                else zaman.astimezone(ISTANBUL)
+            )
+            deger = float(item.get("fiyat"))
+        except (TypeError, ValueError):
+            continue
+
+        anahtar = (
+            str(item.get("firma_id", "")).strip().casefold(),
+            kalem_kanonik_adi(item.get("kalem", "")).casefold(),
         )
-        if not eslesme:
-            break
-        text = eslesme.group(1).strip()
+        indeks.setdefault(anahtar, []).append((zaman, deger))
 
-    return " ".join(text.split())
+    for kayitlar in indeks.values():
+        kayitlar.sort(key=lambda pair: pair[0])
+
+    return indeks
 
 
 def son_fiyat_degisim_detay(
@@ -1217,118 +1236,36 @@ def son_fiyat_degisim_detay(
     firma_id,
     kalem,
     fiyat,
+    indeks=None,
 ):
     """
-    Ana sayfadaki 2x5 fabrika kartlarının değişim bilgisini üretir.
+    Kayıtlı geçmişe göre mevcut fiyatın son gerçek değişimini bulur.
 
-    Otomatik sistem her dakika aynı fiyatı history'ye yazabildiği için
-    yalnızca son iki kayda bakılmaz. Son fiyatın tekrarları geriye doğru
-    atlanır ve mevcut fiyatın önceki farklı fiyata geçtiği gerçek değişim
-    bulunur.
-
-    Gerçek değişim son 24 saat içindeyse kartta gösterilir.
+    Aynı fiyatın tekrarları atlanır; mevcut fiyata geçişten önceki farklı
+    fiyatla kıyaslanır. Dönüş: (fark, değişim_zamanı) ya da None.
     """
-    hedef_firma = str(
-        firma_id or ""
-    ).strip().casefold()
+    if indeks is None:
+        indeks = gecmis_indeksi(data)
 
-    hedef_kalem = kalem_kanonik_adi(
-        kalem
-    ).casefold()
-
-    kayitlar = []
-
-    for item in data.get(
-        "history",
+    kayitlar = indeks.get(
+        (
+            str(firma_id or "").strip().casefold(),
+            kalem_kanonik_adi(kalem).casefold(),
+        ),
         [],
-    ):
-        item_firma = str(
-            item.get(
-                "firma_id",
-                "",
-            )
-        ).strip().casefold()
-
-        item_kalem = kalem_kanonik_adi(
-            item.get(
-                "kalem",
-                "",
-            )
-        ).casefold()
-
-        if (
-            item_firma != hedef_firma
-            or item_kalem != hedef_kalem
-        ):
-            continue
-
-        try:
-            zaman = datetime.fromisoformat(
-                str(
-                    item.get(
-                        "tarih",
-                        "",
-                    )
-                ).replace(
-                    "Z",
-                    "+00:00",
-                )
-            )
-
-            if zaman.tzinfo is None:
-                zaman = zaman.replace(
-                    tzinfo=ISTANBUL
-                )
-            else:
-                zaman = zaman.astimezone(
-                    ISTANBUL
-                )
-
-        except Exception:
-            continue
-
-        try:
-            deger = float(
-                item.get(
-                    "fiyat"
-                )
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
-            continue
-
-        kayitlar.append(
-            (
-                zaman,
-                deger,
-            )
-        )
+    )
 
     if not kayitlar:
         return None
 
-    kayitlar.sort(
-        key=lambda pair: pair[0]
-    )
-
     try:
         mevcut_fiyat = float(fiyat)
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         return None
 
-    # Son kayıttaki mevcut fiyat döneminin başlangıcını bul.
     son_ayni_index = None
 
-    for index in range(
-        len(kayitlar) - 1,
-        -1,
-        -1,
-    ):
+    for index in range(len(kayitlar) - 1, -1, -1):
         if kayitlar[index][1] == mevcut_fiyat:
             son_ayni_index = index
             break
@@ -1336,36 +1273,20 @@ def son_fiyat_degisim_detay(
     if son_ayni_index is None:
         return None
 
-    # Mevcut fiyatın hemen öncesindeki farklı fiyatı bul.
-    onceki_farkli_index = None
+    # Mevcut fiyat döneminin başlangıcı: art arda aynı fiyatlı kayıtların ilki.
+    donem_basi = son_ayni_index
+    while donem_basi > 0 and kayitlar[donem_basi - 1][1] == mevcut_fiyat:
+        donem_basi -= 1
 
-    for index in range(
-        son_ayni_index - 1,
-        -1,
-        -1,
-    ):
-        if kayitlar[index][1] != mevcut_fiyat:
-            onceki_farkli_index = index
-            break
-
-    if onceki_farkli_index is None:
+    if donem_basi == 0:
         return None
 
-    eski_fiyat = kayitlar[
-        onceki_farkli_index
-    ][1]
-
-    fark = mevcut_fiyat - eski_fiyat
+    fark = mevcut_fiyat - kayitlar[donem_basi - 1][1]
 
     if fark == 0:
         return None
 
-    # Gerçek fiyat geçişinin ilk kaydı değişim zamanıdır.
-    degisim_zamani = kayitlar[
-        onceki_farkli_index + 1
-    ][0]
-
-    return fark, degisim_zamani
+    return fark, kayitlar[donem_basi][0]
 
 
 def _fark_metni(fark):
@@ -1379,9 +1300,10 @@ def son_fiyat_degisim(
     firma_id,
     kalem,
     fiyat,
+    indeks=None,
 ):
     """Yalnızca son 24 saat içindeki gerçek değişimi metin olarak döndürür."""
-    detay = son_fiyat_degisim_detay(data, firma_id, kalem, fiyat)
+    detay = son_fiyat_degisim_detay(data, firma_id, kalem, fiyat, indeks)
 
     if not detay:
         return ""
@@ -2266,6 +2188,7 @@ def verileri_guncelle():
 def fiyat_verilerini_olustur():
 
     data = load_data()
+    gecmis_idx = gecmis_indeksi(data)
 
     sonuc = []
 
@@ -2431,6 +2354,7 @@ def fiyat_verilerini_olustur():
                 firma_id,
                 kalem,
                 kullanilan,
+                gecmis_idx,
             )
 
             # Süreden bağımsız, kayıtlı eski fiyata göre son değişim.
@@ -2441,6 +2365,7 @@ def fiyat_verilerini_olustur():
                 firma_id,
                 kalem,
                 kullanilan,
+                gecmis_idx,
             )
 
             if detay:
@@ -2638,6 +2563,19 @@ def kaynak_migrasyonunu_uygula():
     save_data(data)
 
 
+def veri_bakimi_uygula():
+    """Açılışta: tekrarlı kalem adlarını birleştirir, geçmişi sıkıştırır."""
+    data = load_data()
+    onceki = len(data.get("history", []))
+
+    if veriyi_duzelt(data):
+        save_data(data)
+        print(
+            "VERİ BAKIMI: kalem adları temizlendi, geçmiş "
+            f"{onceki} -> {len(data.get('history', []))} kayıt."
+        )
+
+
 def colakoglu_kaynagini_duzelt():
     """
     Çolakoğlu'nun resmi sayfadan otomatik çekilmesini garanti eder.
@@ -2695,6 +2633,7 @@ async def lifespan(app):
     # Kaynak değişikliklerini canlı kalıcı veriye deploy sırasında bir kez uygula.
     kaynak_migrasyonunu_uygula()
     colakoglu_kaynagini_duzelt()
+    veri_bakimi_uygula()
 
     if AUTO_UPDATE_ENABLED:
         print(
@@ -2786,10 +2725,48 @@ DOVIZ_SON_CEKME = None
 DOVIZ_CACHE_SANIYE = 600
 
 
+DOVIZ_HATA_ZAMANI = None
+DOVIZ_HATA_BEKLEME_SANIYE = 60
+
+
+def _tcmb_kurlari_cek():
+    """TCMB günlük kur XML'i (Frankfurter yedeği): {'USD': {...}, 'EUR': {...}}"""
+    r = requests.get(
+        "https://www.tcmb.gov.tr/kurlar/today.xml",
+        headers={"User-Agent": "HurdaFiyatBot/2.0"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    kok = ET.fromstring(r.content)
+    tarih = kok.attrib.get("Tarih", "")
+    sonuc = {}
+
+    for cur in kok.findall("Currency"):
+        kod = cur.attrib.get("CurrencyCode")
+        if kod not in ("USD", "EUR"):
+            continue
+        alis = cur.findtext("ForexBuying")
+        satis = cur.findtext("ForexSelling")
+        if not alis or not satis:
+            continue
+        sonuc[kod] = {
+            "kod": kod,
+            "birim": "1",
+            "alis": float(alis),
+            "satis": float(satis),
+            "kur": float(alis),
+            "kur_turu": "TCMB döviz kuru",
+            "tarih": tarih,
+        }
+
+    return sonuc
+
+
 def doviz_kurlarini_getir(force=False):
 
     global DOVIZ_CACHE
     global DOVIZ_SON_CEKME
+    global DOVIZ_HATA_ZAMANI
 
     simdi = datetime.now()
 
@@ -2803,46 +2780,45 @@ def doviz_kurlarini_getir(force=False):
     ):
         return DOVIZ_CACHE
 
-    API_URL = (
-        "https://api.frankfurter.dev/v2/rate"
-    )
+    # Kaynaklar kapalıyken her istekte 10-20 sn bekletme.
+    if (
+        not force
+        and DOVIZ_HATA_ZAMANI
+        and (simdi - DOVIZ_HATA_ZAMANI).total_seconds()
+        < DOVIZ_HATA_BEKLEME_SANIYE
+    ):
+        return DOVIZ_CACHE or {
+            "status": "error",
+            "kaynak": "Frankfurter",
+            "kur_turu": "Günlük referans kuru",
+            "tarih": "",
+            "veriler": {},
+            "hata": "USD/EUR kurları şu anda alınamadı.",
+        }
+
+    API_URL = "https://api.frankfurter.dev/v2/rate"
+    basliklar = {
+        "Accept": "application/json",
+        "User-Agent": "HurdaFiyatBot/2.0",
+    }
 
     bulunan = {}
+    kaynaklar = []
 
-    try:
-
-        for kod in (
-            "USD",
-            "EUR",
-        ):
-
+    # 1) Frankfurter: her kur kendi başına denenir.
+    for kod in ("USD", "EUR"):
+        try:
             response = requests.get(
                 f"{API_URL}/{kod.lower()}/try",
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "HurdaFiyatBot/2.0",
-                },
-                timeout=10,
+                headers=basliklar,
+                timeout=6,
             )
-
             response.raise_for_status()
-
             veri = response.json()
-
-            rate = veri.get(
-                "rate"
-            )
-
-            tarih = veri.get(
-                "date",
-                "",
-            )
+            rate = veri.get("rate")
 
             if rate is None:
-
-                raise ValueError(
-                    f"Frankfurter {kod}/TRY kuru boş döndü."
-                )
+                raise ValueError(f"{kod}/TRY kuru boş döndü.")
 
             bulunan[kod] = {
                 "kod": kod,
@@ -2851,17 +2827,29 @@ def doviz_kurlarini_getir(force=False):
                 "satis": float(rate),
                 "kur": float(rate),
                 "kur_turu": "Referans kur",
-                "tarih": tarih,
+                "tarih": veri.get("date", ""),
             }
+            if "Frankfurter" not in kaynaklar:
+                kaynaklar.append("Frankfurter")
 
-        # Gram 24 ayar altın: XAU ons fiyatı USD/ons -> TRY/gram.
+        except Exception as e:
+            print(f"DÖVİZ KUR HATASI ({kod}): {type(e).__name__}: {e}")
+
+    # 2) Eksik kalanlar için TCMB yedeği.
+    if not all(k in bulunan for k in ("USD", "EUR")):
+        try:
+            for kod, kayit in _tcmb_kurlari_cek().items():
+                bulunan.setdefault(kod, kayit)
+            kaynaklar.append("TCMB")
+        except Exception as e:
+            print(f"DÖVİZ KUR HATASI (TCMB): {type(e).__name__}: {e}")
+
+    # 3) Altın: kur kaynaklarından bağımsız; hatası dövizi düşürmez.
+    try:
         gold_response = requests.get(
             "https://api.gold-api.com/price/XAU",
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "HurdaFiyatBot/2.0",
-            },
-            timeout=10,
+            headers=basliklar,
+            timeout=6,
         )
         gold_response.raise_for_status()
         gold_data = gold_response.json()
@@ -2882,57 +2870,46 @@ def doviz_kurlarini_getir(force=False):
                 "kur_turu": "24 ayar gram altın referans fiyatı",
                 "tarih": gold_data.get("updatedAt") or gold_data.get("timestamp") or "",
             }
-
-        tarihler = [
-            x.get(
-                "tarih",
-                "",
-            )
-            for x in bulunan.values()
-            if x.get(
-                "tarih",
-                "",
-            )
-        ]
-
-        kaynak_tarihi = (
-            min(tarihler)
-            if tarihler
-            else ""
-        )
-
-        DOVIZ_CACHE = {
-            "status": "success",
-            "kaynak": "Frankfurter",
-            "kur_turu": "Günlük referans kuru",
-            "tarih": kaynak_tarihi,
-            "veriler": bulunan,
-        }
-
-        DOVIZ_SON_CEKME = simdi
-
-        return DOVIZ_CACHE
-
     except Exception as e:
+        print(f"ALTIN FİYATI HATASI: {type(e).__name__}: {e}")
+        # Önceki başarılı altın değerini koru.
+        eski_altin = (DOVIZ_CACHE or {}).get("veriler", {}).get("ALTIN")
+        if eski_altin and bulunan.get("USD"):
+            bulunan["ALTIN"] = eski_altin
 
-        print(
-            "DÖVİZ KUR HATASI: "
-            f"{type(e).__name__}: {e}"
-        )
+    if not any(k in bulunan for k in ("USD", "EUR")):
+        DOVIZ_HATA_ZAMANI = simdi
 
         if DOVIZ_CACHE:
             return DOVIZ_CACHE
 
         return {
             "status": "error",
-            "kaynak": "Frankfurter",
+            "kaynak": "Frankfurter / TCMB",
             "kur_turu": "Günlük referans kuru",
             "tarih": "",
             "veriler": {},
-            "hata": (
-                "USD/EUR kurları şu anda alınamadı."
-            ),
+            "hata": "USD/EUR kurları şu anda alınamadı.",
         }
+
+    tarihler = [
+        x.get("tarih", "")
+        for x in bulunan.values()
+        if x.get("tarih", "")
+    ]
+
+    DOVIZ_CACHE = {
+        "status": "success",
+        "kaynak": " + ".join(kaynaklar) or "Frankfurter",
+        "kur_turu": "Günlük referans kuru",
+        "tarih": min(tarihler) if tarihler else "",
+        "veriler": bulunan,
+    }
+
+    DOVIZ_SON_CEKME = simdi
+    DOVIZ_HATA_ZAMANI = None
+
+    return DOVIZ_CACHE
 
 
 # =========================================================
@@ -3046,160 +3023,56 @@ def get_history(
     "/today-changes"
 )
 def get_today_changes():
+    """
+    Son 24 saatte fiyatı gerçekten değişen kalemler.
+    Ana sayfa kartlarıyla aynı mantık: mevcut fiyat, kayıtlı önceki farklı
+    fiyatla kıyaslanır; ara değişimler ayrı ayrı sayılmaz.
+    """
     data = load_data()
+    indeks = gecmis_indeksi(data)
     simdi = now_istanbul()
     sonuc = []
 
-    gruplar = {}
-
-    for item in data.get("history", []):
-        firma_id = str(
-            item.get("firma_id", "")
-        ).strip().lower()
-
-        kalem = kalem_kanonik_adi(
-            item.get("kalem", "")
-        )
-
-        if not firma_id or not kalem:
-            continue
-
-        anahtar = (
-            firma_id,
-            kalem.casefold(),
-        )
-        gruplar.setdefault(
-            anahtar,
-            [],
-        ).append(item)
-
-    for (firma_id, _), kayitlar in gruplar.items():
-        sirali = []
-
-        for item in kayitlar:
-            try:
-                zaman = datetime.fromisoformat(
-                    str(
-                        item.get("tarih", "")
-                    ).replace(
-                        "Z",
-                        "+00:00",
-                    )
-                )
-
-                if zaman.tzinfo is None:
-                    zaman = zaman.replace(
-                        tzinfo=ISTANBUL
-                    )
-                else:
-                    zaman = zaman.astimezone(
-                        ISTANBUL
-                    )
-
-            except Exception:
-                continue
-
-            fiyat = item.get("fiyat")
-
-            if fiyat is None:
-                continue
-
-            sirali.append(
-                (
-                    zaman,
-                    item,
-                )
+    for firma in fiyat_verilerini_olustur():
+        for kalem in firma.get("kalemler", []):
+            deger = (
+                kalem.get("manuel_fiyat")
+                if kalem.get("manuel_fiyat") is not None
+                else kalem.get("otomatik_fiyat")
             )
 
-        sirali.sort(
-            key=lambda pair: pair[0]
-        )
+            detay = son_fiyat_degisim_detay(
+                data,
+                firma["firma_id"],
+                kalem["cins"],
+                deger,
+                indeks,
+            )
 
-        onceki_fiyat = None
-
-        for zaman, item in sirali:
-            fiyat = item.get("fiyat")
-
-            if onceki_fiyat is None:
-                onceki_fiyat = fiyat
+            if not detay:
                 continue
 
-            if fiyat == onceki_fiyat:
+            fark, zaman = detay
+
+            if not (0 <= (simdi - zaman).total_seconds() <= 24 * 60 * 60):
                 continue
 
-            try:
-                fark = float(fiyat) - float(
-                    onceki_fiyat
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                onceki_fiyat = fiyat
-                continue
+            sonuc.append({
+                "firma_id": firma["firma_id"],
+                "firma": firma.get("baslik", firma["firma_id"]),
+                "kalem": kalem["cins"],
+                "eski": deger - fark,
+                "yeni": deger,
+                "fark": fark,
+                "tarih": zaman.strftime("%Y-%m-%d %H:%M:%S"),
+            })
 
-            saat_farki = (
-                simdi - zaman
-            ).total_seconds()
-
-            if (
-                0 <= saat_farki <= 24 * 60 * 60
-                and fark != 0
-            ):
-                firma = data.get(
-                    "firms",
-                    {},
-                ).get(
-                    firma_id,
-                    {},
-                )
-
-                sonuc.append({
-                    "firma_id": firma_id,
-                    "firma": firma.get(
-                        "baslik",
-                        firma_id,
-                    ),
-                    "kalem": kalem_kanonik_adi(
-                        item.get("kalem", "")
-                    ),
-                    "eski": onceki_fiyat,
-                    "yeni": fiyat,
-                    "fark": fark,
-                    "tarih": item.get(
-                        "tarih"
-                    ),
-                })
-
-            onceki_fiyat = fiyat
-
-    sonuc.sort(
-        key=lambda item: str(
-            item.get("tarih", "")
-        ),
-        reverse=True,
-    )
-
-    yukselen_sayisi = sum(
-        1
-        for item in sonuc
-        if float(
-            item.get("fark", 0)
-        ) > 0
-    )
-
-    dusen_sayisi = sum(
-        1
-        for item in sonuc
-        if float(
-            item.get("fark", 0)
-        ) < 0
-    )
+    sonuc.sort(key=lambda item: item["tarih"], reverse=True)
 
     return {
         "status": "success",
-        "yukselen": yukselen_sayisi,
-        "dusen": dusen_sayisi,
+        "yukselen": sum(1 for i in sonuc if i["fark"] > 0),
+        "dusen": sum(1 for i in sonuc if i["fark"] < 0),
         "data": sonuc[:500],
     }
 
@@ -8396,7 +8269,7 @@ body {
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    padding: 16px;
+    padding: 20px;
     text-align: left;
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     border: 0;
@@ -8435,12 +8308,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
     background: linear-gradient(135deg, #0f172a, #1e3a8a);
     color: #fff;
-    font-size: 18px;
+    font-size: 21px;
     font-weight: 900;
     box-shadow: 0 6px 14px rgba(15, 23, 42, .18);
 }
@@ -8456,7 +8329,7 @@ body {
 .market-design .fc-title {
     display: block;
     color: #0f172a;
-    font-size: 16px;
+    font-size: 19px;
     font-weight: 900;
     line-height: 1.25;
     overflow-wrap: anywhere;
@@ -8465,7 +8338,7 @@ body {
 .market-design .fc-meta {
     display: block;
     color: #64748b;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
 }
 
@@ -8480,9 +8353,9 @@ body {
 .market-design .fc-chip {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 900;
     white-space: nowrap;
 }
@@ -8502,7 +8375,7 @@ body {
 .market-design .fc-fresh {
     display: block;
     color: #0369a1;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: .02em;
 }
@@ -8512,11 +8385,11 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 12px;
-    border-radius: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
     background: #0f172a;
     color: #fff;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 900;
     letter-spacing: .03em;
     transition: background .2s ease;
@@ -10365,7 +10238,7 @@ async function fiyatlariGetir() {
                     }
 
                     degisimHtml =
-                        '<span class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] ' +
+                        '<span class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] ' +
                         cls +
                         ' font-black whitespace-nowrap">' +
                             icon +
@@ -10375,19 +10248,19 @@ async function fiyatlariGetir() {
                 }
 
                 rows +=
-                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-3.5 sm:py-4">' +
+                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-4 sm:py-5">' +
 
                         '<div class="factory-price-name pr-2">' +
 
-                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
+                            '<div class="font-bold text-slate-800 text-base sm:text-[17px] leading-6 break-words">' +
                                 escapeHtml(kalem.cins) +
                             "</div>" +
 
                             '<div class="flex flex-wrap items-center gap-1.5 mt-1.5">' +
 
-                                '<span class="text-[9px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
+                                '<span class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
 
-                                '<span class="text-[10px] font-bold text-slate-500">' +
+                                '<span class="text-[11px] font-bold text-slate-500">' +
                                     escapeHtml(kalem.fiyat_tarihi || "-") +
                                 "</span>" +
 
@@ -10399,9 +10272,9 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="factory-price-value text-right sm:min-w-[125px]">' +
+                        '<div class="factory-price-value text-right sm:min-w-[150px]">' +
 
-                            '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
+                            '<div class="font-black text-slate-950 text-xl sm:text-2xl leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
                             "</div>" +
 
@@ -10498,7 +10371,7 @@ async function fiyatlariGetir() {
 
                             '<div>' +
                                 '<div class="text-[9px] uppercase tracking-[0.14em] font-black text-slate-400">Fiyatlar</div>' +
-                                '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
+                                '<div class="text-base font-black text-slate-800 mt-0.5">Güncel liste</div>' +
                             "</div>" +
 
                             '<div class="shrink-0">' +

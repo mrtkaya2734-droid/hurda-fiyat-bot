@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi, http_get
+from app.storage import kalem_adi_temizle
 
 
 PRICE_RE = re.compile(
@@ -428,11 +429,7 @@ def cek_url(
 
     unique = {}
     for label, price in pairs:
-        normalized = _dedupe_repeated_label(
-            " ".join(
-                str(label or "").split()
-            ).strip()
-        )
+        normalized = kalem_adi_temizle(label)
 
         if not normalized:
             continue

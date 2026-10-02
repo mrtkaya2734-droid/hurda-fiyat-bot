@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import date
 from typing import Optional
 from urllib.parse import urlparse
@@ -15,25 +16,45 @@ class ScraperHatasi(Exception):
     pass
 
 
+_ROBOTS_BASARILI_SANIYE = 6 * 3600
+_ROBOTS_HATA_SANIYE = 300
+
+
 def izin_var(url: str) -> bool:
-    """Sitenin robots.txt dosyasına bakar. 4xx = kural yok (serbest),
-    5xx veya ağ hatası = temkinli davranıp çekmez."""
+    """Sitenin robots.txt dosyasına bakar.
+
+    - 200: kurallar uygulanır (6 saat önbellek).
+    - 4xx: kural yok, serbest.
+    - 5xx: temkinli davranılır ama yalnızca 5 dakika hatırlanır.
+    - Ağ hatası/zaman aşımı: robots.txt okunamadı demektir; çekim denenir
+      ve sonuç önbelleğe alınmaz (geçici bir hata siteyi kalıcı
+      engellemesin).
+    """
     p = urlparse(url)
     kok = f"{p.scheme}://{p.netloc}"
-    if kok not in _robots_onbellek:
-        rp = RobotFileParser()
-        try:
-            r = requests.get(kok + "/robots.txt", headers=_HEADERS, timeout=10)
-            if r.status_code == 200:
-                rp.parse(r.text.splitlines())
-            elif 400 <= r.status_code < 500:
-                rp.allow_all = True
-            else:
-                rp.disallow_all = True
-        except requests.RequestException:
+    simdi = time.time()
+
+    kayit = _robots_onbellek.get(kok)
+    if kayit and kayit[1] > simdi:
+        return kayit[0].can_fetch(USER_AGENT, url)
+
+    rp = RobotFileParser()
+    sure = _ROBOTS_BASARILI_SANIYE
+
+    try:
+        r = requests.get(kok + "/robots.txt", headers=_HEADERS, timeout=10)
+        if r.status_code == 200:
+            rp.parse(r.text.splitlines())
+        elif 400 <= r.status_code < 500:
+            rp.allow_all = True
+        else:
             rp.disallow_all = True
-        _robots_onbellek[kok] = rp
-    return _robots_onbellek[kok].can_fetch(USER_AGENT, url)
+            sure = _ROBOTS_HATA_SANIYE
+    except requests.RequestException:
+        return True
+
+    _robots_onbellek[kok] = (rp, simdi + sure)
+    return rp.can_fetch(USER_AGENT, url)
 
 
 def http_get(url: str, timeout: int = 20) -> requests.Response:
