@@ -10901,7 +10901,7 @@ DÖVİZ
 
 <div class="currency-ticker-item">
 <span class="currency-label">Kaynak</span>
-<span class="currency-sub">Frankfurter + Gold API</span>
+<span id="currencyKaynak" class="currency-sub">Güncelleniyor...</span>
 </div>
 
 </div>
@@ -12086,6 +12086,11 @@ async function dovizleriGetir() {
         document.getElementById("currencyInfo").textContent =
             "Kur kaynağı: " + (result.kaynak || "Frankfurter") + " · "
             + (result.tarih || "-");
+
+        const kaynakEtiketi = document.getElementById("currencyKaynak");
+        if (kaynakEtiketi) {
+            kaynakEtiketi.textContent = result.kaynak || "Frankfurter";
+        }
 
     }
     catch (error) {
