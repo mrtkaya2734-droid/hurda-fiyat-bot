@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi, fiyat_sayi, tarih_bul
-from app.storage import _tr_anahtar, kalem_adi_temizle
+from app.storage import _tr_anahtar, colakoglu_adi, kalem_adi_temizle
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -243,6 +243,7 @@ def _sonuc(kalemler, tarih) -> FirmaSonuc:
     # gelebilir; ilk görülen ad ve fiyat korunur.
     tekil = {}
     for cins, fiyat in kalemler:
+        cins = colakoglu_adi(cins)
         anahtar = re.sub(r"[\W_]+", "", _tr_anahtar(cins))
         if anahtar and anahtar not in tekil:
             tekil[anahtar] = (cins, fiyat)
@@ -274,7 +275,7 @@ def _hammadde_dene() -> FirmaSonuc:
 
     s = cek_url(ID, BASLIK, HAMMADDE_URL)
     s.url = URL  # kullanıcıya resmi sayfa gösterilir
-    return s
+    return _sonuc([(k.cins, k.fiyat) for k in s.kalemler], s.fiyat_tarihi)
 
 
 # Erişilemeyen yöntemler art arda hata verince bir süre atlanır; böylece her turda
