@@ -8923,6 +8923,8 @@ body {
 
 /* Fabrika butonları — yeni kart tasarımı */
 .market-design .fc-btn {
+    height: auto !important;
+    min-height: 0 !important;
     display: flex !important;
     flex-direction: column;
     gap: 12px;
@@ -9488,56 +9490,70 @@ id="marketTools"
 class="bg-white/95 rounded-2xl sm:rounded-3xl border border-white/70 shadow-lg p-3 sm:p-4 mb-4"
 >
 
-<div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+<div class="flex flex-col gap-3">
 
 <div>
-<label class="block text-[10px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
+<label for="fiyatArama" class="block text-[11px] uppercase tracking-wide font-black text-slate-500 mb-1.5">
 Fiyat / Firma Ara
 </label>
+<div class="relative">
+<span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true">🔍</span>
 <input
 id="fiyatArama"
 type="search"
-placeholder="Örn. DKP, Çolakoğlu..."
-class="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+placeholder="DKP, Çolakoğlu, Erdemir..."
+autocomplete="off"
+class="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-base font-bold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 outline-none transition focus:bg-white focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
 >
 </div>
+</div>
 
-<div class="flex flex-wrap gap-2">
+<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+
+<div class="grid grid-cols-2 sm:flex gap-2">
 <button
 type="button"
 id="compareToggle"
-class="h-11 px-4 rounded-xl bg-sky-600 text-white text-xs font-black hover:bg-sky-700 transition"
+class="h-11 px-5 rounded-xl bg-sky-600 text-white text-sm font-black hover:bg-sky-700 transition whitespace-nowrap"
 >
 🔎 Firma Karşılaştır
 </button>
 <button
 type="button"
 id="alarmButton"
-class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition"
+class="h-11 px-5 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition whitespace-nowrap"
 >
 🔔 Fiyat Alarmı
 </button>
+</div>
+
+<div class="flex flex-col sm:flex-row sm:items-center gap-2">
+<span class="text-[10px] uppercase tracking-wide font-black text-slate-400">Paylaş / İndir</span>
+<div class="grid grid-cols-3 sm:flex gap-2">
 <button
 type="button"
 id="shareWhatsapp"
-class="h-11 px-4 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition"
+class="h-10 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition whitespace-nowrap"
 >
-💬 WhatsApp'ta Paylaş
+💬 WhatsApp
 </button>
 <button
 type="button"
 id="exportCsv"
-class="h-11 px-4 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition"
+class="h-10 px-3.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition whitespace-nowrap"
 >
 ⬇ Excel
 </button>
 <button
 type="button"
 id="exportPdf"
-class="h-11 px-4 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition"
+class="h-10 px-3.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition whitespace-nowrap"
 >
-🖨 PDF / Yazdır
+🖨 PDF
 </button>
+</div>
+</div>
+
 </div>
 
 </div>
@@ -9600,8 +9616,6 @@ Alarmı Kaydet
 <span id="pushStatus" class="text-[11px] font-semibold text-slate-500"></span>
 </div>
 </div>
-
->
 
 </section>
 
@@ -10036,12 +10050,9 @@ async function lmeFiyatlariniGetir() {
 
         tableBody.innerHTML =
             '<tr>' +
-                '<td colspan="6" class="px-4 py-6 text-center text-sm text-amber-800 bg-amber-50">' +
-                    "LME verisi şu anda alınamıyor: "
-                    + escapeHtml(
-                        error.message
-                        || "Bilinmeyen hata."
-                    ) +
+                '<td colspan="6" class="px-4 py-6 text-center bg-amber-50">' +
+                    '<div class="text-sm font-black text-amber-900">LME verisi şu anda alınamıyor</div>' +
+                    '<div class="text-xs font-semibold text-amber-700 mt-1">Kaynak geçici olarak yanıt vermiyor; kısa süre içinde otomatik yeniden denenecek.</div>' +
                 "</td>" +
             "</tr>";
 
@@ -10052,6 +10063,14 @@ async function lmeFiyatlariniGetir() {
             "LME:",
             error
         );
+
+        // Hata durumunda 15 dakika beklemeden 1 dakika sonra yeniden dene.
+        if (!window.__lmeYenidenDeneme) {
+            window.__lmeYenidenDeneme = setTimeout(function() {
+                window.__lmeYenidenDeneme = null;
+                lmeFiyatlariniGetir();
+            }, 60000);
+        }
     }
 }
 
@@ -10139,6 +10158,13 @@ async function dovizleriGetir() {
             "Döviz kurları:",
             error
         );
+
+        if (!window.__dovizYenidenDeneme) {
+            window.__dovizYenidenDeneme = setTimeout(function() {
+                window.__dovizYenidenDeneme = null;
+                dovizleriGetir();
+            }, 60000);
+        }
 
     }
 
@@ -10551,7 +10577,21 @@ function marketToolsInit(result) {
 
     const todayUpdates = document.getElementById("todayUpdates");
     if (todayUpdates) {
-        const kartlar = firmalar.map(function(firma, index) {
+        const sirali = firmalar.slice().sort(function(a, b) {
+            const sayi = function(f) {
+                return (allChangesByFirm[String(f.firma_id || "").trim().toLowerCase()] || []).length;
+            };
+            return sayi(b) - sayi(a);
+        });
+
+        const degisenFirmalar = sirali.filter(function(f) {
+            return (allChangesByFirm[String(f.firma_id || "").trim().toLowerCase()] || []).length > 0;
+        });
+        const degismeyenFirmalar = sirali.filter(function(f) {
+            return degisenFirmalar.indexOf(f) === -1;
+        });
+
+        const kartlar = degisenFirmalar.map(function(firma, index) {
             const firmaId = String(firma.firma_id || "").trim().toLowerCase();
             const degisimler = allChangesByFirm[firmaId] || [];
             const yukselen = degisimler.filter(function(c) { return c.yukselis; }).length;
@@ -10577,7 +10617,8 @@ function marketToolsInit(result) {
                   }).join("")
                 : '<span class="text-[11px] font-semibold text-slate-500">Kayıtlı eski fiyata göre değişen kalem yok.</span>';
 
-            return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
+            return '<div class="today-update-card rounded-xl border shadow-sm overflow-hidden ' +
+                (degisimler.length ? 'bg-white border-slate-200' : 'bg-white/60 border-slate-200/70 opacity-80') + '">' +
                 '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 hover:bg-slate-50 transition flex items-center justify-between gap-2 text-left" aria-expanded="false">' +
                     '<span class="text-[11px] sm:text-[12px] font-black text-slate-800 leading-5">' +
                         escapeHtml(firma.baslik || firma.firma_id || "-") +
@@ -10602,7 +10643,13 @@ function marketToolsInit(result) {
                         allUpCount + ' ↑ · ' + allDownCount + ' ↓' +
                     '</div>' +
                 '</div>' +
-                '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 items-start">' + kartlar + '</div>' +
+                (degisenFirmalar.length
+                    ? '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 items-start">' + kartlar + '</div>'
+                    : '<div class="mt-3 rounded-xl bg-white/70 border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-500">Kayıtlı bir fiyat değişimi henüz yok. Fiyatlar değiştikçe burada görünecek.</div>') +
+                (degisenFirmalar.length && degismeyenFirmalar.length
+                    ? '<div class="mt-2.5 text-[11px] font-semibold text-slate-500">Değişim yok: ' +
+                        degismeyenFirmalar.map(function(f) { return escapeHtml(f.baslik || f.firma_id); }).join(" · ") + '</div>'
+                    : '') +
             '</div>';
 
         todayUpdates
@@ -11216,11 +11263,11 @@ async function fiyatlariGetir() {
                                 "</span>" +
 
                                 (
-                                    kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined
+                                    kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined && kalem.dun_fark
                                         ? '<span class="text-[10px] font-bold ' +
                                             (kalem.dun_fark > 0 ? 'text-emerald-600' : (kalem.dun_fark < 0 ? 'text-red-600' : 'text-slate-400')) +
                                             '">Dün: ' + Number(kalem.dun_fiyat).toLocaleString("tr-TR") +
-                                            (kalem.dun_fark ? ' (' + (kalem.dun_fark > 0 ? '+' : '') + Number(kalem.dun_fark).toLocaleString("tr-TR") + ')' : ' · aynı') +
+                                            ' (' + (kalem.dun_fark > 0 ? '+' : '') + Number(kalem.dun_fark).toLocaleString("tr-TR") + ')' +
                                           '</span>'
                                         : ""
                                 ) +
