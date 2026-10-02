@@ -2845,7 +2845,7 @@ def veri_bakimi_uygula():
         )
 
 
-def yedek_temizligi_uygula(bayrak="yedek_son_hal_20261002", etiket="son-hal-20261002"):
+def yedek_temizligi_uygula(bayrak="yedek_final_20261002", etiket="final-20261002"):
     """
     Tek seferlik: güncel durumun (veri + reklam ayarları) yedeğini alır, doğrular,
     ardından önceki tüm yedekleri siler. Başarılı olunca bayrak yazılır.
@@ -9814,6 +9814,161 @@ html.dark .lme-area { fill: rgba(251, 191, 36, .12); }
 html.dark .lme-dot-cash { fill: #fbbf24; stroke: #1a1405; }
 html.dark .lme-bar-track { background: #3a2d0e; }
 
+
+/* ---- Kompakt, animasyonlu fiyat paneli ---- */
+.market-design .fp-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    border-top: 1px solid transparent;
+    transition: grid-template-rows .32s ease, opacity .25s ease, border-color .25s ease;
+}
+
+.market-design .fp-wrap.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    border-top-color: #e2e8f0;
+}
+
+.market-design .fp-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.market-design .fp-body {
+    padding: 10px 12px 12px;
+    background: rgba(248, 250, 252, .7);
+}
+
+.market-design .fp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.market-design .fp-title {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.market-design .fp-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.market-design .fp-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.market-design .fp-btn:hover { background: #f1f5f9; }
+.market-design .fp-btn.wa { background: #059669; border-color: #059669; color: #fff; }
+.market-design .fp-btn.wa:hover { background: #047857; }
+.market-design .fp-btn-muted { color: #94a3b8; cursor: default; }
+
+.market-design .fp-list {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.market-design .fp-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 11px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.market-design .fp-row:last-child { border-bottom: 0; }
+
+.market-design .fp-cins {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.market-design .fp-meta {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+}
+
+.market-design .fp-spark { line-height: 0; }
+.market-design .trend-inline { display: block; }
+
+.market-design .fp-price {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.market-design .fp-fiyat {
+    font-size: 15px;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.market-design .fp-unit {
+    margin-left: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.market-design .fp-chg {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.market-design .fp-chg.up { color: #059669; }
+.market-design .fp-chg.down { color: #dc2626; }
+
+@media (max-width: 380px) {
+    .market-design .fp-spark { display: none; }
+    .market-design .fp-row { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+html.dark .market-design .fp-wrap.open { border-top-color: #24324d; }
+html.dark .market-design .fp-body { background: rgba(14, 22, 39, .7); }
+html.dark .market-design .fp-title { color: #9aa8bf; }
+html.dark .market-design .fp-btn { background: #162036; border-color: #24324d; color: #cbd5e1; }
+html.dark .market-design .fp-btn:hover { background: #1e2b44; }
+html.dark .market-design .fp-btn.wa { background: #059669; border-color: #059669; color: #fff; }
+html.dark .market-design .fp-list { background: #111a2e; border-color: #24324d; }
+html.dark .market-design .fp-row { border-bottom-color: #1e2b44; }
+html.dark .market-design .fp-cins,
+html.dark .market-design .fp-fiyat { color: #f1f5f9; }
+html.dark .market-design .fp-meta,
+html.dark .market-design .fp-unit { color: #7c8aa3; }
+html.dark .market-design .fp-chg.up { color: #34d399; }
+html.dark .market-design .fp-chg.down { color: #f87171; }
+
 /* ---- Mobil alt araç çubuğu ---- */
 #mobileBar {
     position: fixed;
@@ -10862,10 +11017,10 @@ function escapeHtml(value) {
 }
 
 
-function trendCizgisi(trend) {
+function trendCizgisi(trend, w0, h0, sinif) {
     if (!Array.isArray(trend) || trend.length < 2) return "";
 
-    const w = 72, h = 24, pad = 2;
+    const w = w0 || 72, h = h0 || 24, pad = 2;
     const ts = trend.map(function(p) { return p[0]; });
     const vs = trend.map(function(p) { return p[1]; });
     const t0 = Math.min.apply(null, ts), t1 = Math.max.apply(null, ts);
@@ -10883,7 +11038,7 @@ function trendCizgisi(trend) {
     const renk = vs[vs.length - 1] > vs[0] ? "#10b981" : (vs[vs.length - 1] < vs[0] ? "#ef4444" : "#94a3b8");
     const fark = vs[vs.length - 1] - vs[0];
 
-    return '<svg class="trend-line" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h +
+    return '<svg class="' + (sinif || "trend-line") + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h +
         '" role="img" aria-label="Son 30 gün: ' + (fark > 0 ? '+' : '') + fark.toLocaleString("tr-TR") + ' TL">' +
         '<title>Son 30 gün: ' + (fark > 0 ? '+' : '') + fark.toLocaleString("tr-TR") + ' TL</title>' +
         '<path d="' + yol + '" fill="none" stroke="' + renk + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -12783,80 +12938,42 @@ async function fiyatlariGetir() {
                         "</span>";
                 }
 
+                const sayiMatch = String(kalem.fiyat || "").match(/^([\\d.,]+)\\s*(.*)$/);
+                const fiyatSayi = sayiMatch ? sayiMatch[1] : String(kalem.fiyat || "-");
+                const fiyatBirim = sayiMatch ? sayiMatch[2] : "";
+
+                const kisaTarih = String(kalem.fiyat_tarihi || "").replace(/^(\\d{4})-(\\d{2})-(\\d{2})$/, "$3.$2");
+
+                const metaParcalari = [];
+                if (kisaTarih) metaParcalari.push(escapeHtml(kisaTarih));
+                if (kalem.durum === "manuel") metaParcalari.push("manuel");
+                if (kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined && kalem.dun_fark) {
+                    metaParcalari.push("dün " + (kalem.dun_fark > 0 ? "+" : "") + Number(kalem.dun_fark).toLocaleString("tr-TR"));
+                }
+                if (kalem.en_yuksek) metaParcalari.push("🏆");
+
+                const yon = degisim.startsWith("+") ? "up" : (degisim.startsWith("-") ? "down" : "");
+
                 rows +=
-                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-3.5 sm:py-4">' +
-
-                        '<div class="factory-price-name pr-2">' +
-
-                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
-                                escapeHtml(kalem.cins) +
-                            "</div>" +
-
-                            '<div class="flex flex-wrap items-center gap-1.5 mt-1.5">' +
-
-                                '<span class="text-[9px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
-
-                                '<span class="text-[10px] font-bold text-slate-500">' +
-                                    escapeHtml(kalem.fiyat_tarihi || "-") +
-                                "</span>" +
-
-                                (
-                                    kalem.durum === "manuel"
-                                        ? '<span class="ml-0.5">' + durumEtiketi("manuel") + "</span>"
-                                        : ""
-                                ) +
-
-                                (
-                                    kalem.en_yuksek
-                                        ? '<span class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-lg font-black whitespace-nowrap">🏆 En yüksek</span>'
-                                        : ""
-                                ) +
-
-                                (
-                                    kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined && kalem.dun_fark
-                                        ? '<span class="text-[10px] font-bold ' +
-                                            (kalem.dun_fark > 0 ? 'text-emerald-600' : (kalem.dun_fark < 0 ? 'text-red-600' : 'text-slate-400')) +
-                                            '">Dün: ' + Number(kalem.dun_fiyat).toLocaleString("tr-TR") +
-                                            ' (' + (kalem.dun_fark > 0 ? '+' : '') + Number(kalem.dun_fark).toLocaleString("tr-TR") + ')' +
-                                          '</span>'
-                                        : ""
-                                ) +
-
-                            "</div>" +
-
+                    '<div class="fp-row">' +
+                        '<div class="min-w-0">' +
+                            '<span class="fp-cins">' + escapeHtml(kalem.cins) + "</span>" +
+                            '<span class="fp-meta">' + metaParcalari.join(" · ") + "</span>" +
                         "</div>" +
-
-                        '<div class="factory-price-value text-right sm:min-w-[125px]">' +
-
-                            '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
-                                escapeHtml(kalem.fiyat) +
-                            "</div>" +
-
-                            (
-                                degisimHtml
-                                    ? '<div class="mt-1.5 flex justify-end">' +
-                                        degisimHtml +
-                                      "</div>"
-                                    : ""
-                            ) +
-
-                            trendCizgisi(kalem.trend) +
-
+                        '<div class="fp-spark">' + trendCizgisi(kalem.trend, 54, 20, "trend-inline") + "</div>" +
+                        '<div class="fp-price">' +
+                            '<span class="fp-fiyat">' + escapeHtml(fiyatSayi) + "</span>" +
+                            (fiyatBirim ? '<span class="fp-unit">' + escapeHtml(fiyatBirim) + "</span>" : "") +
+                            (degisim
+                                ? '<span class="fp-chg ' + yon + '">' + (yon === "up" ? "▲ " : (yon === "down" ? "▼ " : "")) + escapeHtml(degisim) + "</span>"
+                                : "") +
                         "</div>" +
-
                     "</div>";
             });
 
             const kaynakLink = item.url
-                ? '<a href="' +
-                    escapeHtml(item.url) +
-                    '" target="_blank" rel="noopener noreferrer" ' +
-                    'class="inline-flex items-center gap-1.5 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition">' +
-                        "Kaynak ↗" +
-                  "</a>"
-                : '<span class="inline-flex items-center rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-400">' +
-                    "Manuel fiyat" +
-                  "</span>";
+                ? '<a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer" class="fp-btn" title="Resmi kaynağa git">Kaynak ↗</a>'
+                : '<span class="fp-btn fp-btn-muted">Manuel</span>';
 
             wrapper.innerHTML =
                 '<button type="button" class="firma-toggle fc-btn" data-panel="' +
@@ -12928,32 +13045,22 @@ async function fiyatlariGetir() {
 
                 "</button>" +
 
-                '<div id="' +
-                    panelId +
-                    '" class="factory-price-panel hidden border-t border-slate-200 bg-slate-50/60">' +
+                '<div id="' + panelId + '" class="fp-wrap">' +
+                    '<div class="fp-inner">' +
+                        '<div class="fp-body">' +
 
-                    '<div class="factory-price-panel p-3 sm:p-4">' +
-
-                        '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">' +
-
-                            '<div>' +
-                                '<div class="text-[9px] uppercase tracking-[0.14em] font-black text-slate-400">Fiyatlar</div>' +
-                                '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
+                            '<div class="fp-head">' +
+                                '<span class="fp-title">' + kalemSayisi + " fiyat kalemi</span>" +
+                                '<span class="fp-actions">' +
+                                    '<button type="button" class="fp-btn wa firma-wa" data-firma="' + escapeHtml(item.firma_id) + '" title="WhatsApp\\'ta paylaş">💬 Paylaş</button>' +
+                                    kaynakLink +
+                                "</span>" +
                             "</div>" +
 
-                            '<div class="shrink-0 flex items-center gap-1.5">' +
-                                '<button type="button" class="firma-wa inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 text-white px-2.5 py-1.5 text-[10px] font-black hover:bg-emerald-700 transition" data-firma="' + escapeHtml(item.firma_id) + '">💬 Paylaş</button>' +
-                                kaynakLink +
-                            "</div>" +
+                            '<div class="fp-list">' + rows + "</div>" +
 
                         "</div>" +
-
-                        '<div class="factory-price-list bg-white rounded-2xl border border-slate-200 px-3 sm:px-4 shadow-sm">' +
-                            rows +
-                        "</div>" +
-
                     "</div>" +
-
                 "</div>";
 
             firmaListesi.appendChild(
@@ -12973,46 +13080,29 @@ async function fiyatlariGetir() {
                     ".firma-toggle"
                 );
 
-            toggle.addEventListener(
-                "click",
-                function() {
+            toggle.addEventListener("click", function() {
+                const panel = document.getElementById(panelId);
+                const acik = panel.classList.contains("open");
 
-                    const panel =
-                        document.getElementById(
-                            panelId
-                        );
-
-                    const open =
-                        !panel.classList.contains(
-                            "hidden"
-                        );
-
-                    panel.classList.toggle(
-                        "hidden",
-                        open
-                    );
-
-                    toggle.setAttribute(
-                        "aria-expanded",
-                        String(!open)
-                    );
-
-                    const icon =
-                        toggle.querySelector(
-                            ".firma-ok-icon"
-                        );
-
-                    if (icon) {
-
-                        icon.style.transform =
-                            open
-                                ? "rotate(0deg)"
-                                : "rotate(180deg)";
-
-                    }
-
+                // Akordeon: yeni kart açılırken diğer açık olanlar kapanır.
+                if (!acik) {
+                    document.querySelectorAll("#firmaListesi .fp-wrap.open").forEach(function(diger) {
+                        diger.classList.remove("open");
+                        const dugme = diger.parentElement.querySelector(".firma-toggle");
+                        if (dugme) {
+                            dugme.setAttribute("aria-expanded", "false");
+                            const ik = dugme.querySelector(".firma-ok-icon");
+                            if (ik) ik.style.transform = "rotate(0deg)";
+                        }
+                    });
                 }
-            );
+
+                panel.classList.toggle("open", !acik);
+                toggle.setAttribute("aria-expanded", String(!acik));
+
+                const icon = toggle.querySelector(".firma-ok-icon");
+                if (icon) icon.style.transform = acik ? "rotate(0deg)" : "rotate(180deg)";
+            });
 
         });
     }
