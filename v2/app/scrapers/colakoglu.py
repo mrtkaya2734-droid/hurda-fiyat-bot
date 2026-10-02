@@ -48,13 +48,10 @@ BILINEN_CINSLER = (
 )
 
 
-def _get(url: str, timeout: int = 20) -> requests.Response:
+def _get(url: str, timeout=(6, 15)) -> requests.Response:
     # robots.txt kontrolü bilinçli olarak atlanır: bu adres kullanıcının
     # kendi takip ettiği resmi fiyat sayfasıdır.
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=timeout, verify=False)
-    except requests.RequestException:
-        r = requests.get(url, headers=HEADERS, timeout=timeout)
+    r = requests.get(url, headers=HEADERS, timeout=timeout, verify=False)
     r.raise_for_status()
     return r
 
@@ -233,7 +230,7 @@ def _sayfadan(html: str):
 
 
 def _api_dene(url: str):
-    r = _get(url, timeout=15)
+    r = _get(url)
     veri = r.json()
     k = _json_kalemler(veri)
     return k, _json_tarih(veri)
@@ -250,6 +247,28 @@ def _sonuc(kalemler, tarih) -> FirmaSonuc:
         tarih,
         [Kalem(cins=c, fiyat=f) for c, f in tekil.items()][:100],
     )
+
+
+ROLE_URL = "https://r.jina.ai/" + URL
+HAMMADDE_URL = "https://www.hammaddepiyasasi.com/fabrika/colakoglu"
+
+
+def _role_dene():
+    """Resmi sayfanın metin aktarımı (Render IP'si doğrudan engelliyse)."""
+    r = _get(ROLE_URL, timeout=(8, 40))
+    metin = r.text
+    k = _metin_kalemler(metin)
+    if len(k) < 2:
+        k = _bilinen_cins_kalemler(metin)
+    return k, tarih_bul(metin)
+
+
+def _hammadde_dene() -> FirmaSonuc:
+    from app.scrapers.generic import cek_url
+
+    s = cek_url(ID, BASLIK, HAMMADDE_URL)
+    s.url = URL  # kullanıcıya resmi sayfa gösterilir
+    return s
 
 
 def cek() -> FirmaSonuc:
@@ -273,7 +292,7 @@ def cek() -> FirmaSonuc:
             if tam not in api_adresleri and not tam.endswith((".js", ".css", ".png", ".jpg")):
                 api_adresleri.append(tam)
     except Exception as e:
-        hatalar.append(f"sayfa: {e}")
+        hatalar.append(f"sayfa: {type(e).__name__}")
 
     # 3) Bilinen resmi API + sayfadan bulunanlar
     for adres in [API] + api_adresleri[:5]:
@@ -283,6 +302,23 @@ def cek() -> FirmaSonuc:
                 return _sonuc(kalemler, tarih)
             hatalar.append(f"{adres}: veri yok")
         except Exception as e:
-            hatalar.append(f"{adres}: {e}")
+            hatalar.append(f"api: {type(e).__name__}")
 
-    raise ScraperHatasi("Çolakoğlu: veri alınamadı (" + "; ".join(hatalar)[:400] + ")")
+    # 4) Resmi sayfanın metin aktarımı
+    try:
+        kalemler, tarih = _role_dene()
+        if len(kalemler) >= 2:
+            return _sonuc(kalemler, tarih)
+        hatalar.append("aktarım: veri yok")
+    except Exception as e:
+        hatalar.append(f"aktarım: {type(e).__name__}")
+
+    # 5) Hammadde Piyasası (Çolakoğlu fiyatlarını yayınlayan kaynak)
+    try:
+        return _hammadde_dene()
+    except Exception as e:
+        hatalar.append(f"hammadde: {e}")
+
+    raise ScraperHatasi(
+        "Çolakoğlu: veri alınamadı (" + "; ".join(hatalar)[:400] + ")"
+    )
