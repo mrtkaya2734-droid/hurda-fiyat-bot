@@ -2244,7 +2244,7 @@ def verileri_guncelle():
 
     SON_GUNCELLEME = (
         now_istanbul().strftime(
-            "%d.%m.%Y %H:%M:%S"
+            "%d.%m.%Y %H:%M"
         )
     )
 
@@ -2910,6 +2910,28 @@ def doviz_kurlarini_getir(force=False):
 # FİYAT API
 # =========================================================
 
+def son_guncelleme_metni():
+    """
+    Ana sayfadaki "Son Güncelleme" değeri (İstanbul saati).
+    Zamanlayıcı henüz tur tamamlamadıysa (yeni deploy/yeniden başlatma)
+    kayıtlı firmaların son başarılı çekim zamanı kullanılır.
+    """
+    if SON_GUNCELLEME and not str(SON_GUNCELLEME).startswith("Henüz"):
+        return SON_GUNCELLEME
+
+    zamanlar = [
+        parse_datetime(firma.get("son_basarili_cekme"))
+        for firma in load_data().get("firms", {}).values()
+        if firma.get("son_basarili_cekme")
+    ]
+    zamanlar = [z for z in zamanlar if z]
+
+    if zamanlar:
+        return max(zamanlar).strftime("%d.%m.%Y %H:%M")
+
+    return "-"
+
+
 @app.get(
     "/prices"
 )
@@ -2917,7 +2939,7 @@ def get_prices():
 
     return {
         "status": "success",
-        "son_guncelleme": SON_GUNCELLEME,
+        "son_guncelleme": son_guncelleme_metni(),
         "data": fiyat_verilerini_olustur(),
     }
 
@@ -8338,6 +8360,152 @@ body {
         gap: 14px !important;
     }
 }
+
+/* Fabrika butonları — yeni kart tasarımı */
+.market-design .fc-btn {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    padding: 16px;
+    text-align: left;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 0;
+    border-left: 4px solid #0ea5e9;
+    align-items: stretch;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: background .2s ease;
+}
+
+.market-design .fc-btn > * {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.market-design .fc-btn:hover {
+    background: #f1f5f9;
+}
+
+.market-design .fc-btn:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: -3px;
+}
+
+.market-design .fc-top {
+    display: flex;
+    text-align: left;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.market-design .fc-avatar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #0f172a, #1e3a8a);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, .18);
+}
+
+.market-design .fc-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.market-design .fc-title {
+    display: block;
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.market-design .fc-meta {
+    display: block;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.market-design .fc-badges {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-end;
+}
+
+.market-design .fc-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.market-design .fc-chip-up {
+    color: #047857;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+}
+
+.market-design .fc-chip-down {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.market-design .fc-fresh {
+    display: block;
+    color: #0369a1;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .02em;
+}
+
+.market-design .fc-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .03em;
+    transition: background .2s ease;
+}
+
+.market-design .fc-btn:hover .fc-cta {
+    background: #1d4ed8;
+}
+
+.market-design .fc-cta-icon {
+    display: inline-block;
+    font-size: 10px;
+    transition: transform .2s ease;
+}
+
+.market-design .fc-btn[aria-expanded="true"] {
+    border-left-color: #22c55e;
+}
 </style>
 
 </head>
@@ -8724,17 +8892,17 @@ Fabrika Fiyatları
 <div class="market-summary-card up">
 <div class="market-summary-label">Yükselen</div>
 <div id="summaryUpCount" class="market-summary-value">-</div>
-<div class="market-summary-sub">son değişim kayıtları</div>
+<div class="market-summary-sub">son 24 saatte</div>
 </div>
 <div class="market-summary-card down">
 <div class="market-summary-label">Düşen</div>
 <div id="summaryDownCount" class="market-summary-value">-</div>
-<div class="market-summary-sub">son değişim kayıtları</div>
+<div class="market-summary-sub">son 24 saatte</div>
 </div>
 <div class="market-summary-card update">
 <div class="market-summary-label">Son Güncelleme</div>
 <div id="summaryLastUpdate" class="market-summary-value">Yükleniyor...</div>
-<div class="market-summary-sub">sistem zamanı</div>
+<div class="market-summary-sub">son kontrol · TSİ</div>
 </div>
 </section>
 
@@ -10264,67 +10432,61 @@ async function fiyatlariGetir() {
                   "</span>";
 
             wrapper.innerHTML =
-                '<button type="button" class="firma-toggle w-full text-left p-4 sm:p-4 hover:bg-slate-50 transition" data-panel="' +
+                '<button type="button" class="firma-toggle fc-btn" data-panel="' +
                     panelId +
                     '" aria-expanded="false">' +
 
-                    '<div class="factory-card-header">' +
+                    '<span class="fc-top">' +
 
-                        '<div class="factory-card-main">' +
+                        '<span class="fc-avatar" aria-hidden="true">' +
+                            escapeHtml(
+                                String(item.baslik || "?")
+                                    .trim()
+                                    .charAt(0)
+                                    .toLocaleUpperCase("tr-TR")
+                            ) +
+                        "</span>" +
 
-                            '<div class="factory-card-info">' +
+                        '<span class="fc-info">' +
+                            '<span class="fc-title">' +
+                                escapeHtml(item.baslik) +
+                            "</span>" +
+                            '<span class="fc-meta">' +
+                                escapeHtml(
+                                    (item.kalemler ? item.kalemler.length : 0) +
+                                    " kalem" +
+                                    (item.tarih && item.tarih !== "-"
+                                        ? " · " + item.tarih
+                                        : "")
+                                ) +
+                            "</span>" +
+                        "</span>" +
 
-                                '<div class="factory-card-title-line">' +
-
-                                    '<span class="factory-card-title font-black text-[15px] sm:text-lg text-slate-950 leading-5" aria-label="Fabrika">' +
-                                        escapeHtml(item.baslik) +
-                                    "</span>" +
-
-                                "</div>" +
-
-                            "</div>" +
-
-                        "</div>" +
-
-                        '<div class="factory-card-actions">' +
-
-                            '<div class="factory-card-price-badge">' +
-                                '<span class="factory-card-price-label">Fiyat</span>' +
-                                '<span class="factory-card-price">' +
-                                    escapeHtml(
-                                        item.kalemler &&
-                                        item.kalemler.length
-                                            ? item.kalemler[0].fiyat
-                                            : "-"
-                                    ) +
-                                "</span>" +
-                            "</div>" +
-
+                        '<span class="fc-badges">' +
                             (
                                 artisSayisi > 0
-                                    ? '<span class="factory-card-change factory-card-change-up">▲ ' + artisSayisi + '</span>'
+                                    ? '<span class="fc-chip fc-chip-up">▲ ' + artisSayisi + "</span>"
                                     : ""
                             ) +
-
                             (
                                 dususSayisi > 0
-                                    ? '<span class="factory-card-change factory-card-change-down">▼ ' + dususSayisi + '</span>'
+                                    ? '<span class="fc-chip fc-chip-down">▼ ' + dususSayisi + "</span>"
                                     : ""
                             ) +
+                        "</span>" +
 
-                            (
-                                item.son_24_saatte_guncellendi
-                                    ? '<span class="factory-card-updated">24 SAAT İÇİNDE GÜNCELLENDİ</span>'
-                                    : ""
-                            ) +
+                    "</span>" +
 
-                            '<span class="firma-ok-icon w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 flex items-center justify-center text-sm transition-transform shadow-sm shrink-0">' +
-                                "▼" +
-                            "</span>" +
+                    (
+                        item.son_24_saatte_guncellendi
+                            ? '<span class="fc-fresh">● 24 saat içinde güncellendi</span>'
+                            : ""
+                    ) +
 
-                        "</div>" +
-
-                    "</div>" +
+                    '<span class="fc-cta">' +
+                        '<span class="fc-cta-text">Fiyat Gör</span>' +
+                        '<span class="firma-ok-icon fc-cta-icon">▼</span>' +
+                    "</span>" +
 
                 "</button>" +
 
