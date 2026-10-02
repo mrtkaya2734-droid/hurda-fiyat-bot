@@ -1,16 +1,5 @@
 {
     "firms": {
-        "colakoglu": {
-            "firma_id": "colakoglu",
-            "baslik": "Çolakoğlu Metalurji",
-            "url": "https://www.colakoglu.com.tr/hurda",
-            "otomatik": false,
-            "aktif": true,
-            "son_basarili_cekme": "2026-09-29 13:53:42",
-            "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "manuel",
-            "sira": 0
-        },
         "erdemir": {
             "firma_id": "erdemir",
             "baslik": "Erdemir Çelik",
@@ -19,7 +8,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:44",
             "kaynak_fiyat_tarihi": "2026-09-22",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 4
         },
         "isdemir": {
@@ -30,7 +19,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:46",
             "kaynak_fiyat_tarihi": "2026-09-25",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 7
         },
         "asil": {
@@ -41,7 +30,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:47",
             "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 1
         },
         "kroman": {
@@ -52,7 +41,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:48",
             "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 6
         },
         "hascelik": {
@@ -63,7 +52,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:48",
             "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 5
         },
         "kardemir": {
@@ -74,7 +63,7 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:49",
             "kaynak_fiyat_tarihi": "2026-09-25",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 8
         },
         "diler": {
@@ -85,54 +74,44 @@
             "aktif": true,
             "son_basarili_cekme": "2026-09-29 13:53:49",
             "kaynak_fiyat_tarihi": "2026-09-21",
-            "durum": "basarili",
+            "durum": "hata",
             "sira": 2
         },
-        "Ekinciler": {
-            "firma_id": "Ekinciler",
+        "ekinciler": {
+            "firma_id": "ekinciler",
             "baslik": "Ekinciler Demir Çelik",
-            "url": "",
-            "otomatik": false,
+            "url": "https://www.hammaddepiyasasi.com/fabrika/ekinciler",
+            "otomatik": true,
             "aktif": true,
             "son_basarili_cekme": null,
             "kaynak_fiyat_tarihi": null,
-            "durum": "bekliyor",
-            "sira": 3
+            "durum": "hata",
+            "sira": 7
+        },
+        "cansan": {
+            "firma_id": "cansan",
+            "baslik": "Cansan",
+            "url": "https://www.hammaddepiyasasi.com/fabrika/cansan",
+            "otomatik": true,
+            "aktif": true,
+            "son_basarili_cekme": null,
+            "kaynak_fiyat_tarihi": null,
+            "durum": "hata",
+            "sira": 8
+        },
+        "colakoglu": {
+            "firma_id": "colakoglu",
+            "baslik": "Çolakoğlu Metalurji",
+            "sira": 9,
+            "son_basarili_cekme": null,
+            "kaynak_fiyat_tarihi": null,
+            "url": "https://www.colakoglu.com.tr/hurda",
+            "otomatik": true,
+            "aktif": true,
+            "durum": "hata"
         }
     },
     "prices": {
-        "colakoglu": {
-            "DKP": {
-                "otomatik_fiyat": 18605,
-                "manuel_fiyat": null,
-                "fiyat_tarihi": "2026-09-21",
-                "guncelleme": "2026-09-29 10:53:42"
-            },
-            "EKSTRA": {
-                "otomatik_fiyat": 18080,
-                "manuel_fiyat": null,
-                "fiyat_tarihi": "2026-09-21",
-                "guncelleme": "2026-09-29 10:53:42"
-            },
-            "1.GRUP": {
-                "otomatik_fiyat": 17940,
-                "manuel_fiyat": null,
-                "fiyat_tarihi": "2026-09-21",
-                "guncelleme": "2026-09-29 10:53:42"
-            },
-            "2.GRUP": {
-                "otomatik_fiyat": 17870,
-                "manuel_fiyat": null,
-                "fiyat_tarihi": "2026-09-21",
-                "guncelleme": "2026-09-29 10:53:42"
-            },
-            "TALAŞ": {
-                "otomatik_fiyat": 16420,
-                "manuel_fiyat": null,
-                "fiyat_tarihi": "2026-09-21",
-                "guncelleme": "2026-09-29 10:53:42"
-            }
-        },
         "erdemir": {
             "DKP": {
                 "otomatik_fiyat": 19200,
@@ -374,59 +353,10 @@
                 "fiyat_tarihi": "2026-09-21",
                 "guncelleme": "2026-09-29 10:53:49"
             }
-        },
-        "Ekinciler": {
-            "DKP": {
-                "otomatik_fiyat": null,
-                "manuel_fiyat": 19000,
-                "fiyat_tarihi": "2026-09-29",
-                "guncelleme": "2026-09-29 13:44:55"
-            },
-            "Talaş": {
-                "otomatik_fiyat": null,
-                "manuel_fiyat": 14000,
-                "fiyat_tarihi": "2026-09-29",
-                "guncelleme": "2026-09-29 13:48:54"
-            }
         }
     },
     "history": [
         {
-            "firma_id": "colakoglu",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:06:12"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "EKSTRA",
-            "fiyat": 18080,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:06:12"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "1.GRUP",
-            "fiyat": 17940,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:06:12"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "2.GRUP",
-            "fiyat": 17870,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:06:12"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "TALAŞ",
-            "fiyat": 16420,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:06:12"
-        },
-        {
             "firma_id": "erdemir",
             "kalem": "DKP",
             "fiyat": 19200,
@@ -691,941 +621,9 @@
             "fiyat": 15300,
             "fiyat_tarihi": "2026-09-21",
             "tarih": "2026-09-29 09:06:19"
-        },
-        {
-            "firma_id": "Ekinciler",
-            "kalem": "DKP",
-            "fiyat": 19000,
-            "fiyat_tarihi": "2026-09-29",
-            "tarih": "2026-09-29 09:10:37"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:04"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "EKSTRA",
-            "fiyat": 18080,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:04"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "1.GRUP",
-            "fiyat": 17940,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:04"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "2.GRUP",
-            "fiyat": 17870,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:04"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "TALAŞ",
-            "fiyat": 16420,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:04"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "DKP",
-            "fiyat": 19200,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ekstra",
-            "fiyat": 19150,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ebatsız İmalat",
-            "fiyat": 18700,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Bonus",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "1. Grup",
-            "fiyat": 17900,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "2. Grup",
-            "fiyat": 15400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 09:17:06"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "DKP",
-            "fiyat": 18000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Ekstra",
-            "fiyat": 17950,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Bonus",
-            "fiyat": 17850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Makas",
-            "fiyat": 17350,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "1.Grup",
-            "fiyat": 16930,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "2.Grup",
-            "fiyat": 14450,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:08"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "DKP",
-            "fiyat": 19450,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:09"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Bonus",
-            "fiyat": 19055,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:09"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Ekstra",
-            "fiyat": 18200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:09"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "1. Sınıf",
-            "fiyat": 17690,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:09"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "BONUS**",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "EKSTRA",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "PIK",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "1 SINIF",
-            "fiyat": 17200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "2 SINIF",
-            "fiyat": 17050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "3 SINIF",
-            "fiyat": 15100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "TALAS",
-            "fiyat": 14500,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "DKP",
-            "fiyat": 19100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "BONUS",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "EKSTRA",
-            "fiyat": 18100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "1. GRUP",
-            "fiyat": 17600,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:10"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Özel Ekstra",
-            "fiyat": 20120,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "DKP Hurda",
-            "fiyat": 20100,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Ekstra",
-            "fiyat": 19850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "1. Sınıf",
-            "fiyat": 19300,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "2. Sınıf",
-            "fiyat": 19000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "DKP",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "Ekstra",
-            "fiyat": 18050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "1. Kalite",
-            "fiyat": 17550,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "2. Kalite",
-            "fiyat": 16950,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "3. Kalite",
-            "fiyat": 15300,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 09:17:11"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:38:54"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "EKSTRA",
-            "fiyat": 18080,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:38:54"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "1.GRUP",
-            "fiyat": 17940,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:38:54"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "2.GRUP",
-            "fiyat": 17870,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:38:54"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "TALAŞ",
-            "fiyat": 16420,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:38:54"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "DKP",
-            "fiyat": 19200,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ekstra",
-            "fiyat": 19150,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ebatsız İmalat",
-            "fiyat": 18700,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Bonus",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "1. Grup",
-            "fiyat": 17900,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "2. Grup",
-            "fiyat": 15400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:38:57"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "DKP",
-            "fiyat": 18000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Ekstra",
-            "fiyat": 17950,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Bonus",
-            "fiyat": 17850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Makas",
-            "fiyat": 17350,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "1.Grup",
-            "fiyat": 16930,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "2.Grup",
-            "fiyat": 14450,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:38:59"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "DKP",
-            "fiyat": 19450,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Bonus",
-            "fiyat": 19055,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Ekstra",
-            "fiyat": 18200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "1. Sınıf",
-            "fiyat": 17690,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "BONUS**",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "EKSTRA",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "PIK",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "1 SINIF",
-            "fiyat": 17200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "2 SINIF",
-            "fiyat": 17050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "3 SINIF",
-            "fiyat": 15100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "TALAS",
-            "fiyat": 14500,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:00"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "DKP",
-            "fiyat": 19100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:01"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "BONUS",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:01"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "EKSTRA",
-            "fiyat": 18100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:01"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "1. GRUP",
-            "fiyat": 17600,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:01"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Özel Ekstra",
-            "fiyat": 20120,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "DKP Hurda",
-            "fiyat": 20100,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Ekstra",
-            "fiyat": 19850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "1. Sınıf",
-            "fiyat": 19300,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "2. Sınıf",
-            "fiyat": 19000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "DKP",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "Ekstra",
-            "fiyat": 18050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "1. Kalite",
-            "fiyat": 17550,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "2. Kalite",
-            "fiyat": 16950,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "3. Kalite",
-            "fiyat": 15300,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:39:02"
-        },
-        {
-            "firma_id": "Ekinciler",
-            "kalem": "DKP",
-            "fiyat": 19000,
-            "fiyat_tarihi": "2026-09-29",
-            "tarih": "2026-09-29 10:44:55"
-        },
-        {
-            "firma_id": "Ekinciler",
-            "kalem": "Talaş",
-            "fiyat": 14000,
-            "fiyat_tarihi": "2026-09-29",
-            "tarih": "2026-09-29 10:48:54"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:42"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "EKSTRA",
-            "fiyat": 18080,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:42"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "1.GRUP",
-            "fiyat": 17940,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:42"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "2.GRUP",
-            "fiyat": 17870,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:42"
-        },
-        {
-            "firma_id": "colakoglu",
-            "kalem": "TALAŞ",
-            "fiyat": 16420,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:42"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "DKP",
-            "fiyat": 19200,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ekstra",
-            "fiyat": 19150,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Ebatsız İmalat",
-            "fiyat": 18700,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "Bonus",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "1. Grup",
-            "fiyat": 17900,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "erdemir",
-            "kalem": "2. Grup",
-            "fiyat": 15400,
-            "fiyat_tarihi": "2026-09-22",
-            "tarih": "2026-09-29 10:53:44"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "DKP",
-            "fiyat": 18000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Ekstra",
-            "fiyat": 17950,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Bonus",
-            "fiyat": 17850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "Makas",
-            "fiyat": 17350,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "1.Grup",
-            "fiyat": 16930,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "isdemir",
-            "kalem": "2.Grup",
-            "fiyat": 14450,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:46"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "DKP",
-            "fiyat": 19450,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:47"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Bonus",
-            "fiyat": 19055,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:47"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "Ekstra",
-            "fiyat": 18200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:47"
-        },
-        {
-            "firma_id": "asil",
-            "kalem": "1. Sınıf",
-            "fiyat": 17690,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:47"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "DKP",
-            "fiyat": 18605,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "BONUS**",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "EKSTRA",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "PIK",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "1 SINIF",
-            "fiyat": 17200,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "2 SINIF",
-            "fiyat": 17050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "3 SINIF",
-            "fiyat": 15100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kroman",
-            "kalem": "TALAS",
-            "fiyat": 14500,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "DKP",
-            "fiyat": 19100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "BONUS",
-            "fiyat": 18400,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "EKSTRA",
-            "fiyat": 18100,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "hascelik",
-            "kalem": "1. GRUP",
-            "fiyat": 17600,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:48"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Özel Ekstra",
-            "fiyat": 20120,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "DKP Hurda",
-            "fiyat": 20100,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "Ekstra",
-            "fiyat": 19850,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "1. Sınıf",
-            "fiyat": 19300,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "kardemir",
-            "kalem": "2. Sınıf",
-            "fiyat": 19000,
-            "fiyat_tarihi": "2026-09-25",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "DKP",
-            "fiyat": 18150,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "Ekstra",
-            "fiyat": 18050,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "1. Kalite",
-            "fiyat": 17550,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "2. Kalite",
-            "fiyat": 16950,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:49"
-        },
-        {
-            "firma_id": "diler",
-            "kalem": "3. Kalite",
-            "fiyat": 15300,
-            "fiyat_tarihi": "2026-09-21",
-            "tarih": "2026-09-29 10:53:49"
         }
     ],
     "notifications": [
-        {
-            "id": 1,
-            "firma_id": "colakoglu",
-            "tur": "basarili_guncelleme",
-            "mesaj": "Çolakoğlu Metalurji başarıyla güncellendi. 5 fiyat kalemi okundu.",
-            "tarih": "2026-09-29 09:06:12",
-            "okundu": true
-        },
         {
             "id": 2,
             "firma_id": "erdemir",
@@ -1649,22 +647,6 @@
             "mesaj": "Asil Çelik başarıyla güncellendi. 4 fiyat kalemi okundu.",
             "tarih": "2026-09-29 09:06:17",
             "okundu": true
-        },
-        {
-            "id": 5,
-            "firma_id": "Ekinciler",
-            "tur": "manuel_fiyat",
-            "mesaj": "1 manuel fiyat kaydedildi.",
-            "tarih": "2026-09-29 09:10:37",
-            "okundu": false
-        },
-        {
-            "id": 6,
-            "firma_id": "colakoglu",
-            "tur": "basarili_guncelleme",
-            "mesaj": "Çolakoğlu Metalurji başarıyla güncellendi. 5 fiyat kalemi okundu.",
-            "tarih": "2026-09-29 09:17:04",
-            "okundu": false
         },
         {
             "id": 7,
@@ -1720,14 +702,6 @@
             "tur": "basarili_guncelleme",
             "mesaj": "Diler Demir Çelik başarıyla güncellendi. 5 fiyat kalemi okundu.",
             "tarih": "2026-09-29 09:17:11",
-            "okundu": false
-        },
-        {
-            "id": 14,
-            "firma_id": "colakoglu",
-            "tur": "basarili_guncelleme",
-            "mesaj": "Çolakoğlu Metalurji başarıyla güncellendi. 5 fiyat kalemi okundu.",
-            "tarih": "2026-09-29 10:38:54",
             "okundu": false
         },
         {
@@ -1787,30 +761,6 @@
             "okundu": false
         },
         {
-            "id": 22,
-            "firma_id": "Ekinciler",
-            "tur": "manuel_fiyat",
-            "mesaj": "1 manuel fiyat kaydedildi.",
-            "tarih": "2026-09-29 10:44:55",
-            "okundu": false
-        },
-        {
-            "id": 23,
-            "firma_id": "Ekinciler",
-            "tur": "manuel_fiyat",
-            "mesaj": "2 manuel fiyat kaydedildi.",
-            "tarih": "2026-09-29 10:48:54",
-            "okundu": false
-        },
-        {
-            "id": 24,
-            "firma_id": "colakoglu",
-            "tur": "basarili_guncelleme",
-            "mesaj": "Çolakoğlu Metalurji başarıyla güncellendi. 5 fiyat kalemi okundu.",
-            "tarih": "2026-09-29 10:53:42",
-            "okundu": false
-        },
-        {
             "id": 25,
             "firma_id": "erdemir",
             "tur": "basarili_guncelleme",
@@ -1865,6 +815,89 @@
             "mesaj": "Diler Demir Çelik başarıyla güncellendi. 5 fiyat kalemi okundu.",
             "tarih": "2026-09-29 10:53:49",
             "okundu": false
+        },
+        {
+            "id": 32,
+            "firma_id": "colakoglu",
+            "tur": "scraper_hatasi",
+            "mesaj": "Çolakoğlu: veri alınamadı (sayfa: ProxyError; api: ProxyError; aktarım: ProxyError; hammadde: Çolakoğlu Metalurji: kaynak sayfası alınamadı: HTTPSConnectionPool(host='www.hammaddepiyasasi.com', port=443): Max retries exceeded with url: /fabrika/colakoglu (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden'))))",
+            "tarih": "2026-10-02 04:12:39",
+            "okundu": false
+        },
+        {
+            "id": 33,
+            "firma_id": "ekinciler",
+            "tur": "scraper_hatasi",
+            "mesaj": "Ekinciler Demir Çelik: kaynak sayfası alınamadı: HTTPSConnectionPool(host='www.hammaddepiyasasi.com', port=443): Max retries exceeded with url: /fabrika/ekinciler (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:40",
+            "okundu": false
+        },
+        {
+            "id": 34,
+            "firma_id": "cansan",
+            "tur": "scraper_hatasi",
+            "mesaj": "Cansan: kaynak sayfası alınamadı: HTTPSConnectionPool(host='www.hammaddepiyasasi.com', port=443): Max retries exceeded with url: /fabrika/cansan (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:40",
+            "okundu": false
+        },
+        {
+            "id": 35,
+            "firma_id": "erdemir",
+            "tur": "scraper_hatasi",
+            "mesaj": "HTTPSConnectionPool(host='www.erdemir.com.tr', port=443): Max retries exceeded with url: /tedarikci-iliskileri/hurda-alim (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:41",
+            "okundu": false
+        },
+        {
+            "id": 36,
+            "firma_id": "isdemir",
+            "tur": "scraper_hatasi",
+            "mesaj": "HTTPSConnectionPool(host='www.isdemir.com.tr', port=443): Max retries exceeded with url: /tedarikci-iliskileri/hurda-alim (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:41",
+            "okundu": false
+        },
+        {
+            "id": 37,
+            "firma_id": "asil",
+            "tur": "scraper_hatasi",
+            "mesaj": "Asil Çelik: bağlantı hatası: HTTPSConnectionPool(host='asilcelik.com.tr', port=443): Max retries exceeded with url: /tedarikci-iliskileri (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:42",
+            "okundu": false
+        },
+        {
+            "id": 38,
+            "firma_id": "kroman",
+            "tur": "scraper_hatasi",
+            "mesaj": "HTTPSConnectionPool(host='www.kromancelik.com.tr', port=443): Max retries exceeded with url: /hurda-tedarik.php (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:42",
+            "okundu": false
+        },
+        {
+            "id": 39,
+            "firma_id": "hascelik",
+            "tur": "scraper_hatasi",
+            "mesaj": "HTTPSConnectionPool(host='hascelik.com', port=443): Max retries exceeded with url: /hurda (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:43",
+            "okundu": false
+        },
+        {
+            "id": 40,
+            "firma_id": "kardemir",
+            "tur": "scraper_hatasi",
+            "mesaj": "Kardemir: API bağlantı hatası: HTTPSConnectionPool(host='www.kardemir.com', port=443): Max retries exceeded with url: /session/getallsession (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:43",
+            "okundu": false
+        },
+        {
+            "id": 41,
+            "firma_id": "diler",
+            "tur": "scraper_hatasi",
+            "mesaj": "Diler: bağlantı hatası: HTTPSConnectionPool(host='www.hammaddepiyasasi.com', port=443): Max retries exceeded with url: /fabrika/diler (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+            "tarih": "2026-10-02 04:12:44",
+            "okundu": false
         }
-    ]
+    ],
+    "gizlenen_kalemler": {},
+    "kaynak_migrasyonu_20261001_v2": true,
+    "colakoglu_otomatik_20261002": true
 }

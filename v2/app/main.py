@@ -30,6 +30,7 @@ import requests
 import xml.etree.ElementTree as ET
 
 from app.scrapers import TUMU
+from app import webpush
 from app.scrapers.generic import cek_url as generic_url_cek
 
 from app.storage import (
@@ -2190,6 +2191,11 @@ def verileri_guncelle():
 
     GUNCEL_VERILER = []
 
+    try:
+        push_alarmlarini_kontrol()
+    except Exception as exc:
+        print(f"PUSH KONTROL HATASI: {type(exc).__name__}: {exc}")
+
     # Tarama sırasında oluşan geçici Python nesnelerini
     # mümkün olduğunca hemen temizle.
     gc.collect()
@@ -2990,6 +2996,211 @@ def doviz_kurlarini_getir(force=False):
 
 
 # =========================================================
+# WEB PUSH (FİYAT ALARMI BİLDİRİMLERİ)
+# =========================================================
+
+PUSH_KONU = os.getenv("VAPID_SUBJECT", "mailto:admin@hurda.local")
+PUSH_MAX_ABONE = 2000
+PUSH_MAX_ALARM = 30
+
+
+def push_vapid_anahtari(data):
+    push = data.setdefault("push", {})
+
+    if not push.get("vapid"):
+        push["vapid"] = webpush.vapid_anahtari_uret()
+        save_data(data)
+
+    return push["vapid"]
+
+
+def push_alarmlarini_temizle(alarmlar, eskiler=None):
+    """İstemciden gelen alarm listesini doğrular; sunucudaki 'fired' durumunu korur."""
+    eski_durum = {
+        str(a.get("id")): bool(a.get("fired"))
+        for a in (eskiler or [])
+    }
+    temiz = []
+
+    for a in (alarmlar or [])[:PUSH_MAX_ALARM]:
+        try:
+            deger = float(a.get("value"))
+            yon = "above" if a.get("direction") == "above" else "below"
+            firma_id = str(a.get("firma_id", "")).strip()[:80]
+            kalem = str(a.get("kalem", "")).strip()[:120]
+        except (TypeError, ValueError, AttributeError):
+            continue
+
+        if not firma_id or not kalem or deger <= 0:
+            continue
+
+        alarm_id = str(a.get("id", ""))[:40]
+        temiz.append({
+            "id": alarm_id,
+            "firma_id": firma_id,
+            "kalem": kalem,
+            "direction": yon,
+            "value": deger,
+            "fired": eski_durum.get(alarm_id, False),
+        })
+
+    return temiz
+
+
+def push_alarmlarini_kontrol():
+    """Her fiyat turundan sonra: koşulu sağlanan alarmlara bildirim gönderir."""
+    data = load_data()
+    push = data.get("push") or {}
+    abonelikler = push.get("abonelikler") or {}
+    vapid = push.get("vapid")
+
+    if not abonelikler or not vapid:
+        return
+
+    fiyatlar = {}
+    for firma in fiyat_verilerini_olustur():
+        for kalem in firma.get("kalemler", []):
+            deger = (
+                kalem.get("manuel_fiyat")
+                if kalem.get("manuel_fiyat") is not None
+                else kalem.get("otomatik_fiyat")
+            )
+            if deger is not None:
+                fiyatlar[
+                    (str(firma["firma_id"]).casefold(), kalem["cins"].casefold())
+                ] = (float(deger), firma.get("baslik", ""), kalem["cins"])
+
+    degisti = False
+    gecersiz = []
+
+    for endpoint, kayit in list(abonelikler.items()):
+        for alarm in kayit.get("alarmlar", []):
+            bulunan = fiyatlar.get(
+                (alarm["firma_id"].casefold(), alarm["kalem"].casefold())
+            )
+            if not bulunan:
+                continue
+
+            fiyat, baslik, kalem_adi = bulunan
+            tetik = (
+                fiyat >= alarm["value"]
+                if alarm["direction"] == "above"
+                else fiyat <= alarm["value"]
+            )
+
+            if tetik and not alarm.get("fired"):
+                yuk = {
+                    "title": "Hurda fiyat alarmı",
+                    "body": (
+                        f"{baslik} · {kalem_adi} · "
+                        f"{int(fiyat):,}".replace(",", ".")
+                        + " TL ("
+                        + ("≥ " if alarm["direction"] == "above" else "≤ ")
+                        + f"{int(alarm['value']):,}".replace(",", ".")
+                        + ")"
+                    ),
+                    "url": "/",
+                    "tag": f"alarm-{alarm.get('id')}",
+                }
+                try:
+                    basarili, abone_gecersiz = webpush.gonder(
+                        kayit["subscription"], yuk, vapid, PUSH_KONU
+                    )
+                except Exception as exc:
+                    print(f"PUSH HATASI: {type(exc).__name__}: {exc}")
+                    continue
+
+                if abone_gecersiz:
+                    gecersiz.append(endpoint)
+                    break
+
+                if basarili:
+                    alarm["fired"] = True
+                    degisti = True
+
+            elif not tetik and alarm.get("fired"):
+                # Fiyat koşuldan çıktı: alarm yeniden kurulur.
+                alarm["fired"] = False
+                degisti = True
+
+    for endpoint in gecersiz:
+        abonelikler.pop(endpoint, None)
+        degisti = True
+
+    if degisti:
+        save_data(data)
+
+
+@app.get("/push/public-key")
+def push_public_key():
+    return {"key": push_vapid_anahtari(load_data())["public"]}
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(request: Request):
+    try:
+        govde = await request.json()
+        abonelik = govde["subscription"]
+        endpoint = str(abonelik["endpoint"])
+        p256dh = str(abonelik["keys"]["p256dh"])
+        auth = str(abonelik["keys"]["auth"])
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz abonelik.")
+
+    if (
+        not endpoint.startswith("https://")
+        or len(endpoint) > 700
+        or len(p256dh) > 200
+        or len(auth) > 100
+    ):
+        raise HTTPException(status_code=400, detail="Geçersiz abonelik.")
+
+    data = load_data()
+    push_vapid_anahtari(data)
+    push = data.setdefault("push", {})
+    abonelikler = push.setdefault("abonelikler", {})
+
+    if endpoint not in abonelikler and len(abonelikler) >= PUSH_MAX_ABONE:
+        raise HTTPException(status_code=503, detail="Abonelik sınırı doldu.")
+
+    onceki = abonelikler.get(endpoint, {})
+    abonelikler[endpoint] = {
+        "subscription": {
+            "endpoint": endpoint,
+            "keys": {"p256dh": p256dh, "auth": auth},
+        },
+        "alarmlar": push_alarmlarini_temizle(
+            govde.get("alarms"), onceki.get("alarmlar")
+        ),
+        "olusturma": onceki.get("olusturma") or now_istanbul_string(),
+        "guncelleme": now_istanbul_string(),
+    }
+
+    save_data(data)
+
+    return {
+        "status": "ok",
+        "alarm_sayisi": len(abonelikler[endpoint]["alarmlar"]),
+    }
+
+
+@app.post("/push/unsubscribe")
+async def push_unsubscribe(request: Request):
+    try:
+        endpoint = str((await request.json())["endpoint"])
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz istek.")
+
+    data = load_data()
+    abonelikler = (data.get("push") or {}).get("abonelikler") or {}
+
+    if abonelikler.pop(endpoint, None) is not None:
+        save_data(data)
+
+    return {"status": "ok"}
+
+
+# =========================================================
 # FİYAT API
 # =========================================================
 
@@ -3477,6 +3688,39 @@ self.addEventListener("activate", function(event) {
 });
 
 self.addEventListener("fetch", function(event) {
+});
+
+self.addEventListener("push", function(event) {
+    let veri = {};
+
+    try {
+        veri = event.data ? event.data.json() : {};
+    } catch (e) {
+        veri = { body: event.data ? event.data.text() : "" };
+    }
+
+    event.waitUntil(
+        self.registration.showNotification(veri.title || "Hurda fiyat alarmı", {
+            body: veri.body || "",
+            tag: veri.tag || "hurda-alarm",
+            icon: "https://cdn-icons-png.flaticon.com/512/2954/2954884.png",
+            data: { url: veri.url || "/" },
+        })
+    );
+});
+
+self.addEventListener("notificationclick", function(event) {
+    event.notification.close();
+    const hedef = (event.notification.data && event.notification.data.url) || "/";
+
+    event.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(list) {
+            for (const c of list) {
+                if ("focus" in c) { return c.focus(); }
+            }
+            return self.clients.openWindow(hedef);
+        })
+    );
 });
 """
 
@@ -9024,6 +9268,12 @@ Alarmı Kaydet
 </button>
 </div>
 <div id="alarmList" class="mt-3"></div>
+<div class="mt-3 flex flex-wrap items-center gap-2">
+<button type="button" id="pushToggle" class="h-9 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black transition">
+🔔 Bildirimleri aç
+</button>
+<span id="pushStatus" class="text-[11px] font-semibold text-slate-500"></span>
+</div>
 </div>
 
 >
@@ -9745,6 +9995,107 @@ function hurdaPdfYazdir() {
     }, 300);
 }
 
+// ---------------------------------------------------------
+// Arka plan fiyat alarmı bildirimleri (Web Push)
+// ---------------------------------------------------------
+function hurdaPushDesteklenir() {
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function hurdaAnahtarDizisi(b64) {
+    const pad = "=".repeat((4 - b64.length % 4) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, function(c) { return c.charCodeAt(0); });
+}
+
+async function hurdaPushKayit() {
+    if (!hurdaPushDesteklenir()) return null;
+    try {
+        const reg = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise(function(_, red) { setTimeout(function() { red(new Error("sw")); }, 4000); }),
+        ]);
+        return reg;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function hurdaPushSenkron() {
+    try {
+        const reg = await hurdaPushKayit();
+        if (!reg) return;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+        const alarms = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]");
+        await fetch("/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription: sub.toJSON(), alarms: alarms }),
+        });
+    } catch (e) {
+        console.error("Push senkron hatası", e);
+    }
+}
+
+async function hurdaPushDurumuYaz() {
+    const dugme = document.getElementById("pushToggle");
+    const durum = document.getElementById("pushStatus");
+    if (!dugme || !durum) return;
+
+    if (!hurdaPushDesteklenir()) {
+        dugme.classList.add("hidden");
+        durum.textContent = "Bu tarayıcı arka plan bildirimini desteklemiyor (iPhone'da siteyi ana ekrana ekleyin).";
+        return;
+    }
+
+    if (Notification.permission === "denied") {
+        dugme.classList.add("hidden");
+        durum.textContent = "Bildirim izni engellenmiş. Tarayıcı site ayarlarından izin verin.";
+        return;
+    }
+
+    const reg = await hurdaPushKayit();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+
+    localStorage.setItem("hurdaPushAktif", sub ? "1" : "0");
+    dugme.textContent = sub ? "🔕 Bildirimleri kapat" : "🔔 Bildirimleri aç";
+    durum.textContent = sub
+        ? "Açık: site kapalıyken de alarm bildirimi gelir."
+        : "Alarmların site kapalıyken de bildirim göndermesi için açın.";
+}
+
+async function hurdaPushDegistir() {
+    const durum = document.getElementById("pushStatus");
+    try {
+        const reg = await hurdaPushKayit();
+        if (!reg) throw new Error("Servis çalışanı hazır değil.");
+        const mevcut = await reg.pushManager.getSubscription();
+
+        if (mevcut) {
+            await fetch("/push/unsubscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ endpoint: mevcut.endpoint }),
+            });
+            await mevcut.unsubscribe();
+        } else {
+            const izin = await Notification.requestPermission();
+            if (izin !== "granted") throw new Error("Bildirim izni verilmedi.");
+            const anahtar = (await (await fetch("/push/public-key")).json()).key;
+            await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: hurdaAnahtarDizisi(anahtar),
+            });
+            await hurdaPushSenkron();
+        }
+    } catch (e) {
+        if (durum) durum.textContent = "Bildirim açılamadı: " + (e && e.message ? e.message : e);
+        return;
+    }
+    hurdaPushDurumuYaz();
+}
+
 function marketToolsInit(result) {
 
     const firmalar = Array.isArray(result.data)
@@ -9755,6 +10106,13 @@ function marketToolsInit(result) {
         data: firmalar,
         son_guncelleme: result.son_guncelleme || "",
     };
+
+    const pushBtn = document.getElementById("pushToggle");
+    if (pushBtn && pushBtn.dataset.bound !== "1") {
+        pushBtn.addEventListener("click", hurdaPushDegistir);
+        pushBtn.dataset.bound = "1";
+        hurdaPushDurumuYaz();
+    }
 
     const waBtn = document.getElementById("shareWhatsapp");
     if (waBtn && waBtn.dataset.bound !== "1") {
@@ -10290,6 +10648,7 @@ function marketToolsInit(result) {
             });
             localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));
             renderAlarms();
+            hurdaPushSenkron();
         });
         alarmSave.dataset.bound = "1";
     }
@@ -10319,6 +10678,7 @@ function marketToolsInit(result) {
                 list.splice(Number(btn.dataset.alarmDelete), 1);
                 localStorage.setItem("hurdaPriceAlarms", JSON.stringify(list));
                 renderAlarms();
+                hurdaPushSenkron();
             });
         });
     }
@@ -10340,11 +10700,32 @@ function marketToolsInit(result) {
 
         if (oldu && !a.fired) {
             a.fired = true;
-            if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("Hurda fiyat alarmı", {
-                    body: (firma ? firma.baslik + " · " : "") + a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL"
-                });
+
+            // Arka plan push açıksa bildirimi sunucu gönderir; çift bildirim olmasın.
+            if (
+                localStorage.getItem("hurdaPushAktif") !== "1"
+                && "Notification" in window
+                && Notification.permission === "granted"
+            ) {
+                const baslik = "Hurda fiyat alarmı";
+                const govde = (firma ? firma.baslik + " · " : "") + a.kalem + " · " + Number(fiyat).toLocaleString("tr-TR") + " TL";
+
+                if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+                    navigator.serviceWorker.getRegistration().then(function(reg) {
+                        if (reg && reg.showNotification) {
+                            reg.showNotification(baslik, { body: govde, tag: "alarm-" + a.id });
+                        } else {
+                            new Notification(baslik, { body: govde });
+                        }
+                    });
+                } else {
+                    new Notification(baslik, { body: govde });
+                }
             }
+        }
+        else if (!oldu && a.fired) {
+            // Fiyat koşuldan çıktı: alarm yeniden kurulur.
+            a.fired = false;
         }
     });
     localStorage.setItem("hurdaPriceAlarms", JSON.stringify(alarms));

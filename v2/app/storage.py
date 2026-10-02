@@ -5,6 +5,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -91,32 +92,44 @@ def _supabase_object_url(object_name):
     )
 
 
-def supabase_storage_download(object_name):
+def supabase_storage_indir_durumlu(object_name):
+    """
+    ("ok", bayt) | ("yok", None) | ("hata", None).
+
+    404 = dosya gerçekten yok. Zaman aşımı/5xx = "hata": bu durumda uzak
+    verinin var olup olmadığı bilinmez ve üzerine YAZILMAMALIDIR.
+    """
     if not _supabase_enabled():
-        return None
+        return "yok", None
 
     try:
         response = requests.get(
-            _supabase_object_url(
-                object_name,
-            ),
+            _supabase_object_url(object_name),
             headers=_supabase_headers(),
             timeout=20,
         )
 
-        if response.status_code == 404:
-            return None
+        # Supabase, olmayan nesne için 400/404 döndürebilir.
+        if response.status_code == 404 or (
+            response.status_code == 400 and "not_found" in response.text.lower()
+        ):
+            return "yok", None
 
         response.raise_for_status()
 
-        return response.content
+        return "ok", response.content
 
     except Exception as exc:
         print(
             "SUPABASE İNDİRME HATASI: "
             f"{type(exc).__name__}: {exc}"
         )
-        return None
+        return "hata", None
+
+
+def supabase_storage_download(object_name):
+    durum, icerik = supabase_storage_indir_durumlu(object_name)
+    return icerik if durum == "ok" else None
 
 
 def supabase_storage_upload(
@@ -200,77 +213,108 @@ def supabase_restore_file(
         return False
 
 
+_SUPABASE_SYNC_DENEME = 0.0
+_SUPABASE_SYNC_BEKLEME = 30
+
+
 def _supabase_sync_data_once():
+    """
+    Açılışta uzak data.json'ı yerel dosyaya alır.
+
+    Güvenlik kuralı: uzak veri yalnızca Supabase "dosya yok" (404) dediğinde
+    yerel dosyayla doldurulur. İndirme geçici olarak başarısız olursa
+    (zaman aşımı, 5xx) hiçbir şey yüklenmez ve senkron 30 sn sonra yeniden
+    denenir; böylece eski/paket içindeki bir kopya gerçek verinin üzerine
+    yazılamaz.
+    """
     global _SUPABASE_DATA_SYNCED
+    global _SUPABASE_SYNC_DENEME
 
     if _SUPABASE_DATA_SYNCED:
         return
 
-    _SUPABASE_DATA_SYNCED = True
-
     if not _supabase_enabled():
+        _SUPABASE_DATA_SYNCED = True
+        return
+
+    simdi = time.time()
+    if simdi - _SUPABASE_SYNC_DENEME < _SUPABASE_SYNC_BEKLEME:
+        return
+    _SUPABASE_SYNC_DENEME = simdi
+
+    durum, remote = "hata", None
+    for deneme in range(3):
+        durum, remote = supabase_storage_indir_durumlu("data.json")
+        if durum != "hata":
+            break
+        time.sleep(2 * (deneme + 1))
+
+    if durum == "hata":
+        print(
+            "SUPABASE: data.json indirilemedi; uzak veri korunuyor, "
+            "yükleme yapılmayacak, yeniden denenecek."
+        )
         return
 
     try:
-        remote = supabase_storage_download(
-            "data.json"
-        )
-
-        if remote is not None:
-            parsed = json.loads(
-                remote.decode("utf-8")
-            )
+        if durum == "ok":
+            parsed = json.loads(remote.decode("utf-8"))
 
             if isinstance(parsed, dict):
-                os.makedirs(
-                    os.path.dirname(DATA_FILE),
-                    exist_ok=True,
-                )
+                os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 
-                temporary = (
-                    DATA_FILE
-                    + ".supabase.tmp"
-                )
+                temporary = DATA_FILE + ".supabase.tmp"
 
-                with open(
-                    temporary,
-                    "w",
-                    encoding="utf-8",
-                ) as file:
-                    json.dump(
-                        parsed,
-                        file,
-                        ensure_ascii=False,
-                        indent=4,
-                    )
+                with open(temporary, "w", encoding="utf-8") as file:
+                    json.dump(parsed, file, ensure_ascii=False, indent=4)
 
-                os.replace(
-                    temporary,
-                    DATA_FILE,
-                )
+                os.replace(temporary, DATA_FILE)
 
-                print(
-                    "SUPABASE: data.json geri yüklendi."
-                )
-
+                print("SUPABASE: data.json geri yüklendi.")
+                _SUPABASE_DATA_SYNCED = True
                 return
 
+            print("SUPABASE: uzak data.json geçersiz biçimde; dokunulmadı.")
+            return
+
+        # durum == "yok": uzakta gerçekten dosya yok, ilk kez yükle.
         if os.path.exists(DATA_FILE):
             supabase_storage_upload(
                 DATA_FILE,
                 "data.json",
                 "application/json",
             )
+            print("SUPABASE: mevcut data.json ilk kez yüklendi.")
 
-            print(
-                "SUPABASE: mevcut data.json ilk kez yüklendi."
-            )
+        _SUPABASE_DATA_SYNCED = True
 
     except Exception as exc:
         print(
             "SUPABASE VERİ SENKRON HATASI: "
             f"{type(exc).__name__}: {exc}"
         )
+
+
+_SUPABASE_YEDEK_SON = 0.0
+
+
+def _supabase_yedek_al():
+    """Günde en fazla iki kez Supabase'de zaman damgalı yedek kopya tutar."""
+    global _SUPABASE_YEDEK_SON
+
+    simdi = time.time()
+    if simdi - _SUPABASE_YEDEK_SON < 6 * 3600:
+        return
+    _SUPABASE_YEDEK_SON = simdi
+
+    zaman = datetime.now(ZoneInfo("Europe/Istanbul"))
+    yarim = "a" if zaman.hour < 12 else "p"
+
+    supabase_storage_upload(
+        DATA_FILE,
+        f"backups/data-{zaman.strftime('%Y%m%d')}-{yarim}.json",
+        "application/json",
+    )
 
 
 def supabase_upload_json(
@@ -643,10 +687,14 @@ def save_data(data):
             # Render Free yerel dosyası kalıcı olmadığından,
             # her başarılı veri kaydından sonra Supabase'i güncelle.
             if _supabase_enabled():
-                supabase_upload_json(
-                    DATA_FILE,
-                    "data.json",
-                )
+                if _SUPABASE_DATA_SYNCED:
+                    if supabase_upload_json(DATA_FILE, "data.json"):
+                        _supabase_yedek_al()
+                else:
+                    print(
+                        "SUPABASE: senkron tamamlanmadığı için yükleme "
+                        "atlandı (uzak veri ezilmesin)."
+                    )
 
         finally:
             if temporary_file:
