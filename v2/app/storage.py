@@ -317,6 +317,119 @@ def _supabase_yedek_al():
     )
 
 
+def supabase_nesneleri_listele(onek):
+    """Bucket'ta `onek/` altındaki dosya yollarını döndürür; hata olursa None."""
+    onek = str(onek).strip("/")
+
+    try:
+        response = requests.post(
+            f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}",
+            headers=_supabase_headers("application/json"),
+            json={
+                "prefix": onek,
+                "limit": 1000,
+                "offset": 0,
+                "sortBy": {"column": "name", "order": "asc"},
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+
+        return [
+            f"{onek}/{item['name']}"
+            for item in response.json()
+            if item.get("id")
+        ]
+
+    except Exception as exc:
+        print(f"SUPABASE LİSTELEME HATASI: {type(exc).__name__}: {exc}")
+        return None
+
+
+def supabase_nesne_sil(object_name):
+    try:
+        response = requests.delete(
+            _supabase_object_url(object_name),
+            headers=_supabase_headers(),
+            timeout=20,
+        )
+        return response.status_code in (200, 204, 404)
+
+    except Exception as exc:
+        print(f"SUPABASE SİLME HATASI: {type(exc).__name__}: {exc}")
+        return False
+
+
+def yedekleri_yenile(etiket, ek_dosyalar=None):
+    """
+    Güncel durumun yedeğini alır, doğrular ve ANCAK SONRA eski yedekleri siler.
+
+    - Yerel: BACKUP_DIR içine data-<etiket>.json; diğer *.json yedekler silinir.
+    - Uzak (Supabase): backups/ altına data-<etiket>.json (+ ek dosyalar);
+      yeni dosyalar listede görünmeden hiçbir şey silinmez.
+    ek_dosyalar: {"ads": "/yol/ads.json"}
+    """
+    ozet = {"etiket": etiket, "yerel_silinen": 0, "uzak_silinen": 0, "uzak_yeni": []}
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    yeni_yerel = os.path.join(BACKUP_DIR, f"data-{etiket}.json")
+    shutil.copy2(DATA_FILE, yeni_yerel)
+
+    yeni_uzak = []
+
+    if _supabase_enabled():
+        kaynaklar = {f"backups/data-{etiket}.json": DATA_FILE}
+        for ad, yol in (ek_dosyalar or {}).items():
+            if yol and os.path.exists(yol):
+                kaynaklar[f"backups/{ad}-{etiket}.json"] = yol
+
+        for nesne, yol in kaynaklar.items():
+            if not supabase_storage_upload(yol, nesne, "application/json"):
+                raise RuntimeError(f"Yeni yedek yüklenemedi: {nesne}")
+            yeni_uzak.append(nesne)
+
+        mevcut = supabase_nesneleri_listele("backups")
+        if mevcut is None or not all(n in mevcut for n in yeni_uzak):
+            raise RuntimeError("Yeni yedek doğrulanamadı; eski yedekler silinmedi.")
+
+        for yol in mevcut:
+            if yol not in yeni_uzak and supabase_nesne_sil(yol):
+                ozet["uzak_silinen"] += 1
+
+    for dosya in os.listdir(BACKUP_DIR):
+        yol = os.path.join(BACKUP_DIR, dosya)
+        if dosya.endswith(".json") and yol != yeni_yerel:
+            try:
+                os.remove(yol)
+                ozet["yerel_silinen"] += 1
+            except OSError:
+                pass
+
+    ozet["uzak_yeni"] = yeni_uzak
+    return ozet
+
+
+def manuel_yedek_al(ek_dosyalar=None):
+    """Mevcut yedeklere dokunmadan zaman damgalı yeni yedek alır."""
+    etiket = "manuel-" + datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y%m%d-%H%M%S")
+    yuklenen = []
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    shutil.copy2(DATA_FILE, os.path.join(BACKUP_DIR, f"data-{etiket}.json"))
+
+    if _supabase_enabled():
+        kaynaklar = {f"backups/data-{etiket}.json": DATA_FILE}
+        for ad, yol in (ek_dosyalar or {}).items():
+            if yol and os.path.exists(yol):
+                kaynaklar[f"backups/{ad}-{etiket}.json"] = yol
+
+        for nesne, yol in kaynaklar.items():
+            if supabase_storage_upload(yol, nesne, "application/json"):
+                yuklenen.append(nesne)
+
+    return {"etiket": etiket, "uzak": yuklenen}
+
+
 def supabase_upload_json(
     local_path,
     object_name,

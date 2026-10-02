@@ -20,6 +20,9 @@ from zoneinfo import ZoneInfo
 import uvicorn
 import os
 import json
+import io
+import zipfile
+import time
 import threading
 import base64
 import urllib.parse
@@ -2728,6 +2731,39 @@ def veri_bakimi_uygula():
         )
 
 
+def yedek_temizligi_uygula():
+    """
+    Tek seferlik: güncel durumun (veri + reklam ayarları) yedeğini alır, doğrular,
+    ardından önceki tüm yedekleri siler. Başarılı olunca bayrak yazılır.
+    """
+    data = load_data()
+
+    if data.get("yedek_temizligi_20261002"):
+        return
+
+    if storage_module._supabase_enabled() and not storage_module._SUPABASE_DATA_SYNCED:
+        print("YEDEK TEMİZLİĞİ: Supabase senkronu tamam değil, sonraki açılışta denenecek.")
+        return
+
+    try:
+        ozet = storage_module.yedekleri_yenile(
+            "guncel-20261002", {"ads": ADS_FILE}
+        )
+        storage_module._SUPABASE_YEDEK_SON = time.time()
+
+        data = load_data()
+        data["yedek_temizligi_20261002"] = {"zaman": now_istanbul_string(), **ozet}
+        save_data(data)
+
+        print(
+            "YEDEK TEMİZLİĞİ: yeni yedek alındı "
+            f"({', '.join(ozet['uzak_yeni']) or 'yalnızca yerel'}); "
+            f"{ozet['uzak_silinen']} uzak, {ozet['yerel_silinen']} yerel eski yedek silindi."
+        )
+    except Exception as exc:
+        print(f"YEDEK TEMİZLİĞİ HATASI: {type(exc).__name__}: {exc}")
+
+
 def colakoglu_kaynagini_duzelt():
     """
     Çolakoğlu'nun resmi sayfadan otomatik çekilmesini garanti eder.
@@ -2786,6 +2822,7 @@ async def lifespan(app):
     kaynak_migrasyonunu_uygula()
     colakoglu_kaynagini_duzelt()
     veri_bakimi_uygula()
+    yedek_temizligi_uygula()
 
     if AUTO_UPDATE_ENABLED:
         print(
@@ -3958,6 +3995,32 @@ async def admin_sifre_degistir(
         path="/",
     )
     return cevap
+
+
+@app.post("/admin/yedek-al")
+async def admin_yedek_al(username: str = Depends(verify_admin)):
+    storage_module.manuel_yedek_al({"ads": ADS_FILE})
+    return RedirectResponse("/admin?m=yedek", status_code=303)
+
+
+@app.get("/admin/yedek-indir")
+def admin_yedek_indir(username: str = Depends(verify_admin)):
+    damga = now_istanbul().strftime("%Y%m%d-%H%M%S")
+    paket = io.BytesIO()
+
+    with zipfile.ZipFile(paket, "w", zipfile.ZIP_DEFLATED) as zf:
+        if os.path.exists(storage_module.DATA_FILE):
+            zf.write(storage_module.DATA_FILE, "data.json")
+        if os.path.exists(ADS_FILE):
+            zf.write(ADS_FILE, "ads.json")
+
+    return Response(
+        content=paket.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="hurda-yedek-{damga}.zip"'
+        },
+    )
 
 
 @app.post("/admin/update-all")
@@ -5824,6 +5887,7 @@ def admin_panel(
         "baslatildi": "Tüm kaynaklar için güncelleme başlatıldı. Birkaç dakika içinde sonuçlar işlenecek.",
         "calisiyor": "Güncelleme zaten çalışıyor, bitmesini bekleyin.",
         "sifre": "Şifre değiştirildi.",
+        "yedek": "Yeni yedek alındı (yerel + Supabase).",
     }
     banner_html = (
         '<div class="mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold p-3">'
@@ -7119,6 +7183,14 @@ Manuel
 <p class="text-sm text-slate-500 mt-1">Otomatik güncelleme ve veri geçmişinin hızlı özeti.</p>
 </div>
 <div class="flex flex-wrap items-center gap-2">
+<form method="post" action="/admin/yedek-al">
+<button type="submit" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
+💾 Yedek al
+</button>
+</form>
+<a href="/admin/yedek-indir" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
+⬇ Yedeği indir
+</a>
 <form method="post" action="/admin/update-all" onsubmit="return confirm('Tüm kaynaklar şimdi güncellensin mi?');">
 <button type="submit" class="text-xs bg-slate-900 hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-black transition">
 ⟳ Tüm kaynakları şimdi güncelle
