@@ -9,6 +9,7 @@ Sırayla şu yöntemler denenir, ilk veri veren kazanır:
 Hepsi başarısız olursa ScraperHatasi fırlatılır; mevcut kayıtlar korunur.
 """
 import json
+import time
 import re
 from datetime import date, datetime
 from typing import Optional
@@ -49,7 +50,7 @@ BILINEN_CINSLER = (
 )
 
 
-def _get(url: str, timeout=(6, 15)) -> requests.Response:
+def _get(url: str, timeout=(4, 8)) -> requests.Response:
     # robots.txt kontrolü bilinçli olarak atlanır: bu adres kullanıcının
     # kendi takip ettiği resmi fiyat sayfasıdır.
     r = requests.get(url, headers=HEADERS, timeout=timeout, verify=False)
@@ -256,7 +257,7 @@ HAMMADDE_URL = "https://www.hammaddepiyasasi.com/fabrika/colakoglu"
 
 def _role_dene():
     """Resmi sayfanın metin aktarımı (Render IP'si doğrudan engelliyse)."""
-    r = _get(ROLE_URL, timeout=(8, 40))
+    r = _get(ROLE_URL, timeout=(5, 15))
     metin = r.text
     k = _metin_kalemler(metin)
     if len(k) < 2:
@@ -272,49 +273,76 @@ def _hammadde_dene() -> FirmaSonuc:
     return s
 
 
+# Erişilemeyen yöntemler art arda hata verince bir süre atlanır; böylece her turda
+# boşuna zaman aşımı beklenmez. Son yöntem (Hammadde Piyasası) hiç atlanmaz.
+_DURUM = {}
+
+
+def _atlanmali(ad: str) -> bool:
+    d = _DURUM.get(ad)
+    return bool(d and d["sonraki"] > time.time())
+
+
+def _isaretle(ad: str, basarili: bool) -> None:
+    if basarili:
+        _DURUM.pop(ad, None)
+        return
+
+    d = _DURUM.setdefault(ad, {"hata": 0, "sonraki": 0.0})
+    d["hata"] += 1
+
+    if d["hata"] >= 2:
+        d["sonraki"] = time.time() + min(1800, 300 * d["hata"])
+
+
 def cek() -> FirmaSonuc:
     hatalar = []
-    api_adresleri = []
 
     # 1) Resmi sayfa
-    try:
-        r = _get(URL)
-        kalemler, tarih, soup = _sayfadan(r.text)
-        if kalemler:
-            return _sonuc(kalemler, tarih)
-        hatalar.append("sayfada fiyat bulunamadı")
-        # 2) Sayfa script'lerinde geçen API adresleri
-        for adres in re.findall(
-            r"""["'](https?://[^"']*(?:scrap|hurda|price|fiyat)[^"']*|/[^"']*(?:scrap|hurda|price|fiyat)[^"']*)["']""",
-            r.text,
-            flags=re.I,
-        ):
-            tam = urljoin(URL, adres)
-            if tam not in api_adresleri and not tam.endswith((".js", ".css", ".png", ".jpg")):
-                api_adresleri.append(tam)
-    except Exception as e:
-        hatalar.append(f"sayfa: {type(e).__name__}")
-
-    # 3) Bilinen resmi API + sayfadan bulunanlar
-    for adres in [API] + api_adresleri[:5]:
+    if not _atlanmali("sayfa"):
         try:
-            kalemler, tarih = _api_dene(adres)
+            r = _get(URL)
+            kalemler, tarih, soup = _sayfadan(r.text)
             if kalemler:
+                _isaretle("sayfa", True)
                 return _sonuc(kalemler, tarih)
-            hatalar.append(f"{adres}: veri yok")
+            hatalar.append("sayfada fiyat bulunamadı")
+            api_adresleri = _sayfa_api_adresleri(r.text)
+            _isaretle("sayfa", False)
         except Exception as e:
-            hatalar.append(f"api: {type(e).__name__}")
+            hatalar.append(f"sayfa: {type(e).__name__}")
+            api_adresleri = []
+            _isaretle("sayfa", False)
+    else:
+        api_adresleri = []
 
-    # 4) Resmi sayfanın metin aktarımı
-    try:
-        kalemler, tarih = _role_dene()
-        if len(kalemler) >= 2:
-            return _sonuc(kalemler, tarih)
-        hatalar.append("aktarım: veri yok")
-    except Exception as e:
-        hatalar.append(f"aktarım: {type(e).__name__}")
+    # 2) Resmi API (+ sayfadan bulunan adresler)
+    if not _atlanmali("api"):
+        basarisiz = True
+        for adres in [API] + api_adresleri[:5]:
+            try:
+                kalemler, tarih = _api_dene(adres)
+                if kalemler:
+                    _isaretle("api", True)
+                    return _sonuc(kalemler, tarih)
+                hatalar.append("api: veri yok")
+            except Exception as e:
+                hatalar.append(f"api: {type(e).__name__}")
+        _isaretle("api", False)
 
-    # 5) Hammadde Piyasası (Çolakoğlu fiyatlarını yayınlayan kaynak)
+    # 3) Resmi sayfanın metin aktarımı
+    if not _atlanmali("aktarim"):
+        try:
+            kalemler, tarih = _role_dene()
+            if len(kalemler) >= 2:
+                _isaretle("aktarim", True)
+                return _sonuc(kalemler, tarih)
+            hatalar.append("aktarım: veri yok")
+        except Exception as e:
+            hatalar.append(f"aktarım: {type(e).__name__}")
+        _isaretle("aktarim", False)
+
+    # 4) Hammadde Piyasası (her zaman denenir)
     try:
         return _hammadde_dene()
     except Exception as e:
@@ -323,3 +351,16 @@ def cek() -> FirmaSonuc:
     raise ScraperHatasi(
         "Çolakoğlu: veri alınamadı (" + "; ".join(hatalar)[:400] + ")"
     )
+
+
+def _sayfa_api_adresleri(html: str) -> list:
+    adresler = []
+    for adres in re.findall(
+        r"""["'](https?://[^"']*(?:scrap|hurda|price|fiyat)[^"']*|/[^"']*(?:scrap|hurda|price|fiyat)[^"']*)["']""",
+        html,
+        flags=re.I,
+    ):
+        tam = urljoin(URL, adres)
+        if tam not in adresler and not tam.endswith((".js", ".css", ".png", ".jpg")):
+            adresler.append(tam)
+    return adresler

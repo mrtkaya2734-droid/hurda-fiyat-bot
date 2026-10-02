@@ -5,7 +5,10 @@ from typing import Optional
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
+import threading
+
 import requests
+from requests.adapters import HTTPAdapter
 
 USER_AGENT = "HurdaFiyatBot/2.0"
 _HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "tr-TR,tr;q=0.9"}
@@ -42,7 +45,7 @@ def izin_var(url: str) -> bool:
     sure = _ROBOTS_BASARILI_SANIYE
 
     try:
-        r = requests.get(kok + "/robots.txt", headers=_HEADERS, timeout=10)
+        r = oturum().get(kok + "/robots.txt", timeout=(4, 6))
         if r.status_code == 200:
             rp.parse(r.text.splitlines())
         elif 400 <= r.status_code < 500:
@@ -57,10 +60,32 @@ def izin_var(url: str) -> bool:
     return rp.can_fetch(USER_AGENT, url)
 
 
-def http_get(url: str, timeout: int = 20) -> requests.Response:
-    if not izin_var(url):
+_yerel = threading.local()
+
+# (bağlantı, okuma) saniye: ölü siteyi uzun beklemeden bırak.
+ZAMAN_ASIMI = (5, 12)
+
+
+def oturum() -> requests.Session:
+    """Her iş parçacığı için bağlantıları yeniden kullanan oturum."""
+    s = getattr(_yerel, "oturum", None)
+
+    if s is None:
+        s = requests.Session()
+        adaptor = HTTPAdapter(pool_connections=8, pool_maxsize=8, max_retries=0)
+        s.mount("https://", adaptor)
+        s.mount("http://", adaptor)
+        s.headers.update(_HEADERS)
+        _yerel.oturum = s
+
+    return s
+
+
+def http_get(url: str, timeout=ZAMAN_ASIMI, robots: bool = True, headers: dict = None) -> requests.Response:
+    if robots and not izin_var(url):
         raise ScraperHatasi(f"robots.txt bu adrese izin vermiyor: {url}")
-    r = requests.get(url, headers=_HEADERS, timeout=timeout)
+
+    r = oturum().get(url, headers=headers, timeout=timeout)
     r.raise_for_status()
     return r
 

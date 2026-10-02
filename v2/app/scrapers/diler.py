@@ -4,7 +4,7 @@ from datetime import date
 from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
-from app.scrapers.base import ScraperHatasi
+from app.scrapers.base import ScraperHatasi, http_get
 
 
 ID = "diler"
@@ -71,12 +71,7 @@ def cek() -> FirmaSonuc:
     import requests
 
     try:
-        cevap = requests.get(
-            URL,
-            headers=HEADERS,
-            timeout=20,
-        )
-        cevap.raise_for_status()
+        cevap = http_get(URL, robots=False, headers=HEADERS)
     except requests.RequestException as e:
         raise ScraperHatasi(
             f"Diler: bağlantı hatası: {e}"

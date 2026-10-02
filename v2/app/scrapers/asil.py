@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
-from app.scrapers.base import ScraperHatasi, fiyat_sayi, tarih_bul
+from app.scrapers.base import ScraperHatasi, fiyat_sayi, http_get, tarih_bul
 
 ID = "asil"
 BASLIK = "Asil Çelik"
@@ -16,12 +16,7 @@ HEADERS = {
 
 def cek() -> FirmaSonuc:
     try:
-        cevap = requests.get(
-            URL,
-            headers=HEADERS,
-            timeout=20,
-        )
-        cevap.raise_for_status()
+        cevap = http_get(URL, robots=False, headers=HEADERS)
     except requests.RequestException as e:
         raise ScraperHatasi(
             f"Asil Çelik: bağlantı hatası: {e}"

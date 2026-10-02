@@ -5,7 +5,7 @@ from html import unescape
 import requests
 
 from app.models import FirmaSonuc, Kalem
-from app.scrapers.base import ScraperHatasi
+from app.scrapers.base import ScraperHatasi, ZAMAN_ASIMI
 
 
 ID = "kardemir"
@@ -106,7 +106,7 @@ def cek() -> FirmaSonuc:
         cevap = session.get(
             SESSION_URL,
             headers=headers,
-            timeout=20,
+            timeout=ZAMAN_ASIMI,
         )
         cevap.raise_for_status()
 
@@ -123,7 +123,7 @@ def cek() -> FirmaSonuc:
         cevap = session.get(
             DATE_LIST_URL,
             headers=headers,
-            timeout=20,
+            timeout=ZAMAN_ASIMI,
         )
         cevap.raise_for_status()
 
@@ -144,7 +144,7 @@ def cek() -> FirmaSonuc:
             params={
                 "date": son_tarih
             },
-            timeout=20,
+            timeout=ZAMAN_ASIMI,
         )
         cevap.raise_for_status()
 

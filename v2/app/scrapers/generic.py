@@ -387,10 +387,7 @@ def cek_url(
         )
 
     try:
-        response = http_get(
-            url,
-            timeout=25,
-        )
+        response = http_get(url)
     except ScraperHatasi:
         raise
     except Exception as exc:

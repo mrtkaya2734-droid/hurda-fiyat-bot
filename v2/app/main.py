@@ -24,6 +24,7 @@ import io
 import zipfile
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import base64
 import urllib.parse
 import secrets
@@ -1772,8 +1773,12 @@ SON_GUNCELLEME = "Henüz yapılmadı"
 def firma_verisini_cek(
     fonksiyon
 ):
+    return firma_sonucunu_isle(fonksiyon())
 
-    sonuc = fonksiyon()
+
+def firma_sonucunu_isle(
+    sonuc
+):
 
     # Kaynak boş/eksik cevap döndürürse mevcut son kayıt korunur.
     # Böylece başarısız veya geçici boş cevaplar eski fiyatları silmez.
@@ -2059,7 +2064,49 @@ def verileri_guncelle():
         _GUNCELLEME_KILIDI.release()
 
 
+def _paralel_cek(isler, en_fazla=6):
+    """
+    [(firma_id, fonksiyon)] -> {firma_id: (sonuc, hata, saniye)}.
+    Yalnızca ağ/ayrıştırma paralel çalışır; veri dosyasına yazılmaz.
+    """
+    def calistir(is_):
+        firma_id, fonksiyon = is_
+        baslangic = time.perf_counter()
+        try:
+            return firma_id, (fonksiyon(), None, time.perf_counter() - baslangic)
+        except Exception as exc:
+            return firma_id, (None, exc, time.perf_counter() - baslangic)
+
+    if not isler:
+        return {}
+
+    with ThreadPoolExecutor(max_workers=min(en_fazla, len(isler))) as havuz:
+        return dict(havuz.map(calistir, isler))
+
+
+def _firma_hatasi_isle(firma_id, e):
+    print(f"HATA: {firma_id} -> {type(e).__name__}: {e}")
+
+    try:
+        data = load_data()
+
+        if firma_id in data.get("firms", {}):
+            firma_hata_isle(data, firma_id, e)
+            save_data(data)
+
+        bildirim_ekle(
+            firma_id=firma_id,
+            tur="scraper_hatasi",
+            mesaj=str(e),
+        )
+
+    except Exception as bildirim_hatasi:
+        print(f"BİLDİRİM HATASI: {bildirim_hatasi}")
+
+
 def _verileri_guncelle_calistir():
+
+    tur_baslangic = time.perf_counter()
 
     global GUNCEL_VERILER
     global SON_GUNCELLEME
@@ -2130,82 +2177,62 @@ def _verileri_guncelle_calistir():
             )
         )
 
+    # 1. aşama (hızlı, sıralı): hangi firmalar çekilecek?
+    uygunlar = []
+
     for firma_id, kayitli_fonksiyon in kaynaklar:
 
         try:
-
             data = load_data()
 
-            if firma_id in data.get(
-                "silinen_firmalar",
-                [],
-            ):
-                print(
-                    f"SİLİNMİŞ: {firma_id}"
-                )
+            if firma_id in data.get("silinen_firmalar", []):
+                print(f"SİLİNMİŞ: {firma_id}")
                 continue
 
-            firma = data.get(
-                "firms",
-                {},
-            ).get(
-                firma_id
-            )
+            firma = data.get("firms", {}).get(firma_id)
 
-            if (
-                firma
-                and not firma.get(
-                    "aktif",
-                    True,
-                )
-            ):
-
-                print(
-                    f"PASİF: {firma_id}"
-                )
-
+            if firma and not firma.get("aktif", True):
+                print(f"PASİF: {firma_id}")
                 continue
 
-            if (
-                firma
-                and not firma.get(
-                    "otomatik",
-                    True,
-                )
-            ):
-
-                print(
-                    f"MANUEL: {firma_id}"
-                )
-
+            if firma and not firma.get("otomatik", True):
+                print(f"MANUEL: {firma_id}")
                 continue
 
-            fonksiyon = firma_scraperini_bul(
-                firma_id,
-                data,
-            )
+            fonksiyon = firma_scraperini_bul(firma_id, data)
 
             if fonksiyon is None:
-                print(
-                    f"OTOMATİK KAYNAK YOK: {firma_id}"
-                )
+                print(f"OTOMATİK KAYNAK YOK: {firma_id}")
                 continue
 
-            sonuc = firma_verisini_cek(
-                fonksiyon
-            )
+            uygunlar.append((firma_id, fonksiyon))
+
+        except Exception as e:
+            _firma_hatasi_isle(firma_id, e)
+
+    # 2. aşama (paralel): ağ istekleri aynı anda yapılır.
+    sonuclar = _paralel_cek(uygunlar)
+
+    # 3. aşama (sıralı): sonuçlar tek tek işlenir; veri dosyasına yazma çakışmaz.
+    for firma_id, _ in uygunlar:
+
+        ham, hata, sure = sonuclar[firma_id]
+
+        try:
+            if hata is not None:
+                raise hata
+
+            sonuc = firma_sonucunu_isle(ham)
 
             print(
                 f"OK: {sonuc['baslik']} "
-                f"({len(sonuc['kalemler'])} kalem)"
+                f"({len(sonuc['kalemler'])} kalem) [{sure:.1f} sn]"
             )
 
-            # Başarılı güncelleme bildirimi yalnızca gerçekten
-            # fiyat değişikliği olduğunda oluşturulur. Böylece dakika
-            # başına aynı "başarılı" bildiriminin birikmesi engellenir.
+            # Başarılı güncelleme bildirimi yalnızca gerçekten fiyat
+            # değişikliği olduğunda oluşturulur.
             fiyat_degisti = any(
-                str(kalem.get("degisim", "")).strip()
-                not in {"", "0 TL"}
+                str(kalem.get("degisim", "")).strip() not in {"", "0 TL"}
                 for kalem in sonuc.get("kalemler", [])
             )
 
@@ -2215,45 +2242,13 @@ def _verileri_guncelle_calistir():
                     "basarili_guncelleme",
                     (
                         f"{sonuc['baslik']} fiyatları değişti. "
-                        f"{len(sonuc['kalemler'])} "
-                        "fiyat kalemi güncellendi."
+                        f"{len(sonuc['kalemler'])} fiyat kalemi güncellendi."
                     ),
                 )
 
         except Exception as e:
-
-            print(
-                f"HATA: {firma_id} -> "
-                f"{type(e).__name__}: {e}"
-            )
-
-            try:
-
-                data = load_data()
-
-                if firma_id in data.get(
-                    "firms",
-                    {},
-                ):
-
-                    firma_hata_isle(data, firma_id, e)
-
-                    save_data(
-                        data
-                    )
-
-                bildirim_ekle(
-                    firma_id=firma_id,
-                    tur="scraper_hatasi",
-                    mesaj=str(e),
-                )
-
-            except Exception as bildirim_hatasi:
-
-                print(
-                    "BİLDİRİM HATASI: "
-                    f"{bildirim_hatasi}"
-                )
+            print(f"[{sure:.1f} sn]", end=" ")
+            _firma_hatasi_isle(firma_id, e)
 
     SON_GUNCELLEME = (
         now_istanbul().strftime(
@@ -2273,7 +2268,7 @@ def _verileri_guncelle_calistir():
     gc.collect()
 
     print(
-        "Güncelleme tamamlandı."
+        f"Güncelleme tamamlandı. (toplam {time.perf_counter() - tur_baslangic:.1f} sn)"
     )
 
 
@@ -2799,14 +2794,14 @@ def veri_bakimi_uygula():
         )
 
 
-def yedek_temizligi_uygula():
+def yedek_temizligi_uygula(bayrak="yedek_son_hal_20261002", etiket="son-hal-20261002"):
     """
     Tek seferlik: güncel durumun (veri + reklam ayarları) yedeğini alır, doğrular,
     ardından önceki tüm yedekleri siler. Başarılı olunca bayrak yazılır.
     """
     data = load_data()
 
-    if data.get("yedek_temizligi_20261002"):
+    if data.get(bayrak):
         return
 
     if storage_module._supabase_enabled() and not storage_module._SUPABASE_DATA_SYNCED:
@@ -2814,13 +2809,11 @@ def yedek_temizligi_uygula():
         return
 
     try:
-        ozet = storage_module.yedekleri_yenile(
-            "guncel-20261002", {"ads": ADS_FILE}
-        )
+        ozet = storage_module.yedekleri_yenile(etiket, {"ads": ADS_FILE})
         storage_module._SUPABASE_YEDEK_SON = time.time()
 
         data = load_data()
-        data["yedek_temizligi_20261002"] = {"zaman": now_istanbul_string(), **ozet}
+        data[bayrak] = {"zaman": now_istanbul_string(), **ozet}
         save_data(data)
 
         print(
