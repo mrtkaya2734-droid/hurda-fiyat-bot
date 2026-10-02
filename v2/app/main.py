@@ -20,6 +20,9 @@ from zoneinfo import ZoneInfo
 import uvicorn
 import os
 import json
+import threading
+import base64
+import urllib.parse
 import secrets
 import html as html_lib
 import uuid
@@ -31,6 +34,8 @@ import xml.etree.ElementTree as ET
 
 from app.scrapers import TUMU
 from app import webpush
+from app import adminauth
+import app.storage as storage_module
 from app.scrapers.generic import cek_url as generic_url_cek
 
 from app.storage import (
@@ -1338,37 +1343,69 @@ def son_fiyat_degisim(
 # ADMİN GİRİŞİ
 # =========================================================
 
-def verify_admin(
-    credentials: HTTPBasicCredentials = Depends(
-        security
-    ),
-):
+ADMIN_COOKIE = "hurda_admin"
 
-    # compare_digest ASCII dışı str ile TypeError verir; bayt olarak karşılaştır.
-    correct_username = secrets.compare_digest(
-        credentials.username.encode("utf-8"),
-        ADMIN_USER.encode("utf-8"),
-    )
 
-    correct_password = secrets.compare_digest(
-        credentials.password.encode("utf-8"),
-        ADMIN_PASS.encode("utf-8"),
-    )
+def istemci_ip(request):
+    ileri = request.headers.get("x-forwarded-for", "")
+    if ileri:
+        return ileri.split(",")[0].strip()[:64]
+    return request.client.host if request.client else "?"
 
-    if not (
-        correct_username
-        and correct_password
+
+def verify_admin(request: Request):
+    """
+    Admin doğrulaması: 1) oturum çerezi, 2) Basic Authorization başlığı.
+    Tarayıcı (HTML GET) giriş yapmamışsa giriş sayfasına yönlendirilir.
+    """
+    data = load_data()
+
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if token and adminauth.oturum_gecerli_mi(data, token, ADMIN_USER):
+        return ADMIN_USER
+
+    ip = istemci_ip(request)
+    baslik = request.headers.get("authorization", "")
+
+    if baslik.lower().startswith("basic "):
+        if adminauth.engelli_mi(ip):
+            raise HTTPException(
+                status_code=429,
+                detail="Çok fazla hatalı deneme. Biraz bekleyin.",
+            )
+        try:
+            kullanici, _, sifre = (
+                base64.b64decode(baslik[6:]).decode("utf-8").partition(":")
+            )
+        except Exception:
+            kullanici, sifre = "", ""
+
+        if adminauth.sifre_dogru_mu(data, kullanici, sifre, ADMIN_USER, ADMIN_PASS):
+            adminauth.basari_sifirla(ip)
+            return kullanici
+
+        adminauth.hata_kaydet(ip)
+
+    if (
+        request.method == "GET"
+        and "text/html" in request.headers.get("accept", "")
     ):
-
+        hedef = request.url.path + (
+            "?" + request.url.query if request.url.query else ""
+        )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Yetkisiz erişim!",
+            status_code=status.HTTP_303_SEE_OTHER,
+            detail="Giriş gerekli.",
             headers={
-                "WWW-Authenticate": "Basic"
+                "Location": "/admin/giris?next=" + urllib.parse.quote(hedef, safe="")
             },
         )
 
-    return credentials.username
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Yetkisiz erişim!",
+        headers={"WWW-Authenticate": "Basic"},
+    )
 
 
 # =========================================================
@@ -1981,7 +2018,45 @@ def firma_verisini_cek(
     }
 
 
+_GUNCELLEME_KILIDI = threading.Lock()
+
+
+def firma_hata_isle(data, firma_id, mesaj):
+    """Firma durumunu 'hata' yapar ve son hatayı/hata geçmişini (en fazla 10) saklar."""
+    firma = data.get("firms", {}).get(firma_id)
+
+    if not firma:
+        return
+
+    firma["durum"] = "hata"
+
+    metin = " ".join(str(mesaj or "").split())[:300]
+    simdi = now_istanbul_string()
+    gecmis = firma.setdefault("hata_gecmisi", [])
+
+    if gecmis and gecmis[-1].get("mesaj") == metin:
+        gecmis[-1]["zaman"] = simdi
+        gecmis[-1]["adet"] = gecmis[-1].get("adet", 1) + 1
+    else:
+        gecmis.append({"zaman": simdi, "mesaj": metin, "adet": 1})
+
+    firma["hata_gecmisi"] = gecmis[-10:]
+    firma["son_hata"] = firma["hata_gecmisi"][-1]
+
+
 def verileri_guncelle():
+    """Aynı anda yalnızca bir güncelleme turu çalışır (zamanlayıcı + admin düğmesi)."""
+    if not _GUNCELLEME_KILIDI.acquire(blocking=False):
+        print("Güncelleme zaten çalışıyor, atlandı.")
+        return
+
+    try:
+        _verileri_guncelle_calistir()
+    finally:
+        _GUNCELLEME_KILIDI.release()
+
+
+def _verileri_guncelle_calistir():
 
     global GUNCEL_VERILER
     global SON_GUNCELLEME
@@ -2158,13 +2233,7 @@ def verileri_guncelle():
                     {},
                 ):
 
-                    data[
-                        "firms"
-                    ][
-                        firma_id
-                    ][
-                        "durum"
-                    ] = "hata"
+                    firma_hata_isle(data, firma_id, e)
 
                     save_data(
                         data
@@ -3731,6 +3800,177 @@ self.addEventListener("notificationclick", function(event) {
 
 
 # =========================================================
+# ADMİN GİRİŞ / ÇIKIŞ / ŞİFRE / TOPLU GÜNCELLEME
+# =========================================================
+
+def _admin_sayfa(baslik, icerik):
+    return HTMLResponse(
+        "<!DOCTYPE html><html lang='tr'><head><meta charset='UTF-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<meta name='robots' content='noindex,nofollow'>"
+        f"<title>{esc(baslik)}</title>"
+        "<script src='https://cdn.tailwindcss.com'></script></head>"
+        "<body class='min-h-screen bg-slate-100 flex items-center justify-center p-4'>"
+        "<div class='w-full max-w-sm bg-white rounded-3xl shadow-lg border border-slate-200 p-6'>"
+        f"<h1 class='text-xl font-black text-slate-900 mb-1'>{esc(baslik)}</h1>"
+        + icerik +
+        "</div></body></html>"
+    )
+
+
+_INPUT = (
+    "class='w-full h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold "
+    "outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100'"
+)
+_BUTON = (
+    "class='w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 text-white "
+    "text-sm font-black transition'"
+)
+
+
+def _guvenli_hedef(deger):
+    deger = str(deger or "")
+    if deger.startswith("/admin") and not deger.startswith("//"):
+        return deger
+    return "/admin"
+
+
+@app.get("/admin/giris", response_class=HTMLResponse)
+def admin_giris_formu(request: Request, next: str = "/admin", hata: str = ""):
+    mesaj = ""
+    if hata == "1":
+        mesaj = "<div class='mb-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-2.5'>Kullanıcı adı veya şifre hatalı.</div>"
+    elif hata == "2":
+        mesaj = "<div class='mb-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold p-2.5'>Çok fazla hatalı deneme. 10 dakika sonra tekrar deneyin.</div>"
+
+    return _admin_sayfa(
+        "Yönetim Girişi",
+        "<p class='text-xs text-slate-500 mb-4'>Hurda Fiyatları yönetim paneli</p>"
+        + mesaj
+        + "<form method='post' action='/admin/giris' class='space-y-3'>"
+        f"<input type='hidden' name='next' value='{esc(_guvenli_hedef(next))}'>"
+        f"<input name='username' autocomplete='username' placeholder='Kullanıcı adı' required {_INPUT}>"
+        f"<input name='password' type='password' autocomplete='current-password' placeholder='Şifre' required {_INPUT}>"
+        f"<button type='submit' {_BUTON}>Giriş yap</button></form>",
+    )
+
+
+@app.post("/admin/giris")
+async def admin_giris(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    next: str = Form("/admin"),
+):
+    ip = istemci_ip(request)
+
+    if adminauth.engelli_mi(ip):
+        return RedirectResponse("/admin/giris?hata=2", status_code=303)
+
+    data = load_data()
+
+    if not adminauth.sifre_dogru_mu(data, username, password, ADMIN_USER, ADMIN_PASS):
+        adminauth.hata_kaydet(ip)
+        return RedirectResponse("/admin/giris?hata=1", status_code=303)
+
+    adminauth.basari_sifirla(ip)
+    token = adminauth.oturum_olustur(data, ADMIN_USER)
+
+    if (data.get("admin_auth") or {}).pop("_yeni", None):
+        save_data(data)
+
+    cevap = RedirectResponse(_guvenli_hedef(next), status_code=303)
+    cevap.set_cookie(
+        ADMIN_COOKIE,
+        token,
+        max_age=adminauth.OTURUM_SURESI,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.hostname not in ("localhost", "127.0.0.1"),
+        path="/",
+    )
+    return cevap
+
+
+@app.get("/admin/cikis")
+def admin_cikis():
+    cevap = RedirectResponse("/admin/giris", status_code=303)
+    cevap.delete_cookie(ADMIN_COOKIE, path="/")
+    return cevap
+
+
+@app.get("/admin/sifre", response_class=HTMLResponse)
+def admin_sifre_formu(username: str = Depends(verify_admin), hata: str = ""):
+    mesajlar = {
+        "1": "Mevcut şifre hatalı.",
+        "2": f"Yeni şifre en az {adminauth.MIN_SIFRE_UZUNLUGU} karakter olmalı.",
+        "3": "Yeni şifreler birbiriyle eşleşmiyor.",
+    }
+    mesaj = (
+        f"<div class='mb-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-2.5'>{esc(mesajlar[hata])}</div>"
+        if hata in mesajlar else ""
+    )
+
+    return _admin_sayfa(
+        "Şifre Değiştir",
+        "<p class='text-xs text-slate-500 mb-4'>Değişiklikten sonra tüm oturumlar kapanır.</p>"
+        + mesaj
+        + "<form method='post' action='/admin/sifre' class='space-y-3'>"
+        f"<input name='mevcut' type='password' autocomplete='current-password' placeholder='Mevcut şifre' required {_INPUT}>"
+        f"<input name='yeni' type='password' autocomplete='new-password' placeholder='Yeni şifre' required {_INPUT}>"
+        f"<input name='yeni2' type='password' autocomplete='new-password' placeholder='Yeni şifre (tekrar)' required {_INPUT}>"
+        f"<button type='submit' {_BUTON}>Şifreyi değiştir</button></form>"
+        "<a href='/admin' class='block text-center text-xs font-bold text-slate-500 mt-4'>← Panele dön</a>",
+    )
+
+
+@app.post("/admin/sifre")
+async def admin_sifre_degistir(
+    request: Request,
+    mevcut: str = Form(""),
+    yeni: str = Form(""),
+    yeni2: str = Form(""),
+    username: str = Depends(verify_admin),
+):
+    data = load_data()
+
+    if not adminauth.sifre_dogru_mu(data, ADMIN_USER, mevcut, ADMIN_USER, ADMIN_PASS):
+        return RedirectResponse("/admin/sifre?hata=1", status_code=303)
+
+    if len(yeni) < adminauth.MIN_SIFRE_UZUNLUGU:
+        return RedirectResponse("/admin/sifre?hata=2", status_code=303)
+
+    if yeni != yeni2:
+        return RedirectResponse("/admin/sifre?hata=3", status_code=303)
+
+    adminauth.sifre_degistir(data, yeni)
+    save_data(data)
+
+    # Yeni oturum anahtarıyla bu tarayıcıyı açık tut.
+    cevap = RedirectResponse("/admin?m=sifre", status_code=303)
+    cevap.set_cookie(
+        ADMIN_COOKIE,
+        adminauth.oturum_olustur(data, ADMIN_USER),
+        max_age=adminauth.OTURUM_SURESI,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.hostname not in ("localhost", "127.0.0.1"),
+        path="/",
+    )
+    return cevap
+
+
+@app.post("/admin/update-all")
+async def admin_tumunu_guncelle(username: str = Depends(verify_admin)):
+    if _GUNCELLEME_KILIDI.locked():
+        return RedirectResponse("/admin?m=calisiyor", status_code=303)
+
+    threading.Thread(target=verileri_guncelle, daemon=True).start()
+
+    return RedirectResponse("/admin?m=baslatildi", status_code=303)
+
+
+# =========================================================
 # ADMİN - YENİ KAYNAK
 # =========================================================
 
@@ -4058,7 +4298,7 @@ async def admin_new_source_save(
                 "firms",
                 {},
             ):
-                data["firms"][firma_id]["durum"] = "hata"
+                firma_hata_isle(data, firma_id, e)
                 save_data(data)
 
             bildirim_ekle(
@@ -5455,13 +5695,7 @@ async def admin_source_test(
             {},
         ):
 
-            data[
-                "firms"
-            ][
-                firma_id
-            ][
-                "durum"
-            ] = "hata"
+            firma_hata_isle(data, firma_id, e)
 
             save_data(
                 data
@@ -5581,9 +5815,43 @@ def admin_panel(
     username: str = Depends(
         verify_admin
     ),
+    m: str = "",
 ):
 
     data = load_data()
+
+    banner_metinleri = {
+        "baslatildi": "Tüm kaynaklar için güncelleme başlatıldı. Birkaç dakika içinde sonuçlar işlenecek.",
+        "calisiyor": "Güncelleme zaten çalışıyor, bitmesini bekleyin.",
+        "sifre": "Şifre değiştirildi.",
+    }
+    banner_html = (
+        '<div class="mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold p-3">'
+        + esc(banner_metinleri[m])
+        + "</div>"
+        if m in banner_metinleri
+        else ""
+    )
+
+    push_abone_sayisi = len(
+        ((data.get("push") or {}).get("abonelikler") or {})
+    )
+    push_alarm_sayisi = sum(
+        len(k.get("alarmlar", []))
+        for k in ((data.get("push") or {}).get("abonelikler") or {}).values()
+    )
+    sifre_kaynagi = (
+        "Panelden belirlendi"
+        if (data.get("admin_auth") or {}).get("hash")
+        else ("VARSAYILAN (değiştirin!)" if ADMIN_PASS == "hurda123" else "Ortam değişkeni")
+    )
+    sifre_renk = "text-red-600" if sifre_kaynagi.startswith("VARSAYILAN") else "text-slate-900"
+    guncelleme_durumu = "ÇALIŞIYOR" if _GUNCELLEME_KILIDI.locked() else "BEKLİYOR"
+    supabase_durumu = (
+        ("SENKRON" if storage_module._SUPABASE_DATA_SYNCED else "BEKLİYOR (yeniden denenecek)")
+        if storage_module._supabase_enabled()
+        else "KAPALI"
+    )
 
     # Admin panelini açmak mevcut fiyat/veri dosyasını değiştirmemelidir.
     # Sıralama yalnızca ekranda uygulanır.
@@ -5763,6 +6031,35 @@ BEKLİYOR
             "son_basarili_cekme"
         ) or "-"
 
+        hata_gecmisi = firma.get("hata_gecmisi") or []
+        hata_html = ""
+
+        if hata_gecmisi:
+            son = hata_gecmisi[-1]
+            satirlar = "".join(
+                '<li class="mt-1"><span class="font-bold">'
+                + esc(h.get("zaman", ""))
+                + "</span>"
+                + (
+                    f' <span class="text-slate-400">×{h.get("adet")}</span>'
+                    if h.get("adet", 1) > 1
+                    else ""
+                )
+                + " — "
+                + esc(h.get("mesaj", ""))
+                + "</li>"
+                for h in reversed(hata_gecmisi)
+            )
+            hata_html = (
+                '<details class="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">'
+                '<summary class="cursor-pointer font-bold">'
+                + ("Son hata: " if durum == "hata" else "Geçmiş hata: ")
+                + esc(son.get("zaman", ""))
+                + "</summary><ul class=\"mt-1 break-words\">"
+                + satirlar
+                + "</ul></details>"
+            )
+
         yukari_disabled = (
             index == 0
         )
@@ -5790,6 +6087,8 @@ ID: {esc(firma_id)}
 <div class="text-xs text-slate-500 mt-1 break-words">
 Son başarılı çekim: {esc(son_cekim)}
 </div>
+
+{hata_html}
 
 {
     (
@@ -6718,6 +7017,20 @@ class="bg-white/10 border border-white/20 text-white hover:bg-white/15 px-4 py-2
 </a>
 
 <a
+href="/admin/sifre"
+class="bg-white/10 border border-white/20 text-white hover:bg-white/15 px-4 py-2.5 rounded-xl text-sm font-bold transition"
+>
+🔑 Şifre
+</a>
+
+<a
+href="/admin/cikis"
+class="bg-white/10 border border-white/20 text-white hover:bg-white/15 px-4 py-2.5 rounded-xl text-sm font-bold transition"
+>
+Çıkış
+</a>
+
+<a
 href="/admin/source/new"
 class="bg-white text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl text-sm font-black transition shadow-sm"
 >
@@ -6805,15 +7118,27 @@ Manuel
 <h2 class="text-xl font-bold">Sistem Sağlığı</h2>
 <p class="text-sm text-slate-500 mt-1">Otomatik güncelleme ve veri geçmişinin hızlı özeti.</p>
 </div>
+<div class="flex flex-wrap items-center gap-2">
+<form method="post" action="/admin/update-all" onsubmit="return confirm('Tüm kaynaklar şimdi güncellensin mi?');">
+<button type="submit" class="text-xs bg-slate-900 hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-black transition">
+⟳ Tüm kaynakları şimdi güncelle
+</button>
+</form>
 <div class="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-black">
 Yedekleme: AKTİF
 </div>
 </div>
+</div>
+{banner_html}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Fiyat kalemi</div><div class="text-xl font-black mt-1">{sum(len(x) for x in data.get("prices", {}).values() if isinstance(x, dict))}</div></div>
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Geçmiş kaydı</div><div class="text-xl font-black mt-1">{len(data.get("history", []))}</div></div>
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim</div><div class="text-xl font-black mt-1">{len(notifications)}</div></div>
 <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Otomatik takip</div><div class="text-xl font-black mt-1">{"AÇIK" if AUTO_UPDATE_ENABLED else "KAPALI"}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Güncelleme turu</div><div class="text-base font-black mt-1">{guncelleme_durumu}</div><div class="text-[10px] text-slate-500 mt-0.5">Son tur: {esc(SON_GUNCELLEME)}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Supabase kalıcı depo</div><div class="text-base font-black mt-1">{supabase_durumu}</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Bildirim aboneleri</div><div class="text-xl font-black mt-1">{push_abone_sayisi}</div><div class="text-[10px] text-slate-500 mt-0.5">{push_alarm_sayisi} alarm</div></div>
+<div class="rounded-2xl bg-slate-50 border border-slate-200 p-3"><div class="text-[10px] text-slate-500 font-bold">Admin şifresi</div><div class="text-sm font-black mt-1 {sifre_renk}">{esc(sifre_kaynagi)}</div></div>
 </div>
 </div>
 
