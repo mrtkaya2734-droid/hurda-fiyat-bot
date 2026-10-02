@@ -2375,26 +2375,66 @@ def fiyat_verilerini_olustur():
                 gecmis_idx,
             )
 
-            if detay:
-                onceki_degisim = _fark_metni(detay[0])
-                degisim_tarihi = detay[1].strftime("%d.%m.%Y %H:%M")
-            elif (
+            # Kaynağın kendi yayınladığı önceki fiyat (Erdemir/İsdemir):
+            # güncel fiyatla farkı en yeni duyurulan değişimdir.
+            kaynak_fark = ""
+            if (
                 manuel is None
                 and otomatik is not None
                 and bilgi.get("kaynak_eski_fiyat") not in (None, otomatik)
             ):
-                # Geçmiş henüz birikmediyse kaynağın kendi eski fiyatı.
-                onceki_degisim = _fark_metni(
+                kaynak_fark = _fark_metni(
                     otomatik - bilgi["kaynak_eski_fiyat"]
                 )
+
+            if detay:
+                onceki_degisim = _fark_metni(detay[0])
+                degisim_tarihi = detay[1].strftime("%d.%m.%Y %H:%M")
+            elif kaynak_fark:
+                onceki_degisim = kaynak_fark
                 degisim_tarihi = fiyat_tarih_yaz(
                     bilgi.get("fiyat_tarihi")
                     or firma.get("kaynak_fiyat_tarihi")
                 )
 
+            # Tüm fabrikalar için aynı kural: 24 saatlik değişim yoksa en son
+            # bilinen değişim (kayıtlı geçmiş ya da kaynağın duyurduğu önceki
+            # fiyat) sayılır. Böylece kartlar, sayaçlar ve panel aynı veriyi
+            # gösterir; değişimin tarihi panelde yazar.
+            if not degisim and onceki_degisim:
+                degisim = onceki_degisim
+
+            # Dünün kapanışına göre fark: bugün 00:00'dan önceki son kayıtlı fiyat.
+            kayitlar_dun = gecmis_idx.get(
+                (
+                    str(firma_id or "").strip().casefold(),
+                    kalem_kanonik_adi(kalem).casefold(),
+                ),
+                [],
+            )
+            bugun_basi = now_istanbul().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            dun_fiyat = None
+            for zaman_k, deger_k in kayitlar_dun:
+                if zaman_k < bugun_basi:
+                    dun_fiyat = deger_k
+            try:
+                dun_fark = (
+                    int(float(kullanilan) - float(dun_fiyat))
+                    if dun_fiyat is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                dun_fark = None
+
             firma_kalemleri.append(
                 {
                     "cins": kalem,
+                    "dun_fiyat": (
+                        int(dun_fiyat) if dun_fiyat is not None else None
+                    ),
+                    "dun_fark": dun_fark,
                     "fiyat": fiyat_format(
                         kullanilan
                     ),
@@ -2425,9 +2465,28 @@ def fiyat_verilerini_olustur():
         if not firma_kalemleri:
             continue
 
+        # Kaynağın yayınladığı en yeni fiyat tarihine göre fiyat yaşı (gün).
+        fiyat_yasi_gun = None
+        kaynak_tarihleri = [
+            k.get("fiyat_tarihi")
+            for k in firma_kalemleri
+            if k.get("fiyat_tarihi") and k.get("durum") != "manuel"
+        ]
+        if kaynak_tarihleri:
+            try:
+                en_yeni = datetime.fromisoformat(
+                    str(max(kaynak_tarihleri))
+                ).date()
+                fiyat_yasi_gun = max(
+                    0, (now_istanbul().date() - en_yeni).days
+                )
+            except ValueError:
+                fiyat_yasi_gun = None
+
         sonuc.append(
             {
                 "firma_id": firma_id,
+                "fiyat_yasi_gun": fiyat_yasi_gun,
                 "baslik": firma.get(
                     "baslik",
                     firma_id,
@@ -8387,6 +8446,17 @@ body {
     letter-spacing: .02em;
 }
 
+.market-design .fc-stale {
+    display: block;
+    color: #b45309;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 800;
+}
+
 .market-design .fc-cta {
     display: flex;
     align-items: center;
@@ -8801,12 +8871,12 @@ Fabrika Fiyatları
 <div class="market-summary-card up">
 <div class="market-summary-label">Yükselen</div>
 <div id="summaryUpCount" class="market-summary-value">-</div>
-<div class="market-summary-sub">son 24 saatte</div>
+<div class="market-summary-sub">son değişime göre</div>
 </div>
 <div class="market-summary-card down">
 <div class="market-summary-label">Düşen</div>
 <div id="summaryDownCount" class="market-summary-value">-</div>
-<div class="market-summary-sub">son 24 saatte</div>
+<div class="market-summary-sub">son değişime göre</div>
 </div>
 <div class="market-summary-card update">
 <div class="market-summary-label">Son Güncelleme</div>
@@ -9679,7 +9749,7 @@ function marketToolsInit(result) {
                     '<div>' +
                         '<div class="text-[10px] uppercase tracking-[0.14em] font-black text-sky-700">Eski fiyatlarla karşılaştırma</div>' +
                         '<div class="text-sm sm:text-base font-black text-slate-900 mt-0.5">Fiyatı değişen fabrikalar</div>' +
-                        '<div class="text-[10px] font-bold text-slate-500 mt-0.5">Son 24 saatte: ' + upCount + ' ↑ · ' + downCount + ' ↓</div>' +
+                        '<div class="text-[10px] font-bold text-slate-500 mt-0.5">Kayıtlı / kaynağın yayınladığı önceki fiyata göre</div>' +
                     '</div>' +
                     '<div class="inline-flex items-center rounded-xl bg-white border border-sky-200 px-2.5 py-1.5 text-[10px] font-black text-sky-700">' +
                         allUpCount + ' ↑ · ' + allDownCount + ' ↓' +
@@ -10275,6 +10345,16 @@ async function fiyatlariGetir() {
                                     durumEtiketi(kalem.durum) +
                                 "</span>" +
 
+                                (
+                                    kalem.dun_fiyat !== null && kalem.dun_fiyat !== undefined
+                                        ? '<span class="text-[10px] font-bold ' +
+                                            (kalem.dun_fark > 0 ? 'text-emerald-600' : (kalem.dun_fark < 0 ? 'text-red-600' : 'text-slate-400')) +
+                                            '">Dün: ' + Number(kalem.dun_fiyat).toLocaleString("tr-TR") +
+                                            (kalem.dun_fark ? ' (' + (kalem.dun_fark > 0 ? '+' : '') + Number(kalem.dun_fark).toLocaleString("tr-TR") + ')' : ' · aynı') +
+                                          '</span>'
+                                        : ""
+                                ) +
+
                             "</div>" +
 
                         "</div>" +
@@ -10356,9 +10436,13 @@ async function fiyatlariGetir() {
                     "</span>" +
 
                     (
-                        item.son_24_saatte_guncellendi
-                            ? '<span class="fc-fresh">● 24 saat içinde güncellendi</span>'
-                            : ""
+                        item.fiyat_yasi_gun !== null && item.fiyat_yasi_gun !== undefined && item.fiyat_yasi_gun >= 2
+                            ? '<span class="fc-stale">⚠ ' + item.fiyat_yasi_gun + ' gün önceki fiyat</span>'
+                            : (
+                                item.son_24_saatte_guncellendi
+                                    ? '<span class="fc-fresh">● 24 saat içinde güncellendi</span>'
+                                    : ""
+                            )
                     ) +
 
                     '<span class="fc-cta">' +
