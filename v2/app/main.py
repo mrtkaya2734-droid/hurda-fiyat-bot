@@ -70,6 +70,12 @@ STALE_MINUTES = 1440
 
 security = HTTPBasic()
 
+if ADMIN_PASS == "hurda123":
+    print(
+        "UYARI: ADMIN_PASS ortam değişkeni tanımlı değil, "
+        "varsayılan admin şifresi kullanılıyor!"
+    )
+
 
 # =========================================================
 # PROJE ANA DİZİNİ
@@ -1326,14 +1332,15 @@ def verify_admin(
     ),
 ):
 
+    # compare_digest ASCII dışı str ile TypeError verir; bayt olarak karşılaştır.
     correct_username = secrets.compare_digest(
-        credentials.username,
-        ADMIN_USER,
+        credentials.username.encode("utf-8"),
+        ADMIN_USER.encode("utf-8"),
     )
 
     correct_password = secrets.compare_digest(
-        credentials.password,
-        ADMIN_PASS,
+        credentials.password.encode("utf-8"),
+        ADMIN_PASS.encode("utf-8"),
     )
 
     if not (
@@ -8269,7 +8276,7 @@ body {
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    padding: 20px;
+    padding: 16px;
     text-align: left;
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     border: 0;
@@ -8308,12 +8315,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 16px;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     background: linear-gradient(135deg, #0f172a, #1e3a8a);
     color: #fff;
-    font-size: 21px;
+    font-size: 17px;
     font-weight: 900;
     box-shadow: 0 6px 14px rgba(15, 23, 42, .18);
 }
@@ -8329,7 +8336,7 @@ body {
 .market-design .fc-title {
     display: block;
     color: #0f172a;
-    font-size: 19px;
+    font-size: 15px;
     font-weight: 900;
     line-height: 1.25;
     overflow-wrap: anywhere;
@@ -8338,7 +8345,7 @@ body {
 .market-design .fc-meta {
     display: block;
     color: #64748b;
-    font-size: 13px;
+    font-size: 10px;
     font-weight: 700;
 }
 
@@ -8353,9 +8360,9 @@ body {
 .market-design .fc-chip {
     display: inline-flex;
     align-items: center;
-    padding: 3px 10px;
+    padding: 2px 8px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 900;
     white-space: nowrap;
 }
@@ -8375,7 +8382,7 @@ body {
 .market-design .fc-fresh {
     display: block;
     color: #0369a1;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: .02em;
 }
@@ -8385,11 +8392,11 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 12px 14px;
-    border-radius: 14px;
+    padding: 9px 12px;
+    border-radius: 12px;
     background: #0f172a;
     color: #fff;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: .03em;
     transition: background .2s ease;
@@ -9655,7 +9662,7 @@ function marketToolsInit(result) {
 
             return '<div class="today-update-card rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">' +
                 '<button type="button" class="today-update-toggle w-full min-h-11 px-3 py-2.5 hover:bg-slate-50 transition flex items-center justify-between gap-2 text-left" aria-expanded="false">' +
-                    '<span class="text-[12px] sm:text-[13px] font-black text-slate-800 leading-5">' +
+                    '<span class="text-[11px] sm:text-[12px] font-black text-slate-800 leading-5">' +
                         escapeHtml(firma.baslik || firma.firma_id || "-") +
                     '</span>' +
                     '<span class="flex items-center gap-1.5 shrink-0">' + rozetler + '</span>' +
@@ -9678,7 +9685,7 @@ function marketToolsInit(result) {
                         allUpCount + ' ↑ · ' + allDownCount + ' ↓' +
                     '</div>' +
                 '</div>' +
-                '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">' + kartlar + '</div>' +
+                '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 items-start">' + kartlar + '</div>' +
             '</div>';
 
         todayUpdates
@@ -10238,7 +10245,7 @@ async function fiyatlariGetir() {
                     }
 
                     degisimHtml =
-                        '<span class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] ' +
+                        '<span class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] ' +
                         cls +
                         ' font-black whitespace-nowrap">' +
                             icon +
@@ -10248,19 +10255,19 @@ async function fiyatlariGetir() {
                 }
 
                 rows +=
-                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-4 sm:py-5">' +
+                    '<div class="factory-price-row border-b border-slate-100 last:border-0 py-3.5 sm:py-4">' +
 
                         '<div class="factory-price-name pr-2">' +
 
-                            '<div class="font-bold text-slate-800 text-base sm:text-[17px] leading-6 break-words">' +
+                            '<div class="font-bold text-slate-800 text-sm sm:text-[15px] leading-5 break-words">' +
                                 escapeHtml(kalem.cins) +
                             "</div>" +
 
                             '<div class="flex flex-wrap items-center gap-1.5 mt-1.5">' +
 
-                                '<span class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
+                                '<span class="text-[9px] uppercase tracking-wide text-slate-400 font-bold">Tarih</span>' +
 
-                                '<span class="text-[11px] font-bold text-slate-500">' +
+                                '<span class="text-[10px] font-bold text-slate-500">' +
                                     escapeHtml(kalem.fiyat_tarihi || "-") +
                                 "</span>" +
 
@@ -10272,9 +10279,9 @@ async function fiyatlariGetir() {
 
                         "</div>" +
 
-                        '<div class="factory-price-value text-right sm:min-w-[150px]">' +
+                        '<div class="factory-price-value text-right sm:min-w-[125px]">' +
 
-                            '<div class="font-black text-slate-950 text-xl sm:text-2xl leading-tight whitespace-nowrap">' +
+                            '<div class="font-black text-slate-950 text-lg sm:text-xl leading-tight whitespace-nowrap">' +
                                 escapeHtml(kalem.fiyat) +
                             "</div>" +
 
@@ -10371,7 +10378,7 @@ async function fiyatlariGetir() {
 
                             '<div>' +
                                 '<div class="text-[9px] uppercase tracking-[0.14em] font-black text-slate-400">Fiyatlar</div>' +
-                                '<div class="text-base font-black text-slate-800 mt-0.5">Güncel liste</div>' +
+                                '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
                             "</div>" +
 
                             '<div class="shrink-0">' +
