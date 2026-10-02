@@ -916,6 +916,17 @@ DEFAULT_ADS = {
 # YARDIMCI FONKSİYONLAR
 # =========================================================
 
+def site_base_url(request):
+    """Render TLS'i proxy'de sonlandırdığı için gerçek adres https olur."""
+    base = str(request.base_url).rstrip("/")
+    host = request.url.hostname or ""
+
+    if host not in ("localhost", "127.0.0.1") and base.startswith("http://"):
+        base = "https://" + base[len("http://"):]
+
+    return base
+
+
 def esc(value):
     return html_lib.escape(
         str(value or ""),
@@ -3393,9 +3404,7 @@ def robots_txt():
 def sitemap_xml(
     request: Request,
 ):
-    base = str(
-        request.base_url
-    ).rstrip("/")
+    base = site_base_url(request)
 
     return Response(
         content=(
@@ -7046,7 +7055,7 @@ def lme_fiyatlari():
     "/",
     response_class=HTMLResponse,
 )
-def read_root():
+def read_root(request: Request):
 
     ads = load_ads()
 
@@ -7080,6 +7089,20 @@ content="Güncel hurda ve demir çelik fiyatları."
 <meta property="og:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
 <meta property="og:description" content="Güncel hurda fiyatları, LME ve döviz verileri.">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="Hurda Fiyatları">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:url" content="__BASE_URL__/">
+<meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
+<meta property="og:image:alt" content="Hurda Fiyatları">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Hurda Fiyatları - Güncel Piyasa Takip">
+<meta name="twitter:description" content="Fabrika hurda alım fiyatları, LME ve döviz verileri tek ekranda.">
+<meta name="twitter:image" content="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
+<link rel="canonical" href="__BASE_URL__/">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"Hurda Fiyatları","url":"__BASE_URL__/","inLanguage":"tr-TR","description":"Fabrika hurda alım fiyatları, LME ve döviz verileri."}
+</script>
 
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -8925,6 +8948,27 @@ class="h-11 px-4 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-
 >
 🔔 Fiyat Alarmı
 </button>
+<button
+type="button"
+id="shareWhatsapp"
+class="h-11 px-4 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition"
+>
+💬 WhatsApp'ta Paylaş
+</button>
+<button
+type="button"
+id="exportCsv"
+class="h-11 px-4 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition"
+>
+⬇ Excel
+</button>
+<button
+type="button"
+id="exportPdf"
+class="h-11 px-4 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-black hover:bg-slate-50 transition"
+>
+🖨 PDF / Yazdır
+</button>
 </div>
 
 </div>
@@ -9604,11 +9648,131 @@ async function manuelFiyatSil(button) {
 }
 
 
+// ---------------------------------------------------------
+// Paylaş / indir araçları
+// ---------------------------------------------------------
+window.__hurdaVeri = { data: [], son_guncelleme: "" };
+
+function hurdaFiyatMetni(firma) {
+    const satirlar = (firma.kalemler || []).map(function(k) {
+        const fark = k.degisim ? " (" + k.degisim + ")" : "";
+        return "• " + k.cins + ": " + k.fiyat + fark;
+    });
+    return "*" + firma.baslik + "*" +
+        (firma.tarih && firma.tarih !== "-" ? " (" + firma.tarih + ")" : "") +
+        "\\n" + satirlar.join("\\n");
+}
+
+function hurdaPaylas(metin) {
+    const adres = window.location.origin;
+    const tam = metin + "\\n\\n" + adres;
+
+    if (navigator.share && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+        navigator.share({ title: "Güncel Hurda Fiyatları", text: tam }).catch(function() {});
+        return;
+    }
+
+    window.open("https://wa.me/?text=" + encodeURIComponent(tam), "_blank", "noopener");
+}
+
+function hurdaTumMetin() {
+    const v = window.__hurdaVeri;
+    return "*Güncel Hurda Fiyatları*" +
+        (v.son_guncelleme ? " — " + v.son_guncelleme : "") + "\\n\\n" +
+        (v.data || []).map(hurdaFiyatMetni).join("\\n\\n");
+}
+
+function hurdaCsvIndir() {
+    const v = window.__hurdaVeri;
+    const satir = function(a) {
+        return a.map(function(x) {
+            return '"' + String(x === null || x === undefined ? "" : x).replace(/"/g, '""') + '"';
+        }).join(";");
+    };
+    const rows = [satir(["Firma", "Kalem", "Fiyat (TL/ton)", "Değişim", "Dünkü fiyat", "Fiyat tarihi"])];
+
+    (v.data || []).forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            const sayi = k.manuel_fiyat !== null && k.manuel_fiyat !== undefined
+                ? k.manuel_fiyat : k.otomatik_fiyat;
+            rows.push(satir([f.baslik, k.cins, sayi, k.degisim || "", k.dun_fiyat, k.fiyat_tarihi || f.tarih || ""]));
+        });
+    });
+
+    const blob = new Blob(["\\ufeff" + rows.join("\\r\\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "hurda-fiyatlari-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function hurdaPdfYazdir() {
+    const v = window.__hurdaVeri;
+    const esc = function(x) {
+        return String(x === null || x === undefined ? "" : x)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    };
+
+    const bolumler = (v.data || []).map(function(f) {
+        const rows = (f.kalemler || []).map(function(k) {
+            return "<tr><td>" + esc(k.cins) + "</td><td class='r'>" + esc(k.fiyat) +
+                "</td><td class='r'>" + esc(k.degisim || "") + "</td></tr>";
+        }).join("");
+        return "<h2>" + esc(f.baslik) + " <small>" + esc(f.tarih || "") + "</small></h2>" +
+            "<table><tbody>" + rows + "</tbody></table>";
+    }).join("");
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write("<!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Güncel Hurda Fiyatları</title>" +
+        "<style>body{font-family:Arial,sans-serif;margin:24px;color:#0f172a}h1{font-size:20px;margin:0 0 4px}" +
+        "p{margin:0 0 16px;color:#475569;font-size:12px}h2{font-size:14px;margin:16px 0 6px;border-bottom:2px solid #0f172a;padding-bottom:3px}" +
+        "h2 small{color:#64748b;font-weight:400;font-size:11px}table{width:100%;border-collapse:collapse;font-size:12px}" +
+        "td{padding:4px 6px;border-bottom:1px solid #e2e8f0}.r{text-align:right;white-space:nowrap}" +
+        "h2,table{break-inside:avoid}</style></head><body><h1>Güncel Hurda Fiyatları</h1><p>" +
+        esc(v.son_guncelleme || "") + " · " + esc(window.location.origin) + "</p>" + bolumler + "</body></html>");
+    doc.close();
+
+    setTimeout(function() {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(function() { iframe.remove(); }, 2000);
+    }, 300);
+}
+
 function marketToolsInit(result) {
 
     const firmalar = Array.isArray(result.data)
         ? result.data
         : [];
+
+    window.__hurdaVeri = {
+        data: firmalar,
+        son_guncelleme: result.son_guncelleme || "",
+    };
+
+    const waBtn = document.getElementById("shareWhatsapp");
+    if (waBtn && waBtn.dataset.bound !== "1") {
+        waBtn.addEventListener("click", function() { hurdaPaylas(hurdaTumMetin()); });
+        waBtn.dataset.bound = "1";
+    }
+
+    const csvBtn = document.getElementById("exportCsv");
+    if (csvBtn && csvBtn.dataset.bound !== "1") {
+        csvBtn.addEventListener("click", hurdaCsvIndir);
+        csvBtn.dataset.bound = "1";
+    }
+
+    const pdfBtn = document.getElementById("exportPdf");
+    if (pdfBtn && pdfBtn.dataset.bound !== "1") {
+        pdfBtn.addEventListener("click", hurdaPdfYazdir);
+        pdfBtn.dataset.bound = "1";
+    }
 
     // Piyasa özeti mevcut /prices verisinden hesaplanır.
     // Yeni veri kaynağı veya backend değişikliği gerektirmez.
@@ -10465,7 +10629,8 @@ async function fiyatlariGetir() {
                                 '<div class="text-sm font-black text-slate-800 mt-0.5">Güncel liste</div>' +
                             "</div>" +
 
-                            '<div class="shrink-0">' +
+                            '<div class="shrink-0 flex items-center gap-1.5">' +
+                                '<button type="button" class="firma-wa inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 text-white px-2.5 py-1.5 text-[10px] font-black hover:bg-emerald-700 transition" data-firma="' + escapeHtml(item.firma_id) + '">💬 Paylaş</button>' +
                                 kaynakLink +
                             "</div>" +
 
@@ -10482,6 +10647,14 @@ async function fiyatlariGetir() {
             firmaListesi.appendChild(
                 wrapper
             );
+
+            const waFirma = wrapper.querySelector(".firma-wa");
+            if (waFirma) {
+                waFirma.addEventListener("click", function(e) {
+                    e.stopPropagation();
+                    hurdaPaylas(hurdaFiyatMetni(item));
+                });
+            }
 
             const toggle =
                 wrapper.querySelector(
@@ -10676,6 +10849,11 @@ if (
             "right_bottom"
         ],
     }
+
+    page = page.replace(
+        "__BASE_URL__",
+        esc(site_base_url(request)),
+    )
 
     for reklam_id, reklam in reklamlar.items():
 
