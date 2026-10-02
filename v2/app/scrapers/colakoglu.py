@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from app.models import FirmaSonuc, Kalem
 from app.scrapers.base import ScraperHatasi, fiyat_sayi, tarih_bul
-from app.storage import kalem_adi_temizle
+from app.storage import _tr_anahtar, kalem_adi_temizle
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -239,15 +239,19 @@ def _api_dene(url: str):
 
 
 def _sonuc(kalemler, tarih) -> FirmaSonuc:
+    # Aynı cins farklı yazımlarla ('1.GRUP' / '1. GRUP', 'TALAŞ' / 'Talas')
+    # gelebilir; ilk görülen ad ve fiyat korunur.
     tekil = {}
     for cins, fiyat in kalemler:
-        tekil[cins] = fiyat
+        anahtar = re.sub(r"[\W_]+", "", _tr_anahtar(cins))
+        if anahtar and anahtar not in tekil:
+            tekil[anahtar] = (cins, fiyat)
     return FirmaSonuc(
         ID,
         BASLIK,
         URL,
         tarih,
-        [Kalem(cins=c, fiyat=f) for c, f in tekil.items()][:100],
+        [Kalem(cins=c, fiyat=f) for c, f in tekil.values()][:100],
     )
 
 

@@ -1138,6 +1138,52 @@ def kalem_adi_temizle(deger):
     return metin.strip()
 
 
+def _yazim_anahtari(ad):
+    """Boşluk, noktalama, harf boyu ve Türkçe karakter farkını yok sayar."""
+    return re.sub(r"[\W_]+", "", _tr_anahtar(ad))
+
+
+def colakoglu_yazimlarini_birlestir(data):
+    """
+    Çolakoğlu'nda aynı cinsin farklı yazımlarını ('1.GRUP' / '1. GRUP',
+    'TALAŞ' / 'Talas') ilk görülen ada çevirir; sonrasını veriyi_duzelt birleştirir.
+    """
+    firma = "colakoglu"
+    kanonik = {}
+    degisti = False
+
+    def ad_bul(ad):
+        nonlocal degisti
+        temiz = kalem_adi_temizle(ad) or ad
+        anahtar = _yazim_anahtari(temiz)
+        if not anahtar:
+            return ad
+        hedef = kanonik.setdefault(anahtar, temiz)
+        if hedef != ad:
+            degisti = True
+        return hedef
+
+    kalemler = (data.get("prices") or {}).get(firma)
+    if kalemler:
+        data["prices"][firma] = {}
+        for ad, bilgi in kalemler.items():
+            hedef = ad_bul(ad)
+            mevcut = data["prices"][firma].get(hedef)
+            if mevcut and str(mevcut.get("guncelleme", "")) > str(bilgi.get("guncelleme", "")):
+                continue
+            data["prices"][firma][hedef] = bilgi
+
+    for h in data.get("history") or []:
+        if str(h.get("firma_id", "")).strip().casefold() == firma:
+            h["kalem"] = ad_bul(h.get("kalem"))
+
+    gizli = (data.get("gizlenen_kalemler") or {}).get(firma)
+    if gizli:
+        data["gizlenen_kalemler"][firma] = [ad_bul(x) for x in gizli]
+
+    return degisti
+
+
 def veriyi_duzelt(data):
     """
     Mevcut kayıtları temizler (idempotent). Değişiklik olduysa True döner.
@@ -1145,7 +1191,7 @@ def veriyi_duzelt(data):
     - Kalem adlarındaki tekrarları birleştirir (fiyat + geçmiş + gizli liste).
     - Geçmişte aynı fiyatın art arda tekrarlarını tek kayda indirir.
     """
-    degisti = False
+    degisti = colakoglu_yazimlarini_birlestir(data)
 
     prices = data.get("prices", {})
     for firma_id, kalemler in list(prices.items()):
