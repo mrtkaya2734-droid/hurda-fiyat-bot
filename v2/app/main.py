@@ -954,11 +954,26 @@ def lme_gecmisi_doldurmayi_baslat():
     ).start()
 
 
-def lme_grafik_aktif_mi():
+LME_GRAFIK_MODLARI = {
+    "acik": "Açık gelsin",
+    "kapali": "Kapalı gelsin (düğmeyle açılır)",
+    "pasif": "Pasif (ana sayfada gizli)",
+}
+
+
+def lme_grafik_modu():
+    """'acik' (varsayılan) | 'kapali' | 'pasif'. Eski aktif/pasif ayarıyla uyumlu."""
     ayarlar = load_data().get("ayarlar")
     if not isinstance(ayarlar, dict):
-        return True
-    return ayarlar.get("lme_grafik_aktif", True) is not False
+        return "acik"
+    mod = ayarlar.get("lme_grafik_mod")
+    if mod in LME_GRAFIK_MODLARI:
+        return mod
+    return "pasif" if ayarlar.get("lme_grafik_aktif", True) is False else "acik"
+
+
+def lme_grafik_aktif_mi():
+    return lme_grafik_modu() != "pasif"
 
 
 def lme_gecmisi_oku(gun_sayisi=180):
@@ -4683,18 +4698,20 @@ def admin_degisim_tani(
 
 
 @app.post("/admin/lme-grafik")
-async def admin_lme_grafik(username: str = Depends(verify_admin)):
+async def admin_lme_grafik(
+    mod: str = Form(""),
+    username: str = Depends(verify_admin),
+):
+    if mod not in LME_GRAFIK_MODLARI:
+        return RedirectResponse("/admin", status_code=303)
     data = load_data()
     ayarlar = data.get("ayarlar")
     if not isinstance(ayarlar, dict):
         ayarlar = data["ayarlar"] = {}
-    yeni = not lme_grafik_aktif_mi()
-    ayarlar["lme_grafik_aktif"] = yeni
+    ayarlar["lme_grafik_mod"] = mod
+    ayarlar["lme_grafik_aktif"] = mod != "pasif"
     save_data(data)
-    return RedirectResponse(
-        "/admin?m=" + ("lme_grafik_acik" if yeni else "lme_grafik_kapali"),
-        status_code=303,
-    )
+    return RedirectResponse(f"/admin?m=lme_grafik_{mod}", status_code=303)
 
 
 @app.post("/admin/yedek-al")
@@ -6603,8 +6620,9 @@ def admin_panel(
         "calisiyor": "Güncelleme zaten çalışıyor, bitmesini bekleyin.",
         "sifre": "Şifre değiştirildi.",
         "yedek": "Yeni yedek alındı (yerel + Supabase).",
-        "lme_grafik_acik": "LME grafik alanı aktif edildi.",
-        "lme_grafik_kapali": "LME grafik alanı pasif edildi; ana sayfada gizlenir.",
+        "lme_grafik_acik": "LME grafiği: açık gelecek şekilde ayarlandı.",
+        "lme_grafik_kapali": "LME grafiği: kapalı gelecek, düğmeyle açılacak.",
+        "lme_grafik_pasif": "LME grafiği pasif edildi; ana sayfada gizlenir.",
     }
     banner_html = (
         '<div class="mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bold p-3">'
@@ -7952,9 +7970,13 @@ Manuel
 <a href="/admin/yedek-indir" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 ⬇ Yedeği indir
 </a>
-<form method="post" action="/admin/lme-grafik">
-<button type="submit" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
-{'📈 LME grafiği: AKTİF (kapat)' if lme_grafik_aktif_mi() else '📉 LME grafiği: PASİF (aç)'}
+<form method="post" action="/admin/lme-grafik" class="flex items-center gap-1.5">
+<label for="lmeGrafikMod" class="text-xs font-black text-slate-700">📈 LME grafiği</label>
+<select id="lmeGrafikMod" name="mod" class="text-xs border border-slate-300 rounded-xl px-2 py-2 font-bold bg-white">
+{''.join(f'<option value="{k}"' + (' selected' if k == lme_grafik_modu() else '') + f'>{v}</option>' for k, v in LME_GRAFIK_MODLARI.items())}
+</select>
+<button type="submit" class="text-xs bg-slate-900 hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-black transition">
+Kaydet
 </button>
 </form>
 <a href="/admin/degisim-tani" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
@@ -8478,6 +8500,7 @@ def lme_fiyatlari():
             "veriler": sonuc["veriler"],
             "gecmis": lme_gecmisi_oku(),
             "grafik_aktif": lme_grafik_aktif_mi(),
+            "grafik_mod": lme_grafik_modu(),
         }
 
     except Exception as exc:
@@ -11660,17 +11683,23 @@ function lmeGrafikToggleBagla() {
     dugme.dataset.bound = "1";
     dugme.addEventListener("click", function() {
         const kutu = document.getElementById("lmeChartBox");
-        const bolum = document.getElementById("lmeSplit");
-        if (!kutu || !bolum) return;
-        const aciliyor = kutu.classList.contains("lme-kapali");
-        kutu.classList.toggle("lme-kapali", !aciliyor);
-        bolum.classList.toggle("lme-acik", aciliyor);
-        dugme.setAttribute("aria-pressed", String(aciliyor));
-        // Açılışta gerçek genişliğe göre yeniden çiz.
-        if (aciliyor && window.__lmeSon) {
-            try { lmeGrafikCiz(window.__lmeSon); } catch (hata) { console.error("LME grafik:", hata); }
-        }
+        if (!kutu) return;
+        lmeGrafikAc(kutu.classList.contains("lme-kapali"));
     });
+}
+
+function lmeGrafikAc(ac) {
+    const kutu = document.getElementById("lmeChartBox");
+    const bolum = document.getElementById("lmeSplit");
+    const dugme = document.getElementById("lmeGrafikToggle");
+    if (!kutu || !bolum) return;
+    kutu.classList.toggle("lme-kapali", !ac);
+    bolum.classList.toggle("lme-acik", ac);
+    if (dugme) dugme.setAttribute("aria-pressed", String(ac));
+    // Açılışta gerçek genişliğe göre yeniden çiz.
+    if (ac && window.__lmeSon) {
+        try { lmeGrafikCiz(window.__lmeSon); } catch (hata) { console.error("LME grafik:", hata); }
+    }
 }
 
 function lmeGrafikCiz(result) {
@@ -11682,6 +11711,16 @@ function lmeGrafikCiz(result) {
     if (dugme) dugme.classList.toggle("lme-pasif", pasif);
     lmeGrafikToggleBagla();
     if (pasif) return;
+
+    // Admin "açık gelsin" dediyse sayfa ilk yüklendiğinde bir kez açılır;
+    // sonraki yenilemelerde ziyaretçinin kapatması bozulmaz.
+    if (!window.__lmeIlkAcilisYapildi) {
+        window.__lmeIlkAcilisYapildi = true;
+        if (result.grafik_mod === "acik") {
+            lmeGrafikAc(true);
+            return;
+        }
+    }
     const veriler = Array.isArray(result.veriler) ? result.veriler : [];
     const gecmis = result.gecmis || {};
     const sekmeler = document.getElementById("lmeMetalTabs");
