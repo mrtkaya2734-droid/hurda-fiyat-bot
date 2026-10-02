@@ -2,6 +2,7 @@ from functools import partial
 
 from app.scrapers import (
     asil,
+    colakoglu as colakoglu_modul,
     diler,
     erdemir,
     hascelik,
@@ -11,17 +12,9 @@ from app.scrapers import (
 from app.scrapers.generic import cek_url
 
 
-COLAKOGLU_URL = "https://www.hammaddepiyasasi.com/fabrika/colakoglu"
 EKINCILER_URL = "https://www.hammaddepiyasasi.com/fabrika/ekinciler"
 CANSAN_URL = "https://www.hammaddepiyasasi.com/fabrika/cansan"
 
-
-colakoglu = partial(
-    cek_url,
-    "colakoglu",
-    "Çolakoğlu Metalurji",
-    COLAKOGLU_URL,
-)
 
 ekinciler = partial(
     cek_url,
@@ -39,7 +32,7 @@ cansan = partial(
 
 
 TUMU = [
-    ("colakoglu", colakoglu),
+    ("colakoglu", colakoglu_modul.cek),
     ("ekinciler", ekinciler),
     ("cansan", cansan),
     ("erdemir", erdemir.erdemir),

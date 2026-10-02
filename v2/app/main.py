@@ -38,6 +38,7 @@ from app.storage import (
     now_string,
     firma_sil,
     fiyat_kaydet,
+    fiyatlari_toplu_kaydet,
     manuel_fiyat_kaydet,
     manuel_fiyat_sil,
     bildirim_ekle,
@@ -1858,6 +1859,9 @@ def firma_verisini_cek(
         )
     }
 
+    kaydedilecek = []
+    gorunen = []
+
     for kalem in sonuc.kalemler:
 
         kalem_anahtari = (
@@ -1869,38 +1873,38 @@ def firma_verisini_cek(
         if kalem_anahtari in gizlenen_kalemler:
             continue
 
+        kaydedilecek.append(
+            (kalem.cins, kalem.fiyat)
+        )
+        gorunen.append(kalem)
+
+    # Tüm kalemler tek load/save ile yazılır; geçmişe yalnızca
+    # gerçekten değişen fiyatlar eklenir.
+    onceki_fiyatlar = fiyatlari_toplu_kaydet(
+        sonuc.firma_id,
+        kaydedilecek,
+        fiyat_tarihi,
+    )
+
+    for kalem in gorunen:
+
+        eski = (
+            kalem.eski_fiyat
+            if kalem.eski_fiyat is not None
+            else onceki_fiyatlar.get(kalem.cins)
+        )
+
         degisim = ""
 
-        if kalem.eski_fiyat is not None:
+        if eski is not None:
 
-            fark = (
-                kalem.fiyat
-                - kalem.eski_fiyat
-            )
+            fark = kalem.fiyat - eski
 
             if fark > 0:
-
-                degisim = (
-                    "+"
-                    + f"{fark:,}".replace(
-                        ",",
-                        ".",
-                    )
-                    + " TL"
-                )
-
+                degisim = "+" + f"{fark:,}".replace(",", ".") + " TL"
             elif fark < 0:
-
-                degisim = (
-                    f"{fark:,}".replace(
-                        ",",
-                        ".",
-                    )
-                    + " TL"
-                )
-
+                degisim = f"{fark:,}".replace(",", ".") + " TL"
             else:
-
                 degisim = "0 TL"
 
         kalemler.append(
@@ -1911,20 +1915,6 @@ def firma_verisini_cek(
                 ),
                 "degisim": degisim,
             }
-        )
-
-        fiyat_kaydet(
-            firma_id=sonuc.firma_id,
-            kalem=kalem.cins,
-            otomatik_fiyat=kalem.fiyat,
-            fiyat_tarihi=fiyat_tarihi,
-        )
-
-        gecmis_ekle(
-            firma_id=sonuc.firma_id,
-            kalem=kalem.cins,
-            fiyat=kalem.fiyat,
-            fiyat_tarihi=fiyat_tarihi,
         )
 
     data = load_data()
@@ -2354,11 +2344,9 @@ def fiyat_verilerini_olustur():
             firma
         )
 
-        # Ana sayfada kayıtlı fiyatı bulunan firmalar "GÜNCEL" olarak
-        # gösterilir. Bu yalnızca ekrandaki etiketi değiştirir;
-        # fiyatın kendisi, son başarılı çekim tarihi ve otomatik
-        # güncelleme mekanizması değiştirilmez.
-        if fiyatlar:
+        # Manuel yönetilen firmalar bayat sayılmaz; otomatik firmalar
+        # son başarılı çekimden bu yana STALE_MINUTES geçtiyse bayat gösterilir.
+        if not firma.get("otomatik", True):
             stale = False
 
         firma_kalemleri = []
@@ -2456,7 +2444,10 @@ def fiyat_verilerini_olustur():
                     "otomatik_fiyat": otomatik,
                     "manuel_fiyat": manuel,
                     "fiyat_tarihi": (
-                        now_istanbul().strftime("%Y-%m-%d")
+                        (
+                            str(bilgi.get("guncelleme") or "")[:10]
+                            or now_istanbul().strftime("%Y-%m-%d")
+                        )
                         if manuel is not None
                         else (
                             bilgi.get(
@@ -2618,6 +2609,43 @@ def kaynak_migrasyonunu_uygula():
     save_data(data)
 
 
+def colakoglu_kaynagini_duzelt():
+    """
+    Çolakoğlu'nun resmi sayfadan otomatik çekilmesini garanti eder.
+    Firma kaydı yoksa oluşturur; manuel/pasif kalmışsa otomatiğe alır.
+    Tek seferliktir (bayrak ile).
+    """
+    data = load_data()
+
+    if data.get("colakoglu_otomatik_20261002"):
+        return
+
+    firms = data.setdefault("firms", {})
+    firma = firms.get("colakoglu")
+
+    if not firma:
+        firma = {
+            "firma_id": "colakoglu",
+            "baslik": "Çolakoğlu Metalurji",
+            "sira": len(firms),
+            "son_basarili_cekme": None,
+            "kaynak_fiyat_tarihi": None,
+        }
+        firms["colakoglu"] = firma
+
+    firma["url"] = "https://www.colakoglu.com.tr/hurda"
+    firma["otomatik"] = True
+    firma["aktif"] = True
+    firma["durum"] = "bekliyor"
+
+    silinen = data.get("silinen_firmalar")
+    if isinstance(silinen, list) and "colakoglu" in silinen:
+        silinen.remove("colakoglu")
+
+    data["colakoglu_otomatik_20261002"] = True
+    save_data(data)
+
+
 # Otomatik fiyat çekimi aktiftir.
 # AUTO_UPDATE_ENABLED=0 verilirse tamamen kapatılabilir.
 # Mevcut manuel fiyatlar fiyat_kaydet() tarafından korunur.
@@ -2637,6 +2665,7 @@ async def lifespan(app):
 
     # Kaynak değişikliklerini canlı kalıcı veriye deploy sırasında bir kez uygula.
     kaynak_migrasyonunu_uygula()
+    colakoglu_kaynagini_duzelt()
 
     if AUTO_UPDATE_ENABLED:
         print(
@@ -6212,7 +6241,7 @@ body {{
     overflow-wrap: anywhere !important;
 }}
 
-.market-design .factory-price-grid .factory-card-change {
+.market-design .factory-price-grid .factory-card-change {{
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -6222,19 +6251,19 @@ body {{
     font-size: 9px !important;
     font-weight: 900 !important;
     white-space: nowrap !important;
-}
+}}
 
-.market-design .factory-price-grid .factory-card-change-up {
+.market-design .factory-price-grid .factory-card-change-up {{
     color: #047857 !important;
     background: #ecfdf5 !important;
     border: 1px solid #a7f3d0 !important;
-}
+}}
 
-.market-design .factory-price-grid .factory-card-change-down {
+.market-design .factory-price-grid .factory-card-change-down {{
     color: #b91c1c !important;
     background: #fef2f2 !important;
     border: 1px solid #fecaca !important;
-}
+}}
 
 .market-design .factory-price-grid .factory-card-actions {{
     display: flex !important;

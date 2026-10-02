@@ -893,6 +893,80 @@ def fiyat_kaydet(
     return data["prices"][firma_id][kalem]
 
 
+def fiyatlari_toplu_kaydet(
+    firma_id,
+    kalemler,
+    fiyat_tarihi=None,
+):
+    """
+    Bir firmanın otomatik fiyatlarını tek load/save ile kaydeder.
+
+    kalemler: [(cins, fiyat), ...]
+    Geçmişe yalnızca fiyat gerçekten değiştiğinde (veya ilk kez) kayıt
+    eklenir. Dönüş: {cins: onceki_fiyat_veya_None} (yalnız değişenler).
+    """
+    firma_id_gelen = str(firma_id or "").strip()
+    data = load_data()
+
+    prices = data.setdefault("prices", {})
+    history = data.setdefault("history", [])
+
+    firma_id = next(
+        (
+            mevcut_id
+            for mevcut_id in prices
+            if str(mevcut_id).strip().casefold()
+            == firma_id_gelen.casefold()
+        ),
+        firma_id_normalize(firma_id_gelen),
+    )
+
+    firma_fiyatlari = prices.setdefault(firma_id, {})
+
+    # Her kalemin geçmişteki son fiyatını tek geçişte bul.
+    son_gecmis = {}
+    for item in history:
+        if str(item.get("firma_id", "")).strip().casefold() != firma_id_gelen.casefold():
+            continue
+        son_gecmis[item.get("kalem")] = item.get("fiyat")
+
+    simdi = now_string()
+    degisenler = {}
+
+    for kalem, fiyat in kalemler:
+        mevcut = firma_fiyatlari.get(kalem, {})
+        onceki = mevcut.get("otomatik_fiyat")
+
+        firma_fiyatlari[kalem] = {
+            "otomatik_fiyat": fiyat,
+            "manuel_fiyat": mevcut.get("manuel_fiyat"),
+            "fiyat_tarihi": (
+                fiyat_tarihi
+                if fiyat_tarihi is not None
+                else mevcut.get("fiyat_tarihi")
+            ),
+            "guncelleme": simdi,
+        }
+
+        if kalem not in son_gecmis or son_gecmis[kalem] != fiyat:
+            history.append(
+                {
+                    "firma_id": firma_id_gelen,
+                    "kalem": kalem,
+                    "fiyat": fiyat,
+                    "fiyat_tarihi": fiyat_tarihi,
+                    "tarih": simdi,
+                }
+            )
+
+        if onceki is not None and onceki != fiyat:
+            degisenler[kalem] = onceki
+
+    save_data(data)
+
+    return degisenler
+
+
 # =========================================================
 # FİYAT GETİR
 # =========================================================
