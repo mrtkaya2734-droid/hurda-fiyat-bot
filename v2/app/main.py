@@ -123,6 +123,88 @@ os.makedirs(
 
 _ADS_SUPABASE_SYNCED = False
 
+# Reklam görselleri sayfa başına en büyük bant genişliği kalemi olduğundan
+# gösterim boyutuna yakın (en fazla 700 px) tutulur.
+ADS_GORSEL_MAX_GENISLIK = 700
+ADS_GORSEL_HEDEF_BAYT = 60_000
+
+
+def reklam_gorselini_kucult(yol):
+    """Büyük reklam görselini yerinde küçültür. Değiştirdiyse True döner."""
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return False
+
+    gecici = yol + ".opt"
+
+    try:
+        boyut = os.path.getsize(yol)
+
+        with Image.open(yol) as acik:
+            genislik, yukseklik = acik.size
+
+            if (
+                genislik <= ADS_GORSEL_MAX_GENISLIK
+                and boyut <= ADS_GORSEL_HEDEF_BAYT
+            ):
+                return False
+
+            bicim = (acik.format or "").upper()
+            im = ImageOps.exif_transpose(acik)
+
+            if genislik > ADS_GORSEL_MAX_GENISLIK:
+                im = im.resize(
+                    (
+                        ADS_GORSEL_MAX_GENISLIK,
+                        max(1, round(yukseklik * ADS_GORSEL_MAX_GENISLIK / genislik)),
+                    ),
+                    Image.LANCZOS,
+                )
+
+            if bicim == "PNG":
+                im.save(gecici, "PNG", optimize=True)
+            elif bicim == "WEBP":
+                im.save(gecici, "WEBP", quality=82)
+            else:
+                im.convert("RGB").save(
+                    gecici, "JPEG", quality=82, optimize=True, progressive=True
+                )
+
+        if os.path.getsize(gecici) < boyut:
+            os.replace(gecici, yol)
+            return True
+
+        os.remove(gecici)
+        return False
+
+    except Exception as exc:
+        print(f"REKLAM GÖRSELİ KÜÇÜLTME HATASI: {type(exc).__name__}: {exc}")
+        try:
+            if os.path.exists(gecici):
+                os.remove(gecici)
+        except OSError:
+            pass
+        return False
+
+
+def reklam_gorsellerini_optimize_et(reklamlar):
+    """Açılışta mevcut büyük görselleri bir kez küçültüp kalıcı depoya geri yükler."""
+    for item in (reklamlar or {}).values():
+        image_url = str(
+            item.get("image_url", "") if isinstance(item, dict) else ""
+        ).strip()
+
+        if not image_url.startswith("/static/ads/"):
+            continue
+
+        dosya = os.path.basename(image_url)
+        yol = os.path.join(ADS_UPLOAD_DIR, dosya)
+
+        if os.path.exists(yol) and reklam_gorselini_kucult(yol):
+            print(f"Reklam görseli küçültüldü: {dosya}")
+            supabase_storage_upload(yol, f"ads/{dosya}")
+
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 
@@ -3102,7 +3184,10 @@ AUTO_UPDATE_ENABLED = (
 @asynccontextmanager
 async def lifespan(app):
 
-    load_ads()
+    try:
+        reklam_gorsellerini_optimize_et(load_ads())
+    except Exception as exc:
+        print(f"REKLAM OPTİMİZASYON HATASI: {type(exc).__name__}: {exc}")
 
     # Kaynak değişikliklerini canlı kalıcı veriye deploy sırasında bir kez uygula.
     kaynak_migrasyonunu_uygula()
@@ -8422,6 +8507,8 @@ async def update_ads(
                     upload_file,
                     buffer,
                 )
+
+            reklam_gorselini_kucult(file_path)
 
             image_url = (
                 f"/static/ads/{unique_name}"
