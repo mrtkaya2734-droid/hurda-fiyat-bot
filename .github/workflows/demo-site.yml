@@ -56,6 +56,10 @@ jobs:
         env:
           DATA_FILE: ${{ runner.temp }}/veri/data.json
           STATIK_GUNCELLE: "1"
+          # İsteğe bağlı: tanımlanırsa canlı veri Supabase'ten SALT OKUNUR alınır.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET || 'hurda-data' }}
           STATIK_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python scripts/statik_site_olustur.py site
 

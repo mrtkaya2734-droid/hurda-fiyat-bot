@@ -40,6 +40,31 @@ sys.path.insert(0, str(V2))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import main as uygulama  # noqa: E402
+from app import storage as depolama  # noqa: E402
+
+
+def supabase_sadece_okuma():
+    """
+    Supabase bilgileri verildiyse güncel veri oradan okunur (admin'den eklenen
+    firmalar, ayarlar, reklamlar). Demo canlı veriyi bozmasın diye yükleme,
+    yedekleme ve silme işlemleri kapatılır.
+    """
+    if not os.getenv("SUPABASE_URL", "").strip():
+        return False
+
+    def yazma_yok(*args, **kwargs):
+        return False
+
+    for ad in ("supabase_storage_upload", "supabase_upload_json", "supabase_nesne_sil"):
+        for modul in (depolama, uygulama):
+            if hasattr(modul, ad):
+                setattr(modul, ad, yazma_yok)
+
+    print("Supabase salt okunur modda: veri okunacak, geri yazılmayacak.")
+    return True
+
+
+SUPABASE_OKUNUYOR = supabase_sadece_okuma()
 
 
 def anahtar(metin):
