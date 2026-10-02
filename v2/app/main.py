@@ -2648,7 +2648,7 @@ async def lifespan(app):
         scheduler.add_job(
             verileri_guncelle,
             "interval",
-            minutes=1,
+            minutes=15,
             id="fiyat_guncelleme",
             replace_existing=True,
             max_instances=1,
@@ -2676,6 +2676,31 @@ app = FastAPI(
     title="Hurda Fiyatları",
     lifespan=lifespan,
 )
+
+
+# UptimeRobot gibi izleme servisleri HEAD isteği gönderir.
+# HEAD isteklerini GET gibi işleyip gövdesiz yanıt döndürür (405 yerine 200).
+class HeadAsGetMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["method"] == "HEAD":
+            scope = dict(scope)
+            scope["method"] = "GET"
+
+            async def send_without_body(message):
+                if message["type"] == "http.response.body":
+                    message = {**message, "body": b""}
+                await send(message)
+
+            await self.app(scope, receive, send_without_body)
+            return
+
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(HeadAsGetMiddleware)
 
 
 # =========================================================
