@@ -1062,47 +1062,78 @@ _FIYAT_GECMISI = re.compile(
 )
 
 
+_KATLA = str.maketrans("şŞçÇğĞöÖüÜıİIâÂîÎûÛ", "ssccggoouuiiiaaiiuu")
+_KENAR = " ,;:/|•·–—-()[]\"'"
+_GECMIS_EKLERI = (
+    ("hurda", "fiyat", "gecmisi"),
+    ("hurda", "fiyati", "gecmisi"),
+    ("fiyat", "gecmisi"),
+    ("fiyati", "gecmisi"),
+)
+
+
 def _tr_anahtar(metin):
-    """Türkçe büyük/küçük harf farkını yok sayan karşılaştırma anahtarı."""
-    return (
-        str(metin or "")
-        .replace("İ", "i")
-        .replace("I", "ı")
-        .lower()
-    )
+    """Büyük/küçük harf ve Türkçe karakter farkını yok sayan karşılaştırma anahtarı."""
+    return str(metin or "").translate(_KATLA).lower()
+
+
+def _jeton_anahtari(jeton):
+    return _tr_anahtar(jeton).strip(_KENAR)
 
 
 def kalem_adi_temizle(deger):
     """
     Kalem adını tek biçime getirir.
 
-    'Talaş Talaş', 'TALAŞ Talaş', 'TalaşTalaş', 'Talaş\u200b Talaş' ve
-    'Talaş Talaş Hurda Fiyat geçmişi' gibi tekrarlı adlar 'Talaş' olur.
+    Tekrarlar şu biçimlerde de yakalanır: 'Talaş Talaş', 'TALAŞ Talaş',
+    'Talaş Talas', 'Talaş, Talaş', 'Talaş - Talaş', 'TalaşTalaş',
+    'Talaş Talaş Hurda' ve 'Talaş Talaş Hurda Fiyat geçmişi' -> 'Talaş'.
+    Tekrar yoksa ad yalnızca boşluk/görünmez karakter açısından düzeltilir.
     """
     metin = unicodedata.normalize("NFKC", str(deger or ""))
     metin = _GORUNMEZ.sub("", metin)
     metin = " ".join(metin.split())
     metin = _FIYAT_GECMISI.sub("", metin).strip()
 
-    # Kelime düzeyinde tekrar: "Talaş Talaş", "1. Grup 1. Grup" ...
-    kelimeler = metin.split(" ")
-    n = len(kelimeler)
+    cift = [(j, _jeton_anahtari(j)) for j in metin.split(" ")]
+    cift = [c for c in cift if c[1]]
 
-    for k in range(1, n // 2 + 1):
-        if n % k:
-            continue
-        ilk = _tr_anahtar(" ".join(kelimeler[:k]))
-        if all(
-            _tr_anahtar(" ".join(kelimeler[i:i + k])) == ilk
-            for i in range(k, n, k)
-        ):
-            metin = " ".join(kelimeler[:k])
+    # Sondaki "Hurda Fiyat geçmişi" gibi site ekleri.
+    eki_kirpildi = False
+    for ek in _GECMIS_EKLERI:
+        n = len(ek)
+        if len(cift) > n and tuple(c[1] for c in cift[-n:]) == ek:
+            cift = cift[:-n]
+            eki_kirpildi = True
             break
 
+    # Ardışık tekrar eden kelime dizilerini (her yerde) tek kez bırak.
+    tekrar_var = False
+    while True:
+        n = len(cift)
+        bulundu = False
+        for k in range(n // 2, 0, -1):
+            for i in range(0, n - 2 * k + 1):
+                if [c[1] for c in cift[i:i + k]] == [c[1] for c in cift[i + k:i + 2 * k]]:
+                    del cift[i + k:i + 2 * k]
+                    bulundu = tekrar_var = True
+                    break
+            if bulundu:
+                break
+        if not bulundu:
+            break
+
+    if tekrar_var:
+        metin = " ".join(j for j, _ in cift).strip(_KENAR)
+    elif eki_kirpildi:
+        # Yalnızca site eki kırpıldı.
+        metin = " ".join(j for j, _ in cift).strip()
+
     # Bitişik tekrar: "TalaşTalaş"
-    eslesme = re.fullmatch(r"(.{3,}?)\1", metin, flags=re.IGNORECASE)
+    kati = _tr_anahtar(metin)
+    eslesme = re.fullmatch(r"(.{3,}?)\1", kati)
     if eslesme:
-        metin = eslesme.group(1)
+        metin = metin[: len(eslesme.group(1))]
 
     return metin.strip()
 

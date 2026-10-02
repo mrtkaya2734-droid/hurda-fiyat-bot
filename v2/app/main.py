@@ -1859,6 +1859,11 @@ def firma_verisini_cek(
         )
         gorunen.append(kalem)
 
+    print(
+        f"KALEMLER [{sonuc.firma_id}]: "
+        + ", ".join(ascii(k.cins) for k in sonuc.kalemler)
+    )
+
     # Tüm kalemler tek load/save ile yazılır; geçmişe yalnızca
     # gerçekten değişen fiyatlar eklenir.
     onceki_fiyatlar = fiyatlari_toplu_kaydet(
