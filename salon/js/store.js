@@ -67,8 +67,10 @@
 
   function defaults() {
     return {
-      v: 2,
+      v: 3,
       admin: null, // ilk açılışta kurulum ekranında belirlenir
+      ayar: { acilis: 9, kapanis: 21 },
+      musteriler: [],
       personeller: [
         { id: 'p1', ad: 'Gül Aksu', uzmanlik: 'Kurucu & Baş Uzman', maas: 25000, prim: 15, cred: null, aktif: true },
         { id: 'p2', ad: 'Sena Yıldız', uzmanlik: 'Cilt Bakım Uzmanı', maas: 18000, prim: 10, cred: null, aktif: true },
@@ -79,22 +81,54 @@
     };
   }
 
+  function normTel(t) { return String(t || '').replace(/\D/g, ''); }
+  function musteriBul(d, ad, tel, olustur) {
+    ad = String(ad || '').trim(); var n = normTel(tel), m;
+    if (n) m = d.musteriler.filter(function (x) { return normTel(x.telefon) === n; })[0];
+    if (!m && ad) m = d.musteriler.filter(function (x) { return x.ad.toLowerCase() === ad.toLowerCase(); })[0];
+    if (m) { if (n && !m.telefon) m.telefon = String(tel).trim(); return m.id; }
+    if (olustur === false || !ad) return null;
+    m = { id: uid(), ad: ad.slice(0, 80), telefon: String(tel || '').trim().slice(0, 30), not: '', olusturma: ymd(new Date()) };
+    d.musteriler.push(m); return m.id;
+  }
+
   function demoData(data) {
-    var today = new Date(); var d = ymd(today);
-    function iso(day, hm) { return day + 'T' + hm; }
-    data.islemler = [
-      { id: uid(), musteri: 'Ayşe Yılmaz', telefon: '', hizmet: 'Cilt Bakımı · Medikal Cilt Bakımı', personelId: 'p1', giren: 'Yönetici', kaynak: 'Panel', baslangic: iso(d, '10:00'), bitis: iso(d, '11:15'), tutar: 2200, bahsis: 100, odeme: 'Kredi Kartı', durum: 'Onaylı' },
-      { id: uid(), musteri: 'Fatma Demir', telefon: '', hizmet: 'Kaş & Kirpik · Kirpik Lifting', personelId: 'p2', giren: 'Sena Yıldız', kaynak: 'Panel', baslangic: iso(d, '13:00'), bitis: iso(d, '14:00'), tutar: 1500, bahsis: 0, odeme: 'Nakit', durum: 'Bekliyor' },
-      { id: uid(), musteri: 'Zeynep Kaya', telefon: '0555 000 00 00', hizmet: 'Tırnak · Protez Tırnak', personelId: 'p3', giren: 'Web Sitesi', kaynak: 'Web', baslangic: iso(d, '15:00'), bitis: iso(d, '16:30'), tutar: 1200, bahsis: 0, odeme: 'Nakit', durum: 'Bekliyor' }
-    ];
-    data.avanslar = [{ id: uid(), personelId: 'p2', tutar: 1000, not: 'Avans', tarih: d }];
-    data.giderler = [{ id: uid(), aciklama: 'Elektrik Faturası', kategori: 'Fatura', tutar: 2500, tarih: d }];
+    var now = new Date(), isimler = ['Ayşe Yılmaz', 'Fatma Demir', 'Zeynep Kaya', 'Elif Çelik', 'Merve Arslan', 'Selin Koç', 'Burcu Şahin', 'Derya Aydın', 'Hakan Öztürk', 'Mehmet Kurt'];
+    data.musteriler = isimler.map(function (ad, i) { return { id: 'm' + (i + 1), ad: ad, telefon: '053' + (i % 10) + ' 000 00 0' + i, not: '', olusturma: ymd(now) }; });
+    data.islemler = []; var seed = 7;
+    function rnd(n) { seed = (seed * 9301 + 49297) % 233280; return Math.floor(seed / 233280 * n); }
+    var saatler = ['09:30', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00'];
+    for (var g = 13; g >= 0; g--) {
+      var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - g), day = ymd(dt), adet = g === 0 ? 5 : 2 + rnd(3);
+      for (var i = 0; i < adet; i++) {
+        var h = data.hizmetler[rnd(data.hizmetler.length)], p = data.personeller[rnd(3)], m = data.musteriler[rnd(10)];
+        var bas = g === 0 ? ['09:30', '11:00', '13:00', '15:30', '17:30'][i] : saatler[(i * 2 + rnd(2)) % 7];
+        var bd = new Date(day + 'T' + bas); bd.setMinutes(bd.getMinutes() + h.sure);
+        var bit = pad(bd.getHours()) + ':' + pad(bd.getMinutes());
+        var gecmis = g > 0 || (day + 'T' + bas) < now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        var durum = !gecmis ? 'Onaylı' : (rnd(10) === 0 ? 'Gelmedi' : 'Geldi');
+        data.islemler.push({ id: uid(), musteriId: m.id, musteri: m.ad, telefon: m.telefon, hizmet: h.kategori + ' · ' + h.ad, personelId: p.id, giren: 'Yönetici', kaynak: 'Panel',
+          baslangic: day + 'T' + bas, bitis: day + 'T' + bit, tutar: h.fiyat, bahsis: durum === 'Geldi' && rnd(4) === 0 ? 100 : 0, odeme: ['Nakit', 'Kredi Kartı', 'Havale / EFT'][rnd(3)], durum: durum });
+      }
+    }
+    var bugun = ymd(now), mm = data.musteriler[2], hh = data.hizmetler[10];
+    data.islemler.push({ id: uid(), musteriId: mm.id, musteri: mm.ad, telefon: mm.telefon, hizmet: hh.kategori + ' · ' + hh.ad, personelId: 'p3', giren: 'Web Sitesi', kaynak: 'Web', baslangic: bugun + 'T19:00', bitis: bugun + 'T20:30', tutar: hh.fiyat, bahsis: 0, odeme: 'Nakit', durum: 'Bekliyor' });
+    data.avanslar = [{ id: uid(), personelId: 'p2', tutar: 1000, not: 'Avans', tarih: bugun }];
+    data.giderler = [{ id: uid(), aciklama: 'Elektrik Faturası', kategori: 'Fatura', tutar: 2500, tarih: bugun }];
     return data;
   }
 
+  function migrate(d) {
+    if (d && d.v === 2) {
+      d.v = 3; d.ayar = { acilis: 9, kapanis: 21 }; d.musteriler = [];
+      d.islemler.forEach(function (r) { r.musteriId = musteriBul(d, r.musteri, r.telefon); });
+    }
+    return d;
+  }
+
   /* ---------- store ---------- */
-  var data = Adapter.load();
-  if (!data || data.v !== 2) data = defaults();
+  var data = migrate(Adapter.load());
+  if (!data || data.v !== 3) data = defaults();
   var listeners = [];
 
   function commit() {
@@ -127,7 +161,7 @@
     },
     makeCred: makeCred, checkCred: checkCred,
     resetDemo: function () { var keep = data.admin; data = demoData(defaults()); data.admin = keep; return Store.save('Sistem', 'Demo veri yüklendi'); },
-    replaceAll: function (obj) { if (!obj || obj.v !== 2) throw new Error('Geçersiz yedek dosyası'); data = obj; return Store.save('Sistem', 'Yedek geri yüklendi'); },
+    replaceAll: function (obj) { obj = migrate(obj); if (!obj || obj.v !== 3) throw new Error('Geçersiz yedek dosyası'); data = obj; return Store.save('Sistem', 'Yedek geri yüklendi'); },
     personel: function (id) { return data.personeller.find(function (p) { return p.id === id; }); },
     personelAd: function (id) { var p = Store.personel(id); return p ? p.ad : '(silinmiş personel)'; },
     session: {
@@ -138,9 +172,12 @@
     /* Çakışma: aynı personel için süresi kesişen onaylı/bekleyen kayıt var mı? */
     cakisma: function (personelId, bas, bit, haricId) {
       return data.islemler.find(function (r) {
-        return r.id !== haricId && r.personelId === personelId && r.baslangic < bit && r.bitis > bas;
+        return r.id !== haricId && r.personelId === personelId && r.durum !== 'İptal' && r.durum !== 'Gelmedi' && r.baslangic < bit && r.bitis > bas;
       });
     },
+    musteriBul: function (ad, tel, olustur) { return musteriBul(data, ad, tel, olustur); },
+    musteri: function (id) { return data.musteriler.filter(function (m) { return m.id === id; })[0]; },
+    normTel: normTel,
     onYeniTalep: null
   };
 
@@ -153,7 +190,7 @@
     randevuTalebi: function (t) {
       if (!t || !t.musteri || !t.hizmet || !t.baslangic || !t.bitis) throw new Error('Eksik alan');
       data.islemler.push({
-        id: uid(), musteri: String(t.musteri).slice(0, 80), telefon: String(t.telefon || '').slice(0, 30),
+        id: uid(), musteriId: musteriBul(data, t.musteri, t.telefon), musteri: String(t.musteri).slice(0, 80), telefon: String(t.telefon || '').slice(0, 30),
         hizmet: String(t.hizmet).slice(0, 120), personelId: t.personelId || (data.personeller[0] || {}).id,
         giren: 'Web Sitesi', kaynak: 'Web', baslangic: t.baslangic, bitis: t.bitis,
         tutar: Number(t.tutar) || 0, bahsis: 0, odeme: 'Nakit', durum: 'Bekliyor'

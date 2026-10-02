@@ -1,6 +1,6 @@
 # Gül Aksu Yönetim Paneli
 
-Bağımsız, bağımlılıksız panel. Çalıştırmak için `index.html` dosyasını tarayıcıda açmak yeterli (internet gerekmez).
+Bağımsız, bağımlılıksız panel. Tek dosya için `gulaksu-panel.html`, geliştirme için `index.html` (css/ ve js/ klasörleri) kullanılır. İnternet gerekmez.
 
 - İlk açılışta yönetici şifresi belirlenir (varsayılan şifre yoktur). Personel şifrelerini yönetici belirler.
 - Şifreler tuzlu SHA-256 ile saklanır; çıktıda tüm kullanıcı metinleri kaçışlanır (XSS).
