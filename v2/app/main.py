@@ -9341,6 +9341,190 @@ body {
     }
 }
 
+
+/* ---- Kart içeriği: tüm kartlar aynı yükseklikte ---- */
+.market-design .fc-top {
+    min-height: 52px;
+}
+
+.market-design .fc-fresh {
+    display: block;
+    padding: 3px 8px;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    background: #f0f9ff;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.market-design .fc-fresh.fc-fresh-ok {
+    color: #047857;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.market-design .fc-fresh.fc-fresh-muted {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+html.dark .market-design .fc-fresh {
+    background: rgba(14, 165, 233, .14);
+    border-color: rgba(14, 165, 233, .35);
+}
+
+html.dark .market-design .fc-fresh.fc-fresh-ok {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, .15);
+    border-color: rgba(16, 185, 129, .35);
+}
+
+html.dark .market-design .fc-fresh.fc-fresh-muted {
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, .14);
+    border-color: rgba(148, 163, 184, .3);
+}
+
+/* ---- LME: altın tema ---- */
+#lmeSection {
+    background: linear-gradient(180deg, #fffbeb 0%, #ffffff 55%) !important;
+    border-color: #f2d58a !important;
+    box-shadow: 0 8px 24px rgba(180, 120, 10, .12) !important;
+}
+
+#lmeSection .lme-ticker-label {
+    background: linear-gradient(135deg, #f6d365 0%, #c9971c 100%) !important;
+    border-right: 0 !important;
+}
+
+#lmeSection .lme-ticker-label span {
+    color: #3b2a00 !important;
+}
+
+#lmeSection .lme-ticker-metal {
+    color: #fde68a !important;
+}
+
+#lmeSection .lme-ticker-value {
+    color: #fbbf24 !important;
+}
+
+#lmeToggle .bg-slate-900 {
+    background: linear-gradient(135deg, #f6d365 0%, #d4a017 55%, #9a6b0c 100%) !important;
+    color: #3b2a00 !important;
+    box-shadow: 0 4px 12px rgba(180, 120, 10, .35) !important;
+}
+
+#lmeToggle .text-slate-400 {
+    color: #b8860b !important;
+}
+
+#lmeToggle .bg-slate-100 {
+    background-color: #fef3c7 !important;
+    border-color: #f6d365 !important;
+}
+
+#lmeToggle .bg-slate-100.text-slate-500,
+#lmeToggle .text-slate-500 {
+    color: #92400e !important;
+}
+
+#lmeToggle .text-slate-900 {
+    color: #7c4a03 !important;
+}
+
+#lmeGrid {
+    border-color: #f2d58a !important;
+}
+
+#lmeGrid thead {
+    background-color: #fef3c7 !important;
+    border-color: #f2d58a !important;
+}
+
+#lmeGrid thead th {
+    color: #92400e !important;
+}
+
+#lmeTableBody tr {
+    border-color: #fbe9b7 !important;
+}
+
+#lmeTableBody tr:hover {
+    background-color: #fffbeb !important;
+}
+
+#lmeTableBody td {
+    color: #7c4a03 !important;
+}
+
+#lmeTableBody td:first-child {
+    color: #5b3a00 !important;
+}
+
+#lmeTableBody td:last-child {
+    color: #b45309 !important;
+    font-weight: 900;
+}
+
+#lmeTableBody .bg-slate-900 {
+    background: linear-gradient(135deg, #f6d365 0%, #d4a017 100%) !important;
+    color: #3b2a00 !important;
+    box-shadow: 0 2px 8px rgba(180, 120, 10, .25);
+}
+
+html.dark #lmeSection {
+    background: linear-gradient(180deg, #1d1707 0%, #111a2e 55%) !important;
+    border-color: #5b4510 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35) !important;
+}
+
+html.dark #lmeToggle .text-slate-900 {
+    color: #fbbf24 !important;
+}
+
+html.dark #lmeToggle .bg-slate-100 {
+    background-color: rgba(212, 160, 23, .18) !important;
+    border-color: rgba(212, 160, 23, .45) !important;
+}
+
+html.dark #lmeToggle .text-slate-500 {
+    color: #fcd34d !important;
+}
+
+html.dark #lmeGrid {
+    border-color: #5b4510 !important;
+}
+
+html.dark #lmeGrid thead {
+    background-color: #2a210c !important;
+}
+
+html.dark #lmeGrid thead th {
+    color: #fbbf24 !important;
+}
+
+html.dark #lmeTableBody tr {
+    border-color: #3a2d0e !important;
+}
+
+html.dark #lmeTableBody tr:hover {
+    background-color: #241c0a !important;
+}
+
+html.dark #lmeTableBody td {
+    color: #fde68a !important;
+}
+
+html.dark #lmeTableBody td:first-child {
+    color: #fef3c7 !important;
+}
+
+html.dark #lmeTableBody td:last-child {
+    color: #fbbf24 !important;
+}
+
 /* ---- Mobil alt araç çubuğu ---- */
 #mobileBar {
     position: fixed;
@@ -12223,6 +12407,9 @@ async function fiyatlariGetir() {
                                     " kalem" +
                                     (item.tarih && item.tarih !== "-"
                                         ? " · " + item.tarih
+                                        : "") +
+                                    (item.en_yuksek_sayisi > 0
+                                        ? " · 🏆 " + item.en_yuksek_sayisi
                                         : "")
                                 ) +
                             "</span>" +
@@ -12249,14 +12436,12 @@ async function fiyatlariGetir() {
                             : (
                                 item.son_24_saatte_guncellendi
                                     ? '<span class="fc-fresh">● 24 saat içinde güncellendi</span>'
-                                    : ""
+                                    : (
+                                        item.fiyat_yasi_gun === null || item.fiyat_yasi_gun === undefined
+                                            ? '<span class="fc-fresh fc-fresh-muted">✎ Manuel fiyat</span>'
+                                            : '<span class="fc-fresh fc-fresh-ok">● Güncel fiyat</span>'
+                                    )
                             )
-                    ) +
-
-                    (
-                        item.en_yuksek_sayisi > 0
-                            ? '<span class="fc-best">🏆 ' + item.en_yuksek_sayisi + ' kalemde en yüksek fiyat</span>'
-                            : ""
                     ) +
 
                     '<span class="fc-cta">' +
