@@ -786,6 +786,11 @@ def lme_gecmisi_kaydet(veriler, tarih):
         except Exception:
             gun = now_istanbul().date().isoformat()
 
+    with _LME_GECMIS_KILIT:
+        _lme_gecmisi_kaydet_kilitli(veriler, gun)
+
+
+def _lme_gecmisi_kaydet_kilitli(veriler, gun):
     data = load_data()
     gecmis = data.setdefault("lme_gecmisi", {})
     degisti = False
@@ -801,12 +806,14 @@ def lme_gecmisi_kaydet(veriler, tarih):
         seri = gecmis.setdefault(ad, [])
         kayit = [gun, nakit, uc_ay]
 
-        if seri and seri[-1][0] == gun:
-            if seri[-1] != kayit:
-                seri[-1] = kayit
+        mevcut = next((i for i, k in enumerate(seri) if k[0] == gun), None)
+        if mevcut is not None:
+            if seri[mevcut] != kayit:
+                seri[mevcut] = kayit
                 degisti = True
-        elif not seri or seri[-1][0] < gun:
+        else:
             seri.append(kayit)
+            seri.sort(key=lambda k: k[0])
             degisti = True
 
         if len(seri) > 400:
@@ -827,6 +834,7 @@ _WESTMETALL_ALANLAR = {
 
 _LME_DOLDURMA = {"son_deneme": 0.0, "calisiyor": False}
 _LME_DOLDURMA_BEKLEME = 3600
+_LME_GECMIS_KILIT = threading.Lock()
 _LME_MIN_NOKTA = 10
 
 
@@ -883,36 +891,45 @@ def _westmetall_gecmisi_cek(alan, gun_sayisi=120):
     return [kayitlar[g] for g in sorted(kayitlar)][-gun_sayisi:]
 
 
-def _lme_gecmisi_doldur():
+def _lme_eksik_metaller():
+    mevcut = load_data().get("lme_gecmisi", {})
+    return [
+        (isim, alan)
+        for isim, alan in _WESTMETALL_ALANLAR.items()
+        if len(mevcut.get(LME_METALS[isim], [])) < _LME_MIN_NOKTA
+    ]
+
+
+def _lme_gecmisi_doldur(eksikler):
     """Geçmişi kısa kalan metalleri Westmetall günlük tablosundan tamamlar."""
     try:
-        mevcut = load_data().get("lme_gecmisi", {})
-        eksikler = [
-            (isim, alan)
-            for isim, alan in _WESTMETALL_ALANLAR.items()
-            if len(mevcut.get(LME_METALS[isim], [])) < _LME_MIN_NOKTA
-        ]
-
-        indirilen = {}
-        for isim, alan in eksikler:
+        def indir(oge):
+            isim, alan = oge
             try:
-                seri = _westmetall_gecmisi_cek(alan)
-                if seri:
-                    indirilen[LME_METALS[isim]] = seri
+                return isim, _westmetall_gecmisi_cek(alan)
             except Exception as exc:
                 print(f"LME GEÇMİŞ DOLDURMA ({isim}): {type(exc).__name__}: {exc}")
+                return isim, []
+
+        with ThreadPoolExecutor(max_workers=len(eksikler)) as havuz:
+            indirilen = {
+                LME_METALS[isim]: seri
+                for isim, seri in havuz.map(indir, eksikler)
+                if seri
+            }
 
         if not indirilen:
             return
 
-        data = load_data()
-        gecmis = data.setdefault("lme_gecmisi", {})
-        for ad, seri in indirilen.items():
-            birlesik = {k[0]: k for k in seri}
-            for k in gecmis.get(ad, []):
-                birlesik[k[0]] = k  # bizim kayıtlarımız öncelikli
-            gecmis[ad] = [birlesik[g] for g in sorted(birlesik)][-400:]
-        save_data(data)
+        with _LME_GECMIS_KILIT:
+            data = load_data()
+            gecmis = data.setdefault("lme_gecmisi", {})
+            for ad, seri in indirilen.items():
+                birlesik = {k[0]: k for k in seri}
+                for k in gecmis.get(ad, []):
+                    birlesik[k[0]] = k  # bizim kayıtlarımız öncelikli
+                gecmis[ad] = [birlesik[g] for g in sorted(birlesik)][-400:]
+            save_data(data)
         print(f"LME geçmişi dolduruldu: {', '.join(indirilen)}")
     finally:
         _LME_DOLDURMA["calisiyor"] = False
@@ -925,9 +942,16 @@ def lme_gecmisi_doldurmayi_baslat():
         return
     if simdi - _LME_DOLDURMA["son_deneme"] < _LME_DOLDURMA_BEKLEME:
         return
+
+    eksikler = _lme_eksik_metaller()
+    if not eksikler:
+        return
+
     _LME_DOLDURMA["son_deneme"] = simdi
     _LME_DOLDURMA["calisiyor"] = True
-    threading.Thread(target=_lme_gecmisi_doldur, daemon=True).start()
+    threading.Thread(
+        target=_lme_gecmisi_doldur, args=(eksikler,), daemon=True
+    ).start()
 
 
 def lme_grafik_aktif_mi():
@@ -3175,6 +3199,7 @@ DOVIZ_CACHE_SANIYE = 120
 
 DOVIZ_HATA_ZAMANI = None
 DOVIZ_HATA_BEKLEME_SANIYE = 60
+_KUR_KAYNAK_SOGUMA = {}
 
 
 def _tcmb_kurlari_cek():
@@ -3210,6 +3235,10 @@ def _tcmb_kurlari_cek():
     return sonuc
 
 
+class _AltinHazir(Exception):
+    pass
+
+
 def _kur_sayisi(deger):
     """12.345,67 / 12,5 / 12.5 / 12.5 (sayı) biçimlerini float'a çevirir."""
     if deger is None or isinstance(deger, bool):
@@ -3219,7 +3248,9 @@ def _kur_sayisi(deger):
     metin = str(deger).strip().replace(" ", "")
     if not metin:
         return None
-    if "," in metin and "." in metin:
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+", metin):
+        metin = metin.replace(".", "")
+    elif "," in metin and "." in metin:
         metin = metin.replace(".", "").replace(",", ".")
     elif "," in metin:
         metin = metin.replace(",", ".")
@@ -3239,6 +3270,9 @@ def _kur_kaydi(kod, alis, satis, tur, tarih):
         return None
     alis = alis if alis is not None else satis
     satis = satis if satis is not None else alis
+    # Diğer kaynaklarla tutarlı olsun diye tek (orta) kur kullanılır.
+    orta = (alis + satis) / 2
+    alis = satis = orta
     alt, ust = _KUR_ARALIK[kod]
     if not (alt <= alis <= ust and alt <= satis <= ust):
         raise ValueError(f"{kod} değeri makul aralık dışında: {alis}/{satis}")
@@ -3250,6 +3284,7 @@ def _kur_kaydi(kod, alis, satis, tur, tarih):
         "kur": alis,
         "kur_turu": tur,
         "tarih": tarih,
+        "canli": True,
     }
 
 
@@ -3258,7 +3293,7 @@ def _truncgil_kurlari_cek():
     r = requests.get(
         "https://finans.truncgil.com/v4/today.json",
         headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0 HurdaFiyatBot/2.0"},
-        timeout=6,
+        timeout=4,
     )
     r.raise_for_status()
     veri = r.json()
@@ -3303,27 +3338,34 @@ def _truncgil_kurlari_cek():
     return sonuc
 
 
+def _yahoo_kur_tek(kod, sembol):
+    r = requests.get(
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{sembol}",
+        params={"interval": "1m", "range": "1d"},
+        headers={"User-Agent": "Mozilla/5.0 HurdaFiyatBot/2.0"},
+        timeout=4,
+    )
+    r.raise_for_status()
+    meta = r.json()["chart"]["result"][0]["meta"]
+    fiyat = meta.get("regularMarketPrice")
+    zaman = meta.get("regularMarketTime")
+    tarih = (
+        datetime.fromtimestamp(zaman, ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
+        if zaman else ""
+    )
+    return _kur_kaydi(kod, fiyat, fiyat, "Anlık piyasa kuru", tarih)
+
+
 def _yahoo_kurlari_cek():
-    """Yahoo Finance anlık USD/TRY ve EUR/TRY (Truncgil yedeği)."""
+    """Yahoo Finance anlık USD/TRY ve EUR/TRY (Truncgil yedeği); her sembol bağımsız."""
     sonuc = {}
     for kod, sembol in (("USD", "USDTRY=X"), ("EUR", "EURTRY=X")):
-        r = requests.get(
-            f"https://query1.finance.yahoo.com/v8/finance/chart/{sembol}",
-            params={"interval": "1m", "range": "1d"},
-            headers={"User-Agent": "Mozilla/5.0 HurdaFiyatBot/2.0"},
-            timeout=6,
-        )
-        r.raise_for_status()
-        meta = r.json()["chart"]["result"][0]["meta"]
-        fiyat = meta.get("regularMarketPrice")
-        zaman = meta.get("regularMarketTime")
-        tarih = (
-            datetime.fromtimestamp(zaman, ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M:%S")
-            if zaman else ""
-        )
-        kayit = _kur_kaydi(kod, fiyat, fiyat, "Anlık piyasa kuru", tarih)
-        if kayit:
-            sonuc[kod] = kayit
+        try:
+            kayit = _yahoo_kur_tek(kod, sembol)
+            if kayit:
+                sonuc[kod] = kayit
+        except Exception as e:
+            print(f"KUR HATASI (Yahoo {kod}): {type(e).__name__}: {e}")
     return sonuc
 
 
@@ -3371,21 +3413,29 @@ def doviz_kurlarini_getir(force=False):
     kaynaklar = []
 
     # 0) En güncel kaynaklar: Truncgil (USD, EUR, gram altın), sonra Yahoo.
-    try:
-        for kod, kayit in _truncgil_kurlari_cek().items():
-            bulunan[kod] = kayit
-        if bulunan:
-            kaynaklar.append("Truncgil")
-    except Exception as e:
-        print(f"DÖVİZ KUR HATASI (Truncgil): {type(e).__name__}: {e}")
+    # Çöken kaynak 5 dk boyunca atlanır; her istek zaman aşımı beklemez.
+    def _sogumada(ad):
+        return time.time() < _KUR_KAYNAK_SOGUMA.get(ad, 0)
 
-    if not all(k in bulunan for k in ("USD", "EUR")):
+    if not _sogumada("Truncgil"):
         try:
-            for kod, kayit in _yahoo_kurlari_cek().items():
-                bulunan.setdefault(kod, kayit)
-            kaynaklar.append("Yahoo Finance")
+            gelen = _truncgil_kurlari_cek()
+            if not gelen:
+                raise ValueError("geçerli kur yok")
+            bulunan.update(gelen)
+            kaynaklar.append("Truncgil")
         except Exception as e:
-            print(f"DÖVİZ KUR HATASI (Yahoo): {type(e).__name__}: {e}")
+            _KUR_KAYNAK_SOGUMA["Truncgil"] = time.time() + 300
+            print(f"DÖVİZ KUR HATASI (Truncgil): {type(e).__name__}: {e}")
+
+    if not all(k in bulunan for k in ("USD", "EUR")) and not _sogumada("Yahoo"):
+        gelen = _yahoo_kurlari_cek()
+        yeni = {k: v for k, v in gelen.items() if k not in bulunan}
+        bulunan.update(yeni)
+        if yeni:
+            kaynaklar.append("Yahoo Finance")
+        else:
+            _KUR_KAYNAK_SOGUMA["Yahoo"] = time.time() + 300
 
     # 1) Frankfurter: yalnızca eksik kalan kurlar için denenir.
     for kod in ("USD", "EUR"):
@@ -3432,7 +3482,7 @@ def doviz_kurlarini_getir(force=False):
     # Truncgil gram altını verdiyse ons tabanlı hesaplamaya gerek yok.
     try:
         if "ALTIN" in bulunan:
-            raise StopIteration
+            raise _AltinHazir()
         gold_response = requests.get(
             "https://api.gold-api.com/price/XAU",
             headers=basliklar,
@@ -3457,7 +3507,7 @@ def doviz_kurlarini_getir(force=False):
                 "kur_turu": "24 ayar gram altın referans fiyatı",
                 "tarih": gold_data.get("updatedAt") or gold_data.get("timestamp") or "",
             }
-    except StopIteration:
+    except _AltinHazir:
         pass
     except Exception as e:
         print(f"ALTIN FİYATI HATASI: {type(e).__name__}: {e}")
@@ -3481,10 +3531,12 @@ def doviz_kurlarini_getir(force=False):
             "hata": "USD/EUR kurları şu anda alınamadı.",
         }
 
+    # Formatlar kaynağa göre farklı olduğundan karşılaştırma yapmadan
+    # öncelikli kurun (USD, yoksa EUR) tarihi gösterilir.
     tarihler = [
-        x.get("tarih", "")
-        for x in bulunan.values()
-        if x.get("tarih", "")
+        bulunan[k].get("tarih", "")
+        for k in ("USD", "EUR")
+        if k in bulunan and bulunan[k].get("tarih", "")
     ]
 
     DOVIZ_CACHE = {
@@ -3492,10 +3544,14 @@ def doviz_kurlarini_getir(force=False):
         "kaynak": " + ".join(kaynaklar) or "Frankfurter",
         "kur_turu": (
             "Güncel piyasa kuru"
-            if any(k in ("Truncgil", "Yahoo Finance") for k in kaynaklar)
+            if all(
+                bulunan[k].get("canli")
+                for k in ("USD", "EUR")
+                if k in bulunan
+            )
             else "Günlük referans kuru"
         ),
-        "tarih": min(tarihler) if tarihler else "",
+        "tarih": tarihler[0] if tarihler else "",
         "veriler": bulunan,
     }
 
