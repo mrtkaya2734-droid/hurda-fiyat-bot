@@ -1143,6 +1143,22 @@ def _yazim_anahtari(ad):
     return re.sub(r"[\W_]+", "", _tr_anahtar(ad))
 
 
+# Çolakoğlu'nun iki kaynağı aynı cinse farklı ad veriyor; tek ada çevrilir.
+COLAKOGLU_ADLARI = {
+    "1grup": "1.GRUP",
+    "1kalite": "1.GRUP",
+    "2grup": "2.GRUP",
+    "2kalite": "2.GRUP",
+    "talas": "TALAŞ",
+    "talashurdasi": "TALAŞ",
+}
+
+
+def colakoglu_adi(ad):
+    """Bilinen Çolakoğlu cins adlarını tek biçime çevirir, diğerlerine dokunmaz."""
+    return COLAKOGLU_ADLARI.get(_yazim_anahtari(ad), ad)
+
+
 def colakoglu_yazimlarini_birlestir(data):
     """
     Çolakoğlu'nda aynı cinsin farklı yazımlarını ('1.GRUP' / '1. GRUP',
@@ -1154,7 +1170,7 @@ def colakoglu_yazimlarini_birlestir(data):
 
     def ad_bul(ad):
         nonlocal degisti
-        temiz = kalem_adi_temizle(ad) or ad
+        temiz = colakoglu_adi(kalem_adi_temizle(ad) or ad)
         anahtar = _yazim_anahtari(temiz)
         if not anahtar:
             return ad
