@@ -7,7 +7,7 @@ import tempfile
 import threading
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -1206,6 +1206,99 @@ def veriyi_duzelt(data):
     return degisti
 
 
+def gecmise_fiyat_yaz(data, firma_id, kalem, onceki, yeni, fiyat_tarihi=None, zaman=None):
+    """
+    Bir fiyat değişimini geçmişe yazar (yalnızca son kayıtlı fiyattan farklıysa).
+    Kalem için hiç geçmiş yoksa, değişimin hesaplanabilmesi için önceki fiyat
+    1 saniye öncesine 'tohum' kayıt olarak eklenir. data üzerinde çalışır,
+    kaydetmez. Dönüş: yeni kayıt eklendiyse True.
+    """
+    if yeni is None:
+        return False
+
+    history = data.setdefault("history", [])
+    temiz = kalem_adi_temizle(kalem) or kalem
+    anahtar = (str(firma_id or "").strip().casefold(), temiz)
+
+    var_mi = False
+    son = None
+    for h in reversed(history):
+        h_anahtar = (
+            str(h.get("firma_id", "")).strip().casefold(),
+            kalem_adi_temizle(h.get("kalem")) or h.get("kalem"),
+        )
+        if h_anahtar == anahtar:
+            var_mi = True
+            son = h.get("fiyat")
+            break
+
+    if var_mi and son == yeni:
+        return False
+
+    simdi = zaman or datetime.now(ZoneInfo("Europe/Istanbul"))
+    damga = simdi.strftime("%Y-%m-%d %H:%M:%S")
+
+    if not var_mi and onceki is not None and onceki != yeni:
+        history.append(
+            {
+                "firma_id": firma_id,
+                "kalem": temiz,
+                "fiyat": onceki,
+                "fiyat_tarihi": fiyat_tarihi,
+                "tarih": (simdi - timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
+
+    history.append(
+        {
+            "firma_id": firma_id,
+            "kalem": temiz,
+            "fiyat": yeni,
+            "fiyat_tarihi": fiyat_tarihi,
+            "tarih": damga,
+        }
+    )
+    return True
+
+
+def manuel_gecmisi_tamamla(data):
+    """
+    Geçmişe hiç yazılmamış elle fiyatları (eski toplu kayıt / yeni kalem yolları)
+    geçmişe işler. Aynı fiyat geçmişte zaten varsa dokunmaz (idempotent).
+    Dönüş: eklenen kalem sayısı.
+    """
+    eklenen = 0
+
+    for firma_id, kalemler in (data.get("prices") or {}).items():
+        for kalem, bilgi in kalemler.items():
+            manuel = bilgi.get("manuel_fiyat")
+            if manuel is None:
+                continue
+
+            temiz = kalem_adi_temizle(kalem) or kalem
+            anahtar = (str(firma_id).strip().casefold(), temiz)
+
+            kayitli = any(
+                (
+                    str(h.get("firma_id", "")).strip().casefold(),
+                    kalem_adi_temizle(h.get("kalem")) or h.get("kalem"),
+                ) == anahtar
+                and h.get("fiyat") == manuel
+                for h in data.get("history", [])
+            )
+
+            if kayitli:
+                continue
+
+            if gecmise_fiyat_yaz(
+                data, firma_id, kalem, bilgi.get("otomatik_fiyat"), manuel,
+                bilgi.get("fiyat_tarihi"),
+            ):
+                eklenen += 1
+
+    return eklenen
+
+
 def fiyatlari_toplu_kaydet(
     firma_id,
     kalemler,
@@ -1267,7 +1360,9 @@ def fiyatlari_toplu_kaydet(
         if kaynak_eski is not None:
             firma_fiyatlari[kalem]["kaynak_eski_fiyat"] = kaynak_eski
 
-        if kalem not in son_gecmis or son_gecmis[kalem] != fiyat:
+        manuel_aktif = mevcut.get("manuel_fiyat") is not None
+
+        if not manuel_aktif and (kalem not in son_gecmis or son_gecmis[kalem] != fiyat):
             history.append(
                 {
                     "firma_id": firma_id_gelen,
@@ -1338,6 +1433,12 @@ def manuel_fiyat_kaydet(
         {}
     )
 
+    onceki_efektif = (
+        mevcut.get("manuel_fiyat")
+        if mevcut.get("manuel_fiyat") is not None
+        else mevcut.get("otomatik_fiyat")
+    )
+
     mevcut["manuel_fiyat"] = fiyat
 
     mevcut["fiyat_tarihi"] = (
@@ -1363,6 +1464,15 @@ def manuel_fiyat_kaydet(
         ]
 
     data["prices"][firma_id][kalem] = mevcut
+
+    gecmise_fiyat_yaz(
+        data,
+        firma_id,
+        kalem,
+        onceki_efektif,
+        fiyat,
+        mevcut.get("fiyat_tarihi"),
+    )
 
     save_data(data)
 

@@ -51,6 +51,8 @@ from app.storage import (
     fiyatlari_toplu_kaydet,
     kalem_adi_temizle,
     veriyi_duzelt,
+    gecmise_fiyat_yaz,
+    manuel_gecmisi_tamamla,
     manuel_fiyat_kaydet,
     manuel_fiyat_sil,
     bildirim_ekle,
@@ -2837,15 +2839,24 @@ def veri_bakimi_uygula():
     data = load_data()
     onceki = len(data.get("history", []))
 
-    if veriyi_duzelt(data):
-        save_data(data)
+    degisti = veriyi_duzelt(data)
+
+    if degisti:
         print(
             "VERİ BAKIMI: kalem adları temizlendi, geçmiş "
             f"{onceki} -> {len(data.get('history', []))} kayıt."
         )
 
+    tamamlanan = manuel_gecmisi_tamamla(data)
 
-def yedek_temizligi_uygula(bayrak="yedek_final_20261002", etiket="final-20261002"):
+    if tamamlanan:
+        print(f"VERİ BAKIMI: {tamamlanan} elle fiyat geçmişe işlendi.")
+
+    if degisti or tamamlanan:
+        save_data(data)
+
+
+def yedek_temizligi_uygula(bayrak="yedek_final2_20261002", etiket="final2-20261002"):
     """
     Tek seferlik: güncel durumun (veri + reklam ayarları) yedeğini alır, doğrular,
     ardından önceki tüm yedekleri siler. Başarılı olunca bayrak yazılır.
@@ -5590,6 +5601,21 @@ async def admin_manual_save_real(
                 ].get(
                     new_kalem,
                     {},
+                )
+
+                onceki_efektif = (
+                    mevcut.get("manuel_fiyat")
+                    if mevcut.get("manuel_fiyat") is not None
+                    else mevcut.get("otomatik_fiyat")
+                )
+
+                gecmise_fiyat_yaz(
+                    data,
+                    firma_id,
+                    new_kalem,
+                    onceki_efektif,
+                    new_fiyat,
+                    now_istanbul().strftime("%Y-%m-%d"),
                 )
 
                 data[
