@@ -51,3 +51,4 @@ firebase_key.json
 
 # Uygulamanın otomatik veri yedekleri
 v2/backups/
+site/
