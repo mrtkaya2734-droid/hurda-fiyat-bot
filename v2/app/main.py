@@ -10196,6 +10196,33 @@ html.dark #lmeTableBody td:last-child {
     border-color: #f2d58a;
 }
 
+/* Grafik her açılışta kapalı başlar; admin pasif ederse hiç görünmez. */
+.lme-chart-box.lme-kapali,
+.lme-chart-box.lme-pasif,
+#lmeGrafikToggle.lme-pasif {
+    display: none !important;
+}
+
+#lmeGrafikToggle[aria-pressed="true"] {
+    background: linear-gradient(135deg, #f6d365 0%, #c9971c 100%);
+    color: #3b2a00;
+    border-color: #d4a017;
+}
+
+/* Geniş ekranda grafik tablonun hemen sağında açılır; dar ekran ve mobilde altında. */
+@media (min-width: 1280px) {
+    #lmeSplit.lme-acik {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    #lmeSplit.lme-acik .lme-chart-box {
+        margin-top: 0;
+    }
+}
+
 .lme-chart-label { color: #b8860b; }
 .lme-chart-title { color: #7c4a03; }
 .lme-chart-note { color: #a16207; }
@@ -11019,6 +11046,19 @@ class="mt-4"
 aria-hidden="false"
 >
 
+<div class="flex justify-end mb-2">
+<button
+type="button"
+id="lmeGrafikToggle"
+aria-pressed="false"
+class="lme-chip"
+>
+📈 Grafik
+</button>
+</div>
+
+<div id="lmeSplit">
+
 <div
 id="lmeGrid"
 class="w-full overflow-x-auto rounded-xl border border-slate-200"
@@ -11062,7 +11102,7 @@ LME verileri alınıyor...
 
 </div>
 
-<div id="lmeChartBox" class="lme-chart-box mt-4 rounded-xl border p-3 sm:p-4">
+<div id="lmeChartBox" class="lme-chart-box lme-kapali mt-4 rounded-xl border p-3 sm:p-4">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
 <div>
@@ -11084,6 +11124,8 @@ LME verileri alınıyor...
 <div class="text-[10px] uppercase tracking-wide font-black lme-chart-label mb-1.5">Nakit → 3 Ay farkı (%)</div>
 <div id="lmeSpreadBars" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5"></div>
 <div class="text-[10px] mt-2 lme-chart-note">Yeşil: 3 ay vadeli fiyat nakitten yüksek (contango). Kırmızı: düşük (backwardation).</div>
+</div>
+
 </div>
 
 </div>
@@ -11612,10 +11654,34 @@ function lmeSayi(n) {
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
 }
 
+function lmeGrafikToggleBagla() {
+    const dugme = document.getElementById("lmeGrafikToggle");
+    if (!dugme || dugme.dataset.bound === "1") return;
+    dugme.dataset.bound = "1";
+    dugme.addEventListener("click", function() {
+        const kutu = document.getElementById("lmeChartBox");
+        const bolum = document.getElementById("lmeSplit");
+        if (!kutu || !bolum) return;
+        const aciliyor = kutu.classList.contains("lme-kapali");
+        kutu.classList.toggle("lme-kapali", !aciliyor);
+        bolum.classList.toggle("lme-acik", aciliyor);
+        dugme.setAttribute("aria-pressed", String(aciliyor));
+        // Açılışta gerçek genişliğe göre yeniden çiz.
+        if (aciliyor && window.__lmeSon) {
+            try { lmeGrafikCiz(window.__lmeSon); } catch (hata) { console.error("LME grafik:", hata); }
+        }
+    });
+}
+
 function lmeGrafikCiz(result) {
+    window.__lmeSon = result;
+    const pasif = result.grafik_aktif === false;
     const kutu = document.getElementById("lmeChartBox");
-    if (kutu) kutu.style.display = result.grafik_aktif === false ? "none" : "";
-    if (result.grafik_aktif === false) return;
+    const dugme = document.getElementById("lmeGrafikToggle");
+    if (kutu) kutu.classList.toggle("lme-pasif", pasif);
+    if (dugme) dugme.classList.toggle("lme-pasif", pasif);
+    lmeGrafikToggleBagla();
+    if (pasif) return;
     const veriler = Array.isArray(result.veriler) ? result.veriler : [];
     const gecmis = result.gecmis || {};
     const sekmeler = document.getElementById("lmeMetalTabs");
