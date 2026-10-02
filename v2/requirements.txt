@@ -6,3 +6,4 @@ beautifulsoup4==4.15.0
 cloudscraper==1.2.71
 python-multipart==0.0.20
 cryptography>=43
+pillow>=10
