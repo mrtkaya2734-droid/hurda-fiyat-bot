@@ -773,6 +773,52 @@ def _smm_lme_3m_verilerini_cek():
 
     return fiyatlar, tarih
 
+def lme_gecmisi_kaydet(veriler, tarih):
+    """Günlük LME değerlerini (nakit satış + 3 ay satış) data.json'a biriktirir."""
+    try:
+        gun = datetime.fromisoformat(str(tarih)[:10]).date().isoformat()
+    except (TypeError, ValueError):
+        try:
+            g, a, y = str(tarih)[:10].split(".")
+            gun = f"{y}-{a}-{g}"
+        except Exception:
+            gun = now_istanbul().date().isoformat()
+
+    data = load_data()
+    gecmis = data.setdefault("lme_gecmisi", {})
+    degisti = False
+
+    for item in veriler:
+        ad = item.get("ad")
+        nakit = item.get("cash_ask")
+        uc_ay = item.get("three_month_ask")
+
+        if not ad or nakit is None:
+            continue
+
+        seri = gecmis.setdefault(ad, [])
+        kayit = [gun, nakit, uc_ay]
+
+        if seri and seri[-1][0] == gun:
+            if seri[-1] != kayit:
+                seri[-1] = kayit
+                degisti = True
+        elif not seri or seri[-1][0] < gun:
+            seri.append(kayit)
+            degisti = True
+
+        if len(seri) > 400:
+            del seri[:-400]
+
+    if degisti:
+        save_data(data)
+
+
+def lme_gecmisi_oku(gun_sayisi=180):
+    gecmis = load_data().get("lme_gecmisi", {})
+    return {ad: seri[-gun_sayisi:] for ad, seri in gecmis.items()}
+
+
 def lme_verilerini_cek():
     global _LME_CACHE
 
@@ -870,6 +916,11 @@ def lme_verilerini_cek():
         "kaynak": kaynak,
         "usd_tl": usd_tl,
     }
+
+    try:
+        lme_gecmisi_kaydet(veriler, sonuc["tarih"])
+    except Exception as exc:
+        print(f"LME GEÇMİŞ KAYIT HATASI: {type(exc).__name__}: {exc}")
 
     _LME_CACHE = {
         "tarih": sonuc["tarih"],
@@ -3968,6 +4019,101 @@ self.addEventListener("notificationclick", function(event) {
     )
 
 
+
+ADMIN_TEMA_BASI = """
+<script data-tema-enjekte>
+try { if (localStorage.getItem("hurdaTema") !== "light") { document.documentElement.classList.add("dark"); } } catch (e) { document.documentElement.classList.add("dark"); }
+</script>
+<style data-tema-enjekte>
+html.dark { color-scheme: dark; }
+html.dark body { background: #0a101d !important; color: #e2e8f0; }
+html.dark .bg-white, html.dark [class*="bg-white/9"], html.dark [class*="bg-white/8"] { background-color: #111a2e !important; }
+html.dark .bg-slate-50, html.dark [class*="bg-slate-50/"] { background-color: #0e1627 !important; }
+html.dark .bg-slate-100 { background-color: #162036 !important; }
+html.dark .bg-slate-200 { background-color: #1e2b44 !important; }
+html.dark .bg-slate-900, html.dark .bg-slate-950 { background-color: #16213a !important; }
+html.dark [class*="hover:bg-slate-50"]:hover, html.dark [class*="hover:bg-slate-100"]:hover { background-color: #162036 !important; }
+html.dark [class*="hover:bg-slate-200"]:hover { background-color: #1e2b44 !important; }
+html.dark .border-slate-100, html.dark .border-slate-200, html.dark .border-slate-300 { border-color: #24324d !important; }
+html.dark .text-slate-950, html.dark .text-slate-900, html.dark .text-slate-800 { color: #f1f5f9 !important; }
+html.dark .text-slate-700 { color: #cbd5e1 !important; }
+html.dark .text-slate-600, html.dark .text-slate-500 { color: #9aa8bf !important; }
+html.dark .text-slate-400 { color: #7c8aa3 !important; }
+html.dark .bg-emerald-50, html.dark .bg-emerald-100 { background-color: rgba(16,185,129,.15) !important; }
+html.dark .text-emerald-700, html.dark .text-emerald-800, html.dark .text-emerald-600 { color: #6ee7b7 !important; }
+html.dark .border-emerald-200 { border-color: rgba(16,185,129,.35) !important; }
+html.dark .bg-red-50, html.dark .bg-red-100 { background-color: rgba(239,68,68,.15) !important; }
+html.dark .text-red-700, html.dark .text-red-800, html.dark .text-red-600 { color: #fca5a5 !important; }
+html.dark .border-red-200 { border-color: rgba(239,68,68,.35) !important; }
+html.dark .bg-amber-50, html.dark .bg-amber-100 { background-color: rgba(245,158,11,.15) !important; }
+html.dark .text-amber-700, html.dark .text-amber-800, html.dark .text-amber-900 { color: #fcd34d !important; }
+html.dark .border-amber-200 { border-color: rgba(245,158,11,.35) !important; }
+html.dark .bg-blue-50, html.dark .bg-blue-100, html.dark .bg-sky-50 { background-color: rgba(59,130,246,.16) !important; }
+html.dark .text-blue-700, html.dark .text-blue-800, html.dark .text-sky-700 { color: #93c5fd !important; }
+html.dark .border-blue-200, html.dark .border-sky-200 { border-color: rgba(59,130,246,.35) !important; }
+html.dark .bg-indigo-50, html.dark .bg-indigo-100 { background-color: rgba(99,102,241,.18) !important; }
+html.dark .text-indigo-700, html.dark .text-indigo-800 { color: #a5b4fc !important; }
+html.dark .border-indigo-200 { border-color: rgba(99,102,241,.4) !important; }
+html.dark .text-blue-600 { color: #60a5fa !important; }
+html.dark .text-indigo-600 { color: #818cf8 !important; }
+html.dark .text-emerald-600 { color: #34d399 !important; }
+html.dark input, html.dark select, html.dark textarea { background-color: #0e1627 !important; color: #e2e8f0 !important; border-color: #24324d !important; }
+html.dark input::placeholder { color: #6b7a93 !important; }
+html.dark details { background-color: rgba(239,68,68,.12) !important; }
+#temaDugmesi { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: 42px; height: 42px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 6px 18px rgba(15,23,42,.2); font-size: 19px; line-height: 1; cursor: pointer; }
+html.dark #temaDugmesi { background: #111a2e; border-color: #24324d; }
+</style>
+"""
+
+ADMIN_TEMA_SONU = """
+<button type="button" id="temaDugmesi" aria-label="Karanlık / aydınlık tema" data-tema-enjekte>🌙</button>
+<script data-tema-enjekte>
+(function() {
+    var d = document.getElementById("temaDugmesi");
+    function ikon() { d.textContent = document.documentElement.classList.contains("dark") ? "☀️" : "🌙"; }
+    ikon();
+    d.addEventListener("click", function() {
+        var koyu = !document.documentElement.classList.contains("dark");
+        document.documentElement.classList.toggle("dark", koyu);
+        try { localStorage.setItem("hurdaTema", koyu ? "dark" : "light"); } catch (e) {}
+        ikon();
+    });
+})();
+</script>
+"""
+
+
+@app.middleware("http")
+async def admin_tema_enjekte(request: Request, call_next):
+    """Tüm /admin HTML sayfalarına ortak gece teması ve tema düğmesi ekler."""
+    cevap = await call_next(request)
+
+    if (
+        request.url.path.startswith("/admin")
+        and "text/html" in cevap.headers.get("content-type", "")
+    ):
+        govde = b"".join([parca async for parca in cevap.body_iterator])
+        metin = govde.decode("utf-8", errors="replace")
+
+        if "data-tema-enjekte" not in metin and "</head>" in metin:
+            metin = metin.replace("</head>", ADMIN_TEMA_BASI + "</head>", 1)
+            if "</body>" in metin:
+                metin = metin.replace("</body>", ADMIN_TEMA_SONU + "</body>", 1)
+
+        basliklar = {
+            k: v for k, v in cevap.headers.items()
+            if k.lower() not in ("content-length", "content-type")
+        }
+        return Response(
+            content=metin,
+            status_code=cevap.status_code,
+            headers=basliklar,
+            media_type="text/html",
+        )
+
+    return cevap
+
+
 # =========================================================
 # ADMİN GİRİŞ / ÇIKIŞ / ŞİFRE / TOPLU GÜNCELLEME
 # =========================================================
@@ -6266,161 +6412,68 @@ BEKLİYOR
             ) - 1
         )
 
-        firma_rows += f"""\n<div data-firma-row="{esc(str(baslik) + " " + str(firma_id))}" class="border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md rounded-2xl p-4 sm:p-5 transition">
+        son24_html = (
+            '<span class="inline-flex items-center rounded-md bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">24 SAATTE GÜNCELLENDİ</span>'
+            if son_24_saatte_mi(son_cekim)
+            else ""
+        )
 
-<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        firma_rows += f"""
+<div data-firma-row="{esc(str(baslik) + " " + str(firma_id))}" class="firma-kart">
 
-<div class="min-w-0 flex-1">
+<div class="flex items-start justify-between gap-2">
 
-<div class="font-bold text-slate-900 break-words">
-{esc(baslik)}
+<div class="min-w-0">
+
+<div class="font-bold text-slate-900 truncate">{esc(baslik)}</div>
+
+<div class="text-[11px] text-slate-500 truncate">ID: {esc(firma_id)} · Son çekim: {esc(son_cekim)}</div>
+
 </div>
 
-<div class="text-xs text-slate-500 mt-1 break-all">
-ID: {esc(firma_id)}
-</div>
-
-<div class="text-xs text-slate-500 mt-1 break-words">
-Son başarılı çekim: {esc(son_cekim)}
-</div>
-
-{hata_html}
-
-{
-    (
-        '<div class="mt-2 inline-flex items-center rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700">SON 24 SAATTE GÜNCELLENDİ</div>'
-    )
-    if son_24_saatte_mi(son_cekim)
-    else ''
-}
-
-<div class="flex items-center gap-2 mt-2">
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/order"
-class="flex items-center gap-2"
->
-<label class="text-xs text-indigo-700 font-black whitespace-nowrap">
-Ana Sayfa Sırası
-</label>
-<input
-type="number"
-name="sira"
-value="{index + 1}"
-min="1"
-step="1"
-required
-class="w-20 h-9 rounded-lg border border-indigo-200 bg-white px-2 text-sm font-black text-indigo-800 text-center outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
->
-<button
-type="submit"
-class="h-9 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition"
->
-Kaydet
-</button>
-</form>
-</div>
-
-<div class="flex flex-wrap gap-2 mt-3">
+<div class="flex flex-wrap justify-end gap-1 shrink-0 text-[11px]">
 
 {durum_html}
 
-<span class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
-{"AKTİF" if firma_aktif else "PASİF"}
-</span>
+<span class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">{"AKTİF" if firma_aktif else "PASİF"}</span>
 
-<span class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-xs font-bold">
-{"OTOMATİK" if otomatik else "MANUEL"}
-</span>
+<span class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-xs font-bold">{"OTOMATİK" if otomatik else "MANUEL"}</span>
 
 </div>
 
 </div>
 
-<div class="flex flex-wrap gap-2 items-center">
+{son24_html}
 
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/move"
-class="inline"
->
+{hata_html}
 
-<input
-type="hidden"
-name="direction"
-value="up"
->
+<div class="flex flex-wrap items-center gap-1.5">
 
-<button
-type="submit"
-title="Yukarı taşı"
-{"disabled" if yukari_disabled else ""}
-class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-black text-lg {"opacity-40 cursor-not-allowed" if yukari_disabled else "hover:bg-slate-200"}"
->
-↑
-</button>
-
+<form method="post" action="/admin/source/{esc(firma_id)}/order" class="inline-flex items-center gap-1.5">
+<label class="text-[11px] text-indigo-700 font-black" title="Ana sayfadaki sıra">Sıra</label>
+<input type="number" name="sira" value="{index + 1}" min="1" step="1" required class="w-14 h-8 rounded-lg border border-indigo-200 bg-white px-1 text-sm font-black text-indigo-800 text-center outline-none focus:border-indigo-500">
+<button type="submit" class="eylem bg-indigo-600 hover:bg-indigo-700 text-white" title="Sırayı kaydet">✓</button>
 </form>
 
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/move"
-class="inline"
->
-
-<input
-type="hidden"
-name="direction"
-value="down"
->
-
-<button
-type="submit"
-title="Aşağı taşı"
-{"disabled" if asagi_disabled else ""}
-class="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-black text-lg {"opacity-40 cursor-not-allowed" if asagi_disabled else "hover:bg-slate-200"}"
->
-↓
-</button>
-
+<form method="post" action="/admin/source/{esc(firma_id)}/move" class="inline">
+<input type="hidden" name="direction" value="up">
+<button type="submit" title="Yukarı taşı" {"disabled" if yukari_disabled else ""} class="eylem ok-btn {"opacity-40 cursor-not-allowed" if yukari_disabled else "hover:bg-slate-200"}">↑</button>
 </form>
 
-<a
-href="/admin/source/{esc(firma_id)}"
-class="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
->
-Düzenle / Güncelle
-</a>
-
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/test"
-class="inline"
->
-<button
-type="submit"
-class="px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition"
->
-Test Et
-</button>
+<form method="post" action="/admin/source/{esc(firma_id)}/move" class="inline">
+<input type="hidden" name="direction" value="down">
+<button type="submit" title="Aşağı taşı" {"disabled" if asagi_disabled else ""} class="eylem ok-btn {"opacity-40 cursor-not-allowed" if asagi_disabled else "hover:bg-slate-200"}">↓</button>
 </form>
 
-<form
-method="post"
-action="/admin/source/{esc(firma_id)}/delete"
-onsubmit="return confirm('Bu firmayı silmek istediğinizden emin misiniz?');"
->
+<a href="/admin/source/{esc(firma_id)}" class="eylem bg-slate-900 hover:bg-slate-800 text-white">Düzenle</a>
 
-<button
-type="submit"
-class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-bold"
->
-Sil
-</button>
-
+<form method="post" action="/admin/source/{esc(firma_id)}/test" class="inline">
+<button type="submit" class="eylem bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200">Test</button>
 </form>
 
-</div>
+<form method="post" action="/admin/source/{esc(firma_id)}/delete" class="inline" onsubmit="return confirm('Bu firmayı silmek istediğinizden emin misiniz?');">
+<button type="submit" class="eylem bg-red-50 text-red-700">Sil</button>
+</form>
 
 </div>
 
@@ -6705,6 +6758,136 @@ content="width=device-width, initial-scale=1.0"
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
+
+.admin-tabs {{
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 8px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .92);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+    backdrop-filter: blur(8px);
+    -webkit-overflow-scrolling: touch;
+}}
+
+html.dark .admin-tabs {{
+    background: rgba(17, 26, 46, .92);
+    border-color: #24324d;
+}}
+
+.admin-tab {{
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+}}
+
+.admin-tab:hover {{ background: #f1f5f9; }}
+
+.admin-tab.aktif {{
+    background: #0f172a;
+    color: #fff;
+}}
+
+html.dark .admin-tab {{ color: #9aa8bf; }}
+html.dark .admin-tab:hover {{ background: #162036; }}
+html.dark .admin-tab.aktif {{ background: #2563eb; color: #fff; }}
+
+.admin-tab .rozet {{
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 11px;
+    line-height: 20px;
+    text-align: center;
+}}
+
+.admin-tab .sayi {{
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(100, 116, 139, .18);
+    font-size: 11px;
+    line-height: 20px;
+    text-align: center;
+}}
+
+.firma-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr));
+    gap: 12px;
+}}
+
+.firma-kart {{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: rgba(248, 250, 252, .6);
+    transition: box-shadow .15s ease;
+}}
+
+.firma-kart:hover {{ box-shadow: 0 6px 18px rgba(15, 23, 42, .08); }}
+html.dark .firma-kart {{ background: #0e1627; border-color: #24324d; }}
+
+.firma-kart .eylem {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}}
+
+.firma-kart .ok-btn {{
+    width: 32px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 15px;
+}}
+
+html.dark .firma-kart .ok-btn {{ background: #162036; border-color: #24324d; color: #cbd5e1; }}
+
+@media (max-width: 560px) {{
+    .firma-kart > div:first-child {{
+        flex-direction: column;
+        align-items: stretch;
+    }}
+
+    .firma-kart > div:first-child > div:last-child {{
+        justify-content: flex-start;
+    }}
+}}
+
+.admin-bolum[hidden] {{ display: none !important; }}
+
 
 html,
 body {{
@@ -7244,7 +7427,14 @@ class="bg-amber-400 text-slate-950 hover:bg-amber-300 px-4 py-2.5 rounded-xl tex
 
 </div>
 
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+<nav class="admin-tabs" id="adminTabs" aria-label="Yönetim bölümleri">
+<button type="button" class="admin-tab" data-tab="genel">📊 Genel Bakış</button>
+<button type="button" class="admin-tab" data-tab="firmalar">🏭 Firmalar <span class="sayi">{len(firmalar)}</span></button>
+<button type="button" class="admin-tab" data-tab="bildirimler">🔔 Bildirimler {('<span class="rozet">' + str(okunmamis) + '</span>') if okunmamis else ''}</button>
+<button type="button" class="admin-tab" data-tab="bannerlar">🖼 Bannerlar</button>
+</nav>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 admin-bolum" data-bolum="genel">
 
 <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
 
@@ -7308,7 +7498,7 @@ Manuel
 
 </div>
 
-<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7 admin-bolum" data-bolum="genel">
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
 <div>
 <h2 class="text-xl font-bold">Sistem Sağlığı</h2>
@@ -7346,7 +7536,7 @@ Yedekleme: AKTİF
 </div>
 </div>
 
-<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7 admin-bolum" data-bolum="genel">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
 <div>
@@ -7364,7 +7554,7 @@ Yedekleme: AKTİF
 
 </div>
 
-<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7 admin-bolum" data-bolum="firmalar">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-5">
 
@@ -7392,7 +7582,7 @@ class="w-full sm:w-64 border border-slate-200 bg-slate-50 focus:bg-white focus:b
 <strong>↑</strong> ve <strong>↓</strong> butonları da çalışmaya devam eder.
 </div>
 
-<div class="space-y-3">
+<div class="firma-grid" id="firmaGrid">
 
 {firma_rows}
 
@@ -7400,7 +7590,7 @@ class="w-full sm:w-64 border border-slate-200 bg-slate-50 focus:bg-white focus:b
 
 </div>
 
-<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7 admin-bolum" data-bolum="bildirimler">
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
 
@@ -7455,7 +7645,7 @@ Tümünü Sil
 
 </div>
 
-<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7">
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:p-7 admin-bolum" data-bolum="bannerlar">
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-5">
 
@@ -7486,6 +7676,38 @@ Ana sayfada masaüstünde hesaplama aracının altında 3, fiyat geçmişinin al
 </div>
 
 </div>
+
+<script>
+
+(function() {{
+    var sekmeler = document.querySelectorAll("#adminTabs [data-tab]");
+    var bolumler = document.querySelectorAll("[data-bolum]");
+
+    function goster(ad) {{
+        var var_mi = Array.prototype.some.call(sekmeler, function(s) {{ return s.dataset.tab === ad; }});
+        if (!var_mi) ad = "genel";
+
+        bolumler.forEach(function(b) {{ b.hidden = b.dataset.bolum !== ad; }});
+        sekmeler.forEach(function(s) {{ s.classList.toggle("aktif", s.dataset.tab === ad); }});
+
+        try {{ localStorage.setItem("adminSekme", ad); }} catch (e) {{}}
+        if (location.hash !== "#" + ad) {{ history.replaceState(null, "", "#" + ad); }}
+    }}
+
+    sekmeler.forEach(function(s) {{
+        s.addEventListener("click", function() {{ goster(s.dataset.tab); window.scrollTo({{ top: 0, behavior: "smooth" }}); }});
+    }});
+
+    window.addEventListener("hashchange", function() {{
+        goster((location.hash || "").replace("#", "") || "genel");
+    }});
+
+    var ilk = (location.hash || "").replace("#", "");
+    if (!ilk) {{ try {{ ilk = localStorage.getItem("adminSekme") || ""; }} catch (e) {{ ilk = ""; }} }}
+    goster(ilk || "genel");
+}})();
+
+</script>
 
 <script>
 
@@ -7807,6 +8029,7 @@ def lme_fiyatlari():
             "tarih": sonuc["tarih"],
             "cekilme": sonuc["cekilme"],
             "veriler": sonuc["veriler"],
+            "gecmis": lme_gecmisi_oku(),
         }
 
     except Exception as exc:
@@ -7848,7 +8071,7 @@ content="width=device-width, initial-scale=1.0"
 
 <meta
 name="theme-color"
-content="#0f172a"
+content="#0a101d"
 >
 
 <meta
@@ -7872,7 +8095,7 @@ content="Güncel hurda ve demir çelik fiyatları."
 <meta name="twitter:description" content="Fabrika hurda alım fiyatları, LME ve döviz verileri tek ekranda.">
 <meta name="twitter:image" content="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
 <script>
-try { if (localStorage.getItem("hurdaTema") === "dark") { document.documentElement.classList.add("dark"); } } catch (e) {}
+try { if (localStorage.getItem("hurdaTema") !== "light") { document.documentElement.classList.add("dark"); } } catch (e) { document.documentElement.classList.add("dark"); }
 </script>
 <link rel="canonical" href="__BASE_URL__/">
 <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2954/2954884.png">
@@ -9518,6 +9741,79 @@ html.dark #lmeTableBody td:last-child {
     color: #fbbf24 !important;
 }
 
+
+/* ---- LME grafik ---- */
+.lme-chart-box {
+    background: #fffbeb;
+    border-color: #f2d58a;
+}
+
+.lme-chart-label { color: #b8860b; }
+.lme-chart-title { color: #7c4a03; }
+.lme-chart-note { color: #a16207; }
+
+.lme-chip {
+    height: 30px;
+    padding: 0 11px;
+    border-radius: 999px;
+    border: 1px solid #f2d58a;
+    background: #fff;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.lme-chip:hover { background: #fef3c7; }
+
+.lme-chip-on {
+    background: linear-gradient(135deg, #f6d365 0%, #d4a017 100%);
+    border-color: #d4a017;
+    color: #3b2a00;
+}
+
+.lme-svg text { fill: #a16207; font-size: 10px; font-weight: 700; }
+.lme-grid-line { stroke: #f2d58a; stroke-width: 1; stroke-dasharray: 3 4; }
+.lme-line-cash { fill: none; stroke: #d4a017; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.lme-line-3m { fill: none; stroke: #92400e; stroke-width: 1.8; stroke-dasharray: 5 4; stroke-linejoin: round; stroke-linecap: round; }
+.lme-area { fill: rgba(212, 160, 23, .14); }
+.lme-dot-cash { fill: #d4a017; stroke: #fff; stroke-width: 1.5; }
+
+.lme-tooltip {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: #3b2a00;
+    color: #fde68a;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+}
+
+.lme-bar-track { height: 7px; border-radius: 999px; background: #fde68a55; overflow: hidden; }
+.lme-bar-up { height: 100%; border-radius: 999px; background: #10b981; }
+.lme-bar-down { height: 100%; border-radius: 999px; background: #ef4444; }
+
+html.dark .lme-chart-box { background: #1a1405; border-color: #5b4510; }
+html.dark .lme-chart-label { color: #fbbf24; }
+html.dark .lme-chart-title { color: #fde68a; }
+html.dark .lme-chart-note { color: #b8963a; }
+html.dark .lme-chip { background: #241c0a; border-color: #5b4510; color: #fcd34d; }
+html.dark .lme-chip:hover { background: #2f2410; }
+html.dark .lme-chip-on { background: linear-gradient(135deg, #f6d365 0%, #c9971c 100%); color: #3b2a00; border-color: #d4a017; }
+html.dark .lme-svg text { fill: #d6b25e; }
+html.dark .lme-grid-line { stroke: #4a3a12; }
+html.dark .lme-line-cash { stroke: #fbbf24; }
+html.dark .lme-line-3m { stroke: #fde68a; }
+html.dark .lme-area { fill: rgba(251, 191, 36, .12); }
+html.dark .lme-dot-cash { fill: #fbbf24; stroke: #1a1405; }
+html.dark .lme-bar-track { background: #3a2d0e; }
+
 /* ---- Mobil alt araç çubuğu ---- */
 #mobileBar {
     position: fixed;
@@ -10163,6 +10459,32 @@ LME verileri alınıyor...
 
 </div>
 
+<div id="lmeChartBox" class="lme-chart-box mt-4 rounded-xl border p-3 sm:p-4">
+
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+<div>
+<div class="text-[9px] uppercase tracking-[0.14em] font-black lme-chart-label">Grafik</div>
+<div class="text-base font-black lme-chart-title">📈 LME Fiyat Grafiği</div>
+</div>
+<div class="flex items-center gap-1.5" id="lmeRangeBtns">
+<button type="button" data-days="7" class="lme-chip">7G</button>
+<button type="button" data-days="30" class="lme-chip lme-chip-on">30G</button>
+<button type="button" data-days="90" class="lme-chip">90G</button>
+</div>
+</div>
+
+<div id="lmeMetalTabs" class="flex flex-wrap gap-1.5 mb-3"></div>
+
+<div id="lmeChartArea" class="relative"></div>
+
+<div class="mt-4">
+<div class="text-[10px] uppercase tracking-wide font-black lme-chart-label mb-1.5">Nakit → 3 Ay farkı (%)</div>
+<div id="lmeSpreadBars" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5"></div>
+<div class="text-[10px] mt-2 lme-chart-note">Yeşil: 3 ay vadeli fiyat nakitten yüksek (contango). Kırmızı: düşük (backwardation).</div>
+</div>
+
+</div>
+
 </div>
 
 <div class="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[10px] text-slate-400">
@@ -10672,6 +10994,166 @@ function lmeAcKapat() {
 }
 
 
+// ---------------------------------------------------------
+// LME grafik
+// ---------------------------------------------------------
+window.__lmeAralik = 30;
+window.__lmeSecili = null;
+
+function lmeGunYaz(gun) {
+    const p = String(gun || "").split("-");
+    return p.length === 3 ? p[2] + "." + p[1] : String(gun || "");
+}
+
+function lmeSayi(n) {
+    return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+}
+
+function lmeGrafikCiz(result) {
+    const veriler = Array.isArray(result.veriler) ? result.veriler : [];
+    const gecmis = result.gecmis || {};
+    const sekmeler = document.getElementById("lmeMetalTabs");
+    const alan = document.getElementById("lmeChartArea");
+    const barlar = document.getElementById("lmeSpreadBars");
+
+    if (!sekmeler || !alan || !barlar || !veriler.length) return;
+
+    const adlar = veriler.map(function(v) { return v.ad; });
+    if (!window.__lmeSecili || adlar.indexOf(window.__lmeSecili) === -1) {
+        window.__lmeSecili = adlar.indexOf("Bakır") !== -1 ? "Bakır" : adlar[0];
+    }
+
+    // Nakit -> 3 ay farkı çubukları (veri geçmişi olmadan da anında görünür)
+    const farklar = veriler.map(function(v) {
+        const f = (v.cash_ask && v.three_month_ask) ? (v.three_month_ask - v.cash_ask) / v.cash_ask * 100 : 0;
+        return { ad: v.ad, f: f };
+    });
+    const enBuyuk = Math.max.apply(null, farklar.map(function(x) { return Math.abs(x.f); }).concat([0.01]));
+
+    barlar.innerHTML = farklar.map(function(x) {
+        const yuzde = Math.max(3, Math.round(Math.abs(x.f) / enBuyuk * 100));
+        const yukari = x.f >= 0;
+        return '<div><div class="flex items-center justify-between gap-2 text-[11px] font-bold lme-chart-title">' +
+            "<span>" + escapeHtml(x.ad) + "</span>" +
+            '<span class="' + (yukari ? "text-emerald-600" : "text-red-600") + '">' + (yukari ? "+" : "") + x.f.toFixed(2).replace(".", ",") + "%</span></div>" +
+            '<div class="lme-bar-track"><div class="' + (yukari ? "lme-bar-up" : "lme-bar-down") + '" style="width:' + yuzde + '%"></div></div></div>';
+    }).join("");
+
+    // Metal sekmeleri
+    sekmeler.innerHTML = adlar.map(function(ad) {
+        return '<button type="button" data-metal="' + escapeHtml(ad) + '" class="lme-chip' + (ad === window.__lmeSecili ? " lme-chip-on" : "") + '">' + escapeHtml(ad) + "</button>";
+    }).join("");
+
+    sekmeler.querySelectorAll("[data-metal]").forEach(function(d) {
+        d.addEventListener("click", function() {
+            window.__lmeSecili = d.dataset.metal;
+            lmeGrafikCiz(result);
+        });
+    });
+
+    const aralikDugmeleri = document.querySelectorAll("#lmeRangeBtns [data-days]");
+    aralikDugmeleri.forEach(function(d) {
+        d.classList.toggle("lme-chip-on", Number(d.dataset.days) === window.__lmeAralik);
+        if (d.dataset.bound !== "1") {
+            d.addEventListener("click", function() {
+                window.__lmeAralik = Number(d.dataset.days);
+                lmeGrafikCiz(result);
+            });
+            d.dataset.bound = "1";
+        }
+    });
+
+    // Çizgi grafik
+    const seri = (gecmis[window.__lmeSecili] || []).slice(-window.__lmeAralik);
+
+    if (seri.length < 2) {
+        alan.innerHTML = '<div class="rounded-xl border border-dashed p-4 text-center text-xs font-semibold lme-chart-note" style="border-color:#f2d58a">' +
+            "Fiyat çizgisi, günlük LME verisi biriktikçe oluşur (şu an " + seri.length + " gün kayıtlı). Aşağıdaki fark çubukları şimdiden geçerli." + "</div>";
+        return;
+    }
+
+    const kap = alan.clientWidth || 640;
+    const W = Math.max(300, Math.min(640, Math.round(kap)));
+    const H = W < 450 ? 215 : 230;
+    const L = W < 450 ? 46 : 52, R = 12, T = 14, B = 26;
+    const nakit = seri.map(function(p) { return Number(p[1]); });
+    const ucay = seri.map(function(p) { return p[2] === null || p[2] === undefined ? null : Number(p[2]); });
+    const tum = nakit.concat(ucay.filter(function(v) { return v !== null; }));
+    let vmin = Math.min.apply(null, tum), vmax = Math.max.apply(null, tum);
+    const bosluk = (vmax - vmin) * 0.12 || vmax * 0.01;
+    vmin -= bosluk; vmax += bosluk;
+
+    const x = function(i) { return L + (seri.length === 1 ? 0 : i / (seri.length - 1)) * (W - L - R); };
+    const y = function(v) { return T + (1 - (v - vmin) / (vmax - vmin)) * (H - T - B); };
+
+    let izgara = "";
+    for (let k = 0; k <= 4; k++) {
+        const v = vmin + (vmax - vmin) * k / 4;
+        izgara += '<line class="lme-grid-line" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/>' +
+            '<text x="' + (L - 6) + '" y="' + (y(v) + 3).toFixed(1) + '" text-anchor="end">' + lmeSayi(Math.round(v)) + "</text>";
+    }
+
+    const yol = function(deg) {
+        let d = "", acik = false;
+        deg.forEach(function(v, i) {
+            if (v === null) { acik = false; return; }
+            d += (acik ? " L" : " M") + x(i).toFixed(1) + " " + y(v).toFixed(1);
+            acik = true;
+        });
+        return d.trim();
+    };
+
+    const alanYolu = yol(nakit) + " L" + x(nakit.length - 1).toFixed(1) + " " + (H - B) + " L" + x(0).toFixed(1) + " " + (H - B) + " Z";
+    const son = nakit.length - 1;
+
+    alan.innerHTML =
+        '<svg class="lme-svg w-full" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + escapeHtml(window.__lmeSecili) + ' fiyat grafiği" style="touch-action:pan-y">' +
+            izgara +
+            '<path class="lme-area" d="' + alanYolu + '"/>' +
+            '<path class="lme-line-3m" d="' + yol(ucay) + '"/>' +
+            '<path class="lme-line-cash" d="' + yol(nakit) + '"/>' +
+            '<circle class="lme-dot-cash" cx="' + x(son).toFixed(1) + '" cy="' + y(nakit[son]).toFixed(1) + '" r="4"/>' +
+            '<text x="' + L + '" y="' + (H - 6) + '">' + lmeGunYaz(seri[0][0]) + "</text>" +
+            '<text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + lmeGunYaz(seri[son][0]) + "</text>" +
+            '<line id="lmeCursor" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" stroke="#d4a017" stroke-width="1" opacity="0"/>' +
+        "</svg>" +
+        '<div class="flex flex-wrap items-center gap-4 mt-1 text-[10px] font-bold lme-chart-note">' +
+            '<span><span style="display:inline-block;width:16px;height:3px;border-radius:2px;background:#d4a017;vertical-align:middle"></span> Nakit satış</span>' +
+            '<span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #92400e;vertical-align:middle"></span> 3 ay satış</span>' +
+            "<span>USD / metrik ton</span></div>" +
+        '<div id="lmeTooltip" class="lme-tooltip" style="display:none"></div>';
+
+    const svg = alan.querySelector("svg");
+    const ipucu = document.getElementById("lmeTooltip");
+    const imlec = document.getElementById("lmeCursor");
+
+    function goster(olay) {
+        const kutu = svg.getBoundingClientRect();
+        const oran = (olay.clientX - kutu.left) / kutu.width;
+        const px = oran * W;
+        let i = Math.round((px - L) / (W - L - R) * (seri.length - 1));
+        i = Math.max(0, Math.min(seri.length - 1, i));
+
+        imlec.setAttribute("x1", x(i)); imlec.setAttribute("x2", x(i)); imlec.setAttribute("opacity", "0.6");
+        ipucu.style.display = "block";
+        ipucu.innerHTML = "<div>" + lmeGunYaz(seri[i][0]) + "</div><div>Nakit: " + lmeSayi(nakit[i]) + "</div>" +
+            (ucay[i] !== null ? "<div>3 Ay: " + lmeSayi(ucay[i]) + "</div>" : "");
+        const sol = Math.min(Math.max(x(i) / W * kutu.width - 40, 0), kutu.width - 110);
+        ipucu.style.left = sol + "px";
+        ipucu.style.top = "0px";
+    }
+
+    function gizle() {
+        ipucu.style.display = "none";
+        imlec.setAttribute("opacity", "0");
+    }
+
+    svg.addEventListener("pointermove", goster);
+    svg.addEventListener("pointerdown", goster);
+    svg.addEventListener("pointerleave", gizle);
+}
+
+
 async function lmeFiyatlariniGetir() {
 
     const lmeToggle =
@@ -10771,6 +11253,8 @@ async function lmeFiyatlariniGetir() {
                     }
                 );
             };
+
+        try { lmeGrafikCiz(result); } catch (hata) { console.error("LME grafik:", hata); }
 
         tableBody.innerHTML = "";
 
