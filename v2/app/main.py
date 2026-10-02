@@ -9329,6 +9329,18 @@ body {
     }
 }
 
+.market-design .side-widget {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1023px) {
+    .market-design .desktop-feature-column > .side-widget {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+}
+
 /* ---- Mobil alt araç çubuğu ---- */
 #mobileBar {
     position: fixed;
@@ -10021,13 +10033,33 @@ class="mt-0 border-t border-slate-200 pt-0"
 <div class="rounded-xl border border-dashed border-emerald-200 bg-white/80 p-3 text-center text-xs text-slate-500">Firma, kalem ve ton miktarı seçip hesaplayın.</div>
 </div>
 </div>
-</div
 </div>
-<div class="feature-ad-stack grid gap-3 mt-1" aria-label="Piyasa görselleri">
+</div>
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd1"></div>
+</div>
+<section id="widgetBest" class="side-widget w-full max-w-[250px] mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-3" aria-label="🏆 En Yüksek Fiyatlar">
+<div class="text-[9px] uppercase tracking-[0.12em] font-black text-sky-600">Cins bazında</div>
+<div class="text-[13px] font-black text-slate-900 mt-0.5 mb-2">🏆 En Yüksek Fiyatlar</div>
+<div class="side-widget-body text-xs text-slate-500">Yükleniyor...</div>
+</section>
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd2"></div>
+</div>
+<section id="widgetAlarms" class="side-widget w-full max-w-[250px] mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-3" aria-label="🔔 Alarmlarım">
+<div class="text-[9px] uppercase tracking-[0.12em] font-black text-sky-600">Takip</div>
+<div class="text-[13px] font-black text-slate-900 mt-0.5 mb-2">🔔 Alarmlarım</div>
+<div class="side-widget-body text-xs text-slate-500">Yükleniyor...</div>
+</section>
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd3"></div>
 </div>
+<section id="widgetSources" class="side-widget w-full max-w-[250px] mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-3" aria-label="Kaynaklar ve veri durumu">
+<div class="text-[9px] uppercase tracking-[0.12em] font-black text-sky-600">Şeffaflık</div>
+<div class="text-[13px] font-black text-slate-900 mt-0.5 mb-2">🔗 Kaynaklar ve Veri Durumu</div>
+<div class="side-widget-body text-xs text-slate-500">Yükleniyor...</div>
+</section>
+
 </aside>
 
 <main class="min-w-0 w-full mx-auto order-1 lg:order-none">
@@ -10283,11 +10315,26 @@ Firma ve kalem seçip <strong>Grafiği Göster</strong> butonuna bas.
 </div>
 
 </div>
-<div class="feature-ad-stack grid gap-3 mt-1" aria-label="Piyasa görselleri">
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd4"></div>
+</div>
+<section id="widgetChanges" class="side-widget w-full max-w-[250px] mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-3" aria-label="📈 Son Değişimler">
+<div class="text-[9px] uppercase tracking-[0.12em] font-black text-sky-600">Akış</div>
+<div class="text-[13px] font-black text-slate-900 mt-0.5 mb-2">📈 Son Değişimler</div>
+<div class="side-widget-body text-xs text-slate-500">Yükleniyor...</div>
+</section>
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd5"></div>
+</div>
+<section id="widgetRanking" class="side-widget w-full max-w-[250px] mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-3" aria-label="📊 Fiyat Sıralaması">
+<div class="text-[9px] uppercase tracking-[0.12em] font-black text-sky-600">Karşılaştırma</div>
+<div class="text-[13px] font-black text-slate-900 mt-0.5 mb-2">📊 Fiyat Sıralaması</div>
+<div class="side-widget-body text-xs text-slate-500">Yükleniyor...</div>
+</section>
+<div class="feature-ad-stack grid gap-3" aria-label="Piyasa görseli">
 <div class="ad-box rounded-2xl overflow-hidden" id="bottomAd6"></div>
 </div>
+
 </aside>
 
 </div>
@@ -11091,6 +11138,185 @@ async function hurdaPushDegistir() {
     hurdaPushDurumuYaz();
 }
 
+// ---------------------------------------------------------
+// Yan sütun kutucukları
+// ---------------------------------------------------------
+function hurdaKatla(m) {
+    return String(m || "")
+        .replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase()
+        .replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g")
+        .replace(/ö/g, "o").replace(/ü/g, "u").replace(/ı/g, "i")
+        .replace(/[^a-z0-9]/g, "");
+}
+
+function hurdaKalemFiyati(k) {
+    const v = (k.manuel_fiyat !== null && k.manuel_fiyat !== undefined) ? k.manuel_fiyat : k.otomatik_fiyat;
+    return Number(v);
+}
+
+function hurdaTl(n) {
+    return Number(n).toLocaleString("tr-TR") + " TL";
+}
+
+function hurdaTarihSirasi(metin) {
+    const m = String(metin || "").match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})(?:\\s+(\\d{2}):(\\d{2}))?/);
+    if (!m) return 0;
+    return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
+}
+
+function hurdaGruplari(firmalar) {
+    const gruplar = {};
+
+    firmalar.forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            const fiyat = hurdaKalemFiyati(k);
+            const anahtar = hurdaKatla(k.cins);
+            if (!anahtar || !Number.isFinite(fiyat)) return;
+
+            if (!gruplar[anahtar]) gruplar[anahtar] = { ad: k.cins, uyeler: [] };
+            gruplar[anahtar].uyeler.push({ firma: f.baslik, fiyat: fiyat, yas: f.fiyat_yasi_gun });
+        });
+    });
+
+    return Object.keys(gruplar)
+        .map(function(a) { return Object.assign({ anahtar: a }, gruplar[a]); })
+        .filter(function(g) { return new Set(g.uyeler.map(function(u) { return u.firma; })).size >= 2; });
+}
+
+function hurdaKutuYaz(id, html) {
+    const el = document.querySelector("#" + id + " .side-widget-body");
+    if (el) el.innerHTML = html;
+}
+
+function hurdaBos(metin) {
+    return '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-[11px] text-slate-500">' + escapeHtml(metin) + "</div>";
+}
+
+function hurdaYasMetni(gun) {
+    if (gun === null || gun === undefined) return "";
+    if (gun <= 0) return "bugün";
+    if (gun === 1) return "dün";
+    return gun + " gün önce";
+}
+
+function yanKutulariCiz(firmalar) {
+    // 1) Cins bazında en yüksek fiyatlar
+    const gruplar = hurdaGruplari(firmalar)
+        .sort(function(a, b) { return b.uyeler.length - a.uyeler.length; })
+        .slice(0, 5);
+
+    hurdaKutuYaz("widgetBest", gruplar.length
+        ? gruplar.map(function(g) {
+            const en = g.uyeler.slice().sort(function(a, b) { return b.fiyat - a.fiyat; })[0];
+            const eski = en.yas !== null && en.yas !== undefined && en.yas > 3;
+            return '<div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">' +
+                '<div class="min-w-0"><div class="text-[12px] font-black text-slate-800 truncate">' + escapeHtml(g.ad) + "</div>" +
+                '<div class="text-[10px] font-semibold text-slate-500 truncate">' + escapeHtml(en.firma) + (eski ? " · ⚠ eski" : "") + "</div></div>" +
+                '<div class="text-[12px] font-black text-slate-900 whitespace-nowrap">' + hurdaTl(en.fiyat) + "</div></div>";
+        }).join("")
+        : hurdaBos("Karşılaştırılacak ortak cins bulunamadı."));
+
+    // 2) Alarmlarım
+    let alarmlar = [];
+    try { alarmlar = JSON.parse(localStorage.getItem("hurdaPriceAlarms") || "[]"); } catch (e) { alarmlar = []; }
+    const pushAcik = localStorage.getItem("hurdaPushAktif") === "1";
+
+    hurdaKutuYaz("widgetAlarms",
+        (alarmlar.length
+            ? alarmlar.slice(0, 4).map(function(a) {
+                const f = firmalar.find(function(x) { return x.firma_id === a.firma_id; });
+                return '<div class="py-1.5 border-b border-slate-100 last:border-0">' +
+                    '<div class="text-[12px] font-black text-slate-800 truncate">' + escapeHtml(f ? f.baslik : a.firma_id) + " · " + escapeHtml(a.kalem) + "</div>" +
+                    '<div class="text-[10px] font-semibold ' + (a.fired ? "text-emerald-600" : "text-slate-500") + '">' +
+                    (a.direction === "above" ? "≥ " : "≤ ") + hurdaTl(a.value) + (a.fired ? " · tetiklendi" : " · aktif") + "</div></div>";
+            }).join("") + (alarmlar.length > 4 ? '<div class="text-[10px] text-slate-400 pt-1">+' + (alarmlar.length - 4) + " alarm daha</div>" : "")
+            : hurdaBos("Henüz alarm yok. Hedef fiyata ulaşınca haber verelim.")) +
+        '<div class="flex items-center justify-between gap-2 mt-2">' +
+            '<button type="button" id="widgetAlarmAdd" class="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black">＋ Alarm ekle</button>' +
+            '<span class="text-[10px] font-semibold ' + (pushAcik ? "text-emerald-600" : "text-slate-400") + '">' + (pushAcik ? "🔔 Bildirim açık" : "🔕 Bildirim kapalı") + "</span></div>");
+
+    const ekle = document.getElementById("widgetAlarmAdd");
+    if (ekle) ekle.addEventListener("click", function() {
+        const bolum = document.getElementById("marketTools");
+        if (bolum) bolum.scrollIntoView({ behavior: "smooth", block: "start" });
+        const panel = document.getElementById("alarmPanel");
+        const dugme = document.getElementById("alarmButton");
+        if (panel && dugme && panel.classList.contains("hidden")) dugme.click();
+    });
+
+    // 3) Kaynaklar ve veri durumu (bağlantı + fiyatın yaşı)
+    hurdaKutuYaz("widgetSources", firmalar.map(function(f) {
+        const yas = f.fiyat_yasi_gun;
+        const renk = yas === null || yas === undefined ? "bg-slate-300" : (yas <= 1 ? "bg-emerald-500" : (yas <= 3 ? "bg-amber-400" : "bg-red-500"));
+        const ad = escapeHtml(f.baslik);
+        const sol = '<span class="flex items-center gap-2 min-w-0"><span class="inline-block w-2 h-2 rounded-full shrink-0 ' + renk + '"></span>' +
+            '<span class="text-[12px] font-bold text-slate-700 truncate">' + ad + (f.url ? ' <span class="text-slate-400">↗</span>' : "") + "</span></span>";
+        const sag = '<span class="text-[10px] font-semibold text-slate-500 whitespace-nowrap">' + escapeHtml(hurdaYasMetni(yas) || "-") + "</span>";
+        const kok = "flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0";
+
+        return f.url
+            ? '<a href="' + escapeHtml(f.url) + '" target="_blank" rel="noopener noreferrer" class="' + kok + ' hover:opacity-80">' + sol + sag + "</a>"
+            : '<div class="' + kok + '">' + sol + sag + "</div>";
+    }).join("") + '<div class="text-[10px] text-slate-400 mt-2">Tarih, fiyatın kaynakta yayınlandığı güne göredir. Kaynağa gitmek için satıra tıklayın.</div>');
+
+    // 4) Son değişimler
+    const degisimler = [];
+    firmalar.forEach(function(f) {
+        (f.kalemler || []).forEach(function(k) {
+            const fark = String(k.degisim || k.onceki_degisim || "").trim();
+            if (fark.startsWith("+") || fark.startsWith("-")) {
+                degisimler.push({ firma: f.baslik, kalem: k.cins, fark: fark, tarih: k.degisim_tarihi || "", sira: hurdaTarihSirasi(k.degisim_tarihi) });
+            }
+        });
+    });
+    degisimler.sort(function(a, b) { return b.sira - a.sira; });
+
+    hurdaKutuYaz("widgetChanges", degisimler.length
+        ? degisimler.slice(0, 6).map(function(d) {
+            const yuk = d.fark.startsWith("+");
+            return '<div class="py-1.5 border-b border-slate-100 last:border-0">' +
+                '<div class="flex items-center justify-between gap-2"><span class="text-[12px] font-black text-slate-800 truncate">' + escapeHtml(d.kalem) + "</span>" +
+                '<span class="text-[11px] font-black whitespace-nowrap ' + (yuk ? "text-emerald-600" : "text-red-600") + '">' + (yuk ? "▲ " : "▼ ") + escapeHtml(d.fark) + "</span></div>" +
+                '<div class="text-[10px] font-semibold text-slate-500 truncate">' + escapeHtml(d.firma) + (d.tarih ? " · " + escapeHtml(d.tarih) : "") + "</div></div>";
+        }).join("")
+        : hurdaBos("Fiyatlar değiştikçe burada listelenir."));
+
+    // 5) Fiyat sıralaması (seçilen cins)
+    const secenekler = hurdaGruplari(firmalar).sort(function(a, b) { return b.uyeler.length - a.uyeler.length; });
+    if (secenekler.length) {
+        let secili = secenekler.find(function(g) { return g.anahtar === window.__siralamaSecim; })
+            || secenekler.find(function(g) { return g.anahtar === "dkp"; })
+            || secenekler[0];
+
+        const sirali = secili.uyeler.slice().sort(function(a, b) { return b.fiyat - a.fiyat; });
+        const enYuksek = sirali[0].fiyat, enDusuk = sirali[sirali.length - 1].fiyat;
+        const alt = enDusuk - Math.max(enYuksek - enDusuk, enYuksek * 0.01);
+
+        hurdaKutuYaz("widgetRanking",
+            '<select id="rankingSelect" class="w-full h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 mb-2">' +
+                secenekler.map(function(g) {
+                    return '<option value="' + escapeHtml(g.anahtar) + '"' + (g.anahtar === secili.anahtar ? " selected" : "") + ">" + escapeHtml(g.ad) + "</option>";
+                }).join("") + "</select>" +
+            sirali.map(function(u, i) {
+                const yuzde = Math.max(8, Math.round((u.fiyat - alt) / (enYuksek - alt) * 100));
+                return '<div class="mb-1.5"><div class="flex items-center justify-between gap-2 text-[10px] font-bold">' +
+                    '<span class="truncate text-slate-600">' + escapeHtml(u.firma) + "</span>" +
+                    '<span class="whitespace-nowrap ' + (i === 0 ? "text-emerald-600" : "text-slate-700") + '">' + hurdaTl(u.fiyat) + "</span></div>" +
+                    '<div class="h-1.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full ' + (i === 0 ? "bg-emerald-500" : "bg-sky-400") + '" style="width:' + yuzde + '%"></div></div></div>';
+            }).join(""));
+
+        const secim = document.getElementById("rankingSelect");
+        if (secim) secim.addEventListener("change", function() {
+            window.__siralamaSecim = secim.value;
+            yanKutulariCiz(firmalar);
+        });
+    } else {
+        hurdaKutuYaz("widgetRanking", hurdaBos("Karşılaştırılacak ortak cins bulunamadı."));
+    }
+
+}
+
+
 function marketToolsInit(result) {
 
     const firmalar = Array.isArray(result.data)
@@ -11101,6 +11327,8 @@ function marketToolsInit(result) {
         data: firmalar,
         son_guncelleme: result.son_guncelleme || "",
     };
+
+    try { yanKutulariCiz(firmalar); } catch (hata) { console.error("Yan kutular:", hata); }
 
     const ozetKutusu = document.getElementById("dailyDigest");
     if (ozetKutusu && ozetKutusu.dataset.bound !== "1") {
