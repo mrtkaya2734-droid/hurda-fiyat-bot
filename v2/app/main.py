@@ -25,7 +25,6 @@ import zipfile
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from starlette.concurrency import run_in_threadpool
 import base64
 import urllib.parse
 import secrets
@@ -967,14 +966,13 @@ def lme_gecmisi_oku(gun_sayisi=180):
     return {ad: seri[-gun_sayisi:] for ad, seri in gecmis.items()}
 
 
-def lme_verilerini_cek(force=False):
+def lme_verilerini_cek():
     global _LME_CACHE
 
     simdi = now_istanbul()
 
     if (
-        not force
-        and _LME_CACHE["veriler"]
+        _LME_CACHE["veriler"]
         and _LME_CACHE["cekilme"]
     ):
         gecen = (
@@ -4684,18 +4682,6 @@ def admin_degisim_tani(
     )
 
 
-@app.post("/admin/lme-guncelle")
-async def admin_lme_guncelle(username: str = Depends(verify_admin)):
-    # Önbelleği atlayıp LME kaynaklarından hemen yeniden çek.
-    try:
-        await run_in_threadpool(lme_verilerini_cek, True)
-        mesaj = "lme_guncel"
-    except Exception as exc:
-        print(f"LME MANUEL GÜNCELLEME HATASI: {type(exc).__name__}: {exc}")
-        mesaj = "lme_hata"
-    return RedirectResponse(f"/admin?m={mesaj}", status_code=303)
-
-
 @app.post("/admin/lme-grafik")
 async def admin_lme_grafik(username: str = Depends(verify_admin)):
     data = load_data()
@@ -6617,8 +6603,6 @@ def admin_panel(
         "calisiyor": "Güncelleme zaten çalışıyor, bitmesini bekleyin.",
         "sifre": "Şifre değiştirildi.",
         "yedek": "Yeni yedek alındı (yerel + Supabase).",
-        "lme_guncel": "LME verileri kaynaklardan yeniden çekildi.",
-        "lme_hata": "LME kaynaklarına şu an ulaşılamadı; son bilinen veri korunuyor.",
         "lme_grafik_acik": "LME grafik alanı aktif edildi.",
         "lme_grafik_kapali": "LME grafik alanı pasif edildi; ana sayfada gizlenir.",
     }
@@ -7968,11 +7952,6 @@ Manuel
 <a href="/admin/yedek-indir" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 ⬇ Yedeği indir
 </a>
-<form method="post" action="/admin/lme-guncelle">
-<button type="submit" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
-⟳ LME'yi şimdi güncelle
-</button>
-</form>
 <form method="post" action="/admin/lme-grafik">
 <button type="submit" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3 py-2 rounded-xl font-black transition">
 {'📈 LME grafiği: AKTİF (kapat)' if lme_grafik_aktif_mi() else '📉 LME grafiği: PASİF (aç)'}
