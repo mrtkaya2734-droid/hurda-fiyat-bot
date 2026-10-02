@@ -25,6 +25,7 @@ import zipfile
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from starlette.middleware.gzip import GZipMiddleware
 import base64
 import urllib.parse
 import secrets
@@ -4462,6 +4463,21 @@ async def admin_tema_enjekte(request: Request, call_next):
         )
 
     return cevap
+
+
+@app.middleware("http")
+async def reklam_gorsel_onbellegi(request: Request, call_next):
+    """Dosya adı içeriğe göre rastgele olduğundan reklam görselleri uzun süre önbelleğe alınır."""
+    cevap = await call_next(request)
+    if request.url.path.startswith("/static/ads/") and cevap.status_code == 200:
+        cevap.headers["Cache-Control"] = "public, max-age=604800, immutable"
+    return cevap
+
+
+# Bant genişliğini düşürmek için yanıtları sıkıştır (HTML ~176 KB → ~36 KB).
+# En son eklenen middleware en dışta çalışır; böylece diğer middleware'lerin
+# ürettiği yanıtlar da sıkıştırılır.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 # =========================================================
@@ -13714,22 +13730,44 @@ lmeFiyatlariniGetir();
 fiyatlariGetir();
 
 
+// Bant genişliği için: arka plandaki (gizli) sekmeler veri çekmez,
+// sekme tekrar görününce hemen yenilenir.
+function yalnizcaGorunurken(fn) {
+    return function() {
+        if (!document.hidden) {
+            fn();
+        }
+    };
+}
+
 setInterval(
-    dovizleriGetir,
+    yalnizcaGorunurken(dovizleriGetir),
     600000
 );
 
 
 setInterval(
-    lmeFiyatlariniGetir,
+    yalnizcaGorunurken(lmeFiyatlariniGetir),
     900000
 );
 
 
 setInterval(
-    fiyatlariGetir,
-    60000
+    yalnizcaGorunurken(fiyatlariGetir),
+    180000
 );
+
+(function() {
+    let gizlenme = 0;
+    document.addEventListener("visibilitychange", function() {
+        if (document.hidden) {
+            gizlenme = Date.now();
+        } else if (gizlenme && Date.now() - gizlenme > 180000) {
+            // 3 dakikadan uzun süre gizli kaldıysa fiyatları hemen yenile.
+            fiyatlariGetir();
+        }
+    });
+})();
 
 </script>
 
