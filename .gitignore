@@ -48,3 +48,6 @@ app.*.map.json
 .widget_preview/
 firebase_key.json
 firebase_key.json
+
+# Uygulamanın otomatik veri yedekleri
+v2/backups/
