@@ -21,7 +21,7 @@ import sys
 UZANTILAR = (".html", ".htm", ".php", ".tpl", ".twig", ".phtml", ".js", ".inc")
 ATLA_KLASORLER = {"cgi-bin", "node_modules", ".git", "vendor", "cache", "logs", "tmp"}
 # "© 2023", "&copy; 2023", "&#169; 2023", "(c) 2023" -> sadece yili degistirir
-DESEN = re.compile(r"((?:©|&copy;|&#169;|&#xA9;|\(c\))\s*)2023(?=\D)", re.IGNORECASE)
+DESEN = re.compile(r"((?:©|&copy;|&#169;|&#xA9;|\(c\))\s*)2023(?!\d)", re.IGNORECASE)
 
 
 def baglan(host, port, user, sifre, tls):
