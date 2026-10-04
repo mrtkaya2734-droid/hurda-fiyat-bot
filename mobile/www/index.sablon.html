@@ -23,13 +23,19 @@
 </div>
 <script>
 var ADRES = "__APP_URL__";
+var deneme = 0;
 function dene(){
+  deneme++;
   document.getElementById("hata").style.display="none";
   document.getElementById("yukle").style.display="flex";
-  var ac=new AbortController(), t=setTimeout(function(){ac.abort()},12000);
-  fetch(ADRES+"/manifest.json",{cache:"no-store",signal:ac.signal})
-    .then(function(r){clearTimeout(t); if(!r.ok) throw 0; window.location.replace(ADRES+"/");})
+  var ac=new AbortController(), t=setTimeout(function(){ac.abort()},60000);
+  // no-cors: uygulamanın kendi kaynağından siteye CORS engeline takılmadan ulaşılır.
+  // Ağ varsa istek başarılı döner, yoksa hata verir.
+  fetch(ADRES+"/manifest.json?_="+Date.now(),{cache:"no-store",mode:"no-cors",signal:ac.signal})
+    .then(function(){clearTimeout(t); window.location.replace(ADRES+"/");})
     .catch(function(){clearTimeout(t);
+      if(deneme<3){ setTimeout(dene,2000); return; }
+      deneme=0;
       document.getElementById("yukle").style.display="none";
       document.getElementById("hata").style.display="flex";});
 }
