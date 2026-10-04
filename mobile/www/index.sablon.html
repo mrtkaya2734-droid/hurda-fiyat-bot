@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a101d">
-<title>Hurda Fiyatları</title>
+<meta name="theme-color" content="#ffffff">
+<title>Cevhersan Exchange</title>
 <style>
-  html,body{margin:0;height:100%;background:#0a101d;color:#e2e8f0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  html,body{margin:0;height:100%;background:#ffffff;color:#334155;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
   .k{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
-  .d{width:40px;height:40px;border:4px solid #334155;border-top-color:#38bdf8;border-radius:50%;animation:s 1s linear infinite}
+  .d{width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#009fe3;border-radius:50%;animation:s 1s linear infinite}
   @keyframes s{to{transform:rotate(360deg)}}
-  button{background:#0ea5e9;color:#fff;border:0;border-radius:10px;padding:12px 28px;font-size:16px}
+  button{background:#009fe3;color:#fff;border:0;border-radius:10px;padding:12px 28px;font-size:16px}
   #hata{display:none}
 </style>
 </head>
 <body>
-<div class="k" id="yukle"><div class="d"></div><div>Hurda Fiyatları yükleniyor…</div></div>
+<div class="k" id="yukle"><img src="logo.png" alt="Cevhersan" style="width:70%;max-width:320px"><div class="d"></div><div>Cevhersan Exchange yükleniyor…</div></div>
 <div class="k" id="hata">
   <div style="font-size:42px">📡</div>
   <div>Bağlantı kurulamadı.<br>İnternet bağlantınızı kontrol edin.</div>
@@ -23,13 +23,19 @@
 </div>
 <script>
 var ADRES = "__APP_URL__";
+var deneme = 0;
 function dene(){
+  deneme++;
   document.getElementById("hata").style.display="none";
   document.getElementById("yukle").style.display="flex";
-  var ac=new AbortController(), t=setTimeout(function(){ac.abort()},12000);
-  fetch(ADRES+"/manifest.json",{cache:"no-store",signal:ac.signal})
-    .then(function(r){clearTimeout(t); if(!r.ok) throw 0; window.location.replace(ADRES+"/");})
+  var ac=new AbortController(), t=setTimeout(function(){ac.abort()},60000);
+  // no-cors: uygulamanın kendi kaynağından siteye CORS engeline takılmadan ulaşılır.
+  // Ağ varsa istek başarılı döner, yoksa hata verir.
+  fetch(ADRES+"/manifest.json?_="+Date.now(),{cache:"no-store",mode:"no-cors",signal:ac.signal})
+    .then(function(){clearTimeout(t); window.location.replace(ADRES+"/");})
     .catch(function(){clearTimeout(t);
+      if(deneme<3){ setTimeout(dene,2000); return; }
+      deneme=0;
       document.getElementById("yukle").style.display="none";
       document.getElementById("hata").style.display="flex";});
 }

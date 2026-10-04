@@ -1,9 +1,9 @@
-name: Mobil uygulama (APK + iOS)
+name: Cevhersan Exchange mobil (APK + iOS)
 
 # Android APK ve iOS (.ipa) dosyalarını üretir. Çıktılar çalıştırma sayfasının
 # altındaki "Artifacts" bölümünden indirilir.
 #
-# Çalıştırma: Actions > "Mobil uygulama (APK + iOS)" > Run workflow
+# Çalıştırma: Actions > "Cevhersan Exchange mobil (APK + iOS)" > Run workflow
 # Uygulama adresi: Run workflow penceresinde yazılır ya da depo değişkeni
 # Settings > Secrets and variables > Actions > Variables > APP_URL olarak saklanır.
 # VPS'e taşınınca yalnızca bu adres değiştirilip iş yeniden çalıştırılır.
@@ -50,7 +50,7 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: HurdaFiyat-android-apk
+          name: CevhersanExchange-android-apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
   ios:
@@ -84,8 +84,8 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -qry HurdaFiyat-unsigned.ipa Payload
+          zip -qry CevhersanExchange-unsigned.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
-          name: HurdaFiyat-ios-unsigned-ipa
-          path: mobile/ios/App/HurdaFiyat-unsigned.ipa
+          name: CevhersanExchange-ios-unsigned-ipa
+          path: mobile/ios/App/CevhersanExchange-unsigned.ipa
