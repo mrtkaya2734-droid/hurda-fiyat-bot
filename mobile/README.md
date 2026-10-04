@@ -4,19 +4,19 @@ Web uygulamasını (`v2/`) telefon uygulaması olarak paketleyen Capacitor kabu�
 Uygulama açılınca web sitesini yükler; fiyat/özellik değişiklikleri için yeniden
 derlemeye gerek yoktur. İnternet yoksa "Tekrar dene" ekranı gösterilir.
 
-- Paket adı: `com.hurdafiyat.app` — Ad: **Hurda Fiyatları**
+- Paket adı: `com.cevhersan.exchange` — Ad: **Cevhersan Exchange**
 - Simge/açılış ekranı: `assets/` (değiştirip yeniden derleyin)
 - `android/` ve `ios/` klasörleri derleme sırasında üretilir, depoda tutulmaz.
 
 ## APK / IPA üretmek (bilgisayar gerekmez)
 
-1. GitHub > **Actions** > *Mobil uygulama (APK + iOS)* > **Run workflow**
+1. GitHub > **Actions** > *Cevhersan Exchange mobil (APK + iOS)* > **Run workflow**
 2. `app_url` alanına sitenin https adresini yazın (ör. `https://hurda.ornek.com`).
    Her seferinde yazmamak için: Settings > Secrets and variables > Actions >
    Variables > `APP_URL`.
 3. İş bitince çalıştırma sayfasının altındaki **Artifacts** bölümünden indirin:
-   - `HurdaFiyat-android-apk` → `app-debug.apk` (telefona doğrudan kurulur; "bilinmeyen kaynaklara izin ver" gerekir)
-   - `HurdaFiyat-ios-unsigned-ipa` → imzasız `.ipa`
+   - `CevhersanExchange-android-apk` → `app-debug.apk` (telefona doğrudan kurulur; "bilinmeyen kaynaklara izin ver" gerekir)
+   - `CevhersanExchange-ios-unsigned-ipa` → imzasız `.ipa`
 
 ## iOS kurulumu hakkında
 

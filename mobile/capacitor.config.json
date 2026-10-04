@@ -1,24 +1,24 @@
 {
-  "appId": "com.hurdafiyat.app",
-  "appName": "Hurda Fiyatları",
+  "appId": "com.cevhersan.exchange",
+  "appName": "Cevhersan Exchange",
   "webDir": "www",
-  "backgroundColor": "#0a101d",
+  "backgroundColor": "#ffffff",
   "android": {
     "allowMixedContent": false
   },
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#0a101d"
+    "backgroundColor": "#ffffff"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 800,
-      "backgroundColor": "#0a101d",
+      "backgroundColor": "#ffffff",
       "showSpinner": false
     },
     "StatusBar": {
-      "style": "DARK",
-      "backgroundColor": "#0a101d"
+      "style": "LIGHT",
+      "backgroundColor": "#ffffff"
     }
   }
 }
