@@ -1,0 +1,22 @@
+{
+  "name": "hurda-fiyat-mobil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hurda Fiyatları - Android ve iOS uygulama kabuğu (Capacitor)",
+  "scripts": {
+    "www": "node scripts/www-hazirla.mjs",
+    "icons": "capacitor-assets generate --iconBackgroundColor '#0f172a' --splashBackgroundColor '#0a101d' --iconBackgroundColorDark '#0f172a' --splashBackgroundColorDark '#0a101d'",
+    "sync": "npm run www && cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/ios": "^7.4.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5"
+  }
+}
