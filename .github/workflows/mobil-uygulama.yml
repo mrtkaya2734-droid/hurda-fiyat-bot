@@ -1,0 +1,91 @@
+name: Mobil uygulama (APK + iOS)
+
+# Android APK ve iOS (.ipa) dosyalarını üretir. Çıktılar çalıştırma sayfasının
+# altındaki "Artifacts" bölümünden indirilir.
+#
+# Çalıştırma: Actions > "Mobil uygulama (APK + iOS)" > Run workflow
+# Uygulama adresi: Run workflow penceresinde yazılır ya da depo değişkeni
+# Settings > Secrets and variables > Actions > Variables > APP_URL olarak saklanır.
+# VPS'e taşınınca yalnızca bu adres değiştirilip iş yeniden çalıştırılır.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "Web uygulamasının https adresi (boşsa APP_URL değişkeni kullanılır)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  APP_URL: ${{ inputs.app_url || vars.APP_URL }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run www
+      - run: npx cap add android
+      - run: npm run icons
+      - run: npx cap sync android
+      - name: APK derle (debug imzalı, doğrudan kurulabilir)
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HurdaFiyat-android-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run www
+      - run: npx cap add ios
+      - run: npm run icons
+      - run: npx cap sync ios
+      - name: Derle (imzasız)
+        working-directory: mobile/ios/App
+        run: |
+          WS=$(ls -d *.xcworkspace 2>/dev/null | head -1)
+          if [ -n "$WS" ]; then TARGET="-workspace $WS"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+      - name: .ipa paketle (imzasız)
+        working-directory: mobile/ios/App
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry HurdaFiyat-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HurdaFiyat-ios-unsigned-ipa
+          path: mobile/ios/App/HurdaFiyat-unsigned.ipa

@@ -1,0 +1,24 @@
+{
+  "appId": "com.hurdafiyat.app",
+  "appName": "Hurda Fiyatları",
+  "webDir": "www",
+  "backgroundColor": "#0a101d",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0a101d"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0a101d",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0a101d"
+    }
+  }
+}
