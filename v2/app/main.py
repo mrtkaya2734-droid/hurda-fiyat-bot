@@ -12668,11 +12668,12 @@ function hurdaTarihSirasi(metin) {
 }
 
 // Firmalar aynı cinsi farklı adlarla yayınlıyor ("1. Grup", "1. Kalite", "1 SINIF";
-// "DKP" / "DKP Hurda"; "BONUS**" / "Bonus"). Karşılaştırma için tek anahtara indirgenir.
+// "DKP" / "DKP Hurda"; "Ekstra" / "Özel Ekstra"; "BONUS**" / "Bonus"). Karşılaştırma için tek anahtara indirgenir.
 const HURDA_CINS_ESLER = {
     dkp: "DKP",
     dkphurda: "DKP",
     ekstra: "Ekstra",
+    ozelekstra: "Ekstra",
     bonus: "Bonus",
     talas: "Talaş",
     pik: "Pik",
