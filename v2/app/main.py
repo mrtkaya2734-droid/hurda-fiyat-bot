@@ -12667,17 +12667,46 @@ function hurdaTarihSirasi(metin) {
     return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
 }
 
+// Firmalar aynı cinsi farklı adlarla yayınlıyor ("1. Grup", "1. Kalite", "1 SINIF";
+// "DKP" / "DKP Hurda"; "Ekstra" / "Özel Ekstra"; "BONUS**" / "Bonus"). Karşılaştırma için tek anahtara indirgenir.
+const HURDA_CINS_ESLER = {
+    dkp: "DKP",
+    dkphurda: "DKP",
+    ekstra: "Ekstra",
+    ozelekstra: "Ekstra",
+    bonus: "Bonus",
+    talas: "Talaş",
+    pik: "Pik",
+    makas: "Makas",
+};
+
+function hurdaCinsAnahtari(cins) {
+    const katli = hurdaKatla(cins);
+    const m = katli.match(/^([0-9]+)(grup|kalite|sinif)$/);
+    if (m) return { anahtar: m[1] + "grup", ad: m[1] + ". Grup / Kalite / Sınıf" };
+    const ad = HURDA_CINS_ESLER[katli];
+    if (ad) return { anahtar: hurdaKatla(ad), ad: ad };
+    return { anahtar: katli, ad: cins };
+}
+
 function hurdaGruplari(firmalar) {
     const gruplar = {};
 
     firmalar.forEach(function(f) {
         (f.kalemler || []).forEach(function(k) {
             const fiyat = hurdaKalemFiyati(k);
-            const anahtar = hurdaKatla(k.cins);
+            const cins = hurdaCinsAnahtari(k.cins);
+            const anahtar = cins.anahtar;
             if (!anahtar || !Number.isFinite(fiyat)) return;
 
-            if (!gruplar[anahtar]) gruplar[anahtar] = { ad: k.cins, uyeler: [] };
-            gruplar[anahtar].uyeler.push({ firma: f.baslik, fiyat: fiyat, yas: f.fiyat_yasi_gun });
+            if (!gruplar[anahtar]) gruplar[anahtar] = { ad: cins.ad, uyeler: [] };
+            const uyeler = gruplar[anahtar].uyeler;
+            const mevcut = uyeler.find(function(u) { return u.firma === f.baslik; });
+            if (mevcut) {
+                if (fiyat > mevcut.fiyat) mevcut.fiyat = fiyat;
+                return;
+            }
+            uyeler.push({ firma: f.baslik, fiyat: fiyat, yas: f.fiyat_yasi_gun });
         });
     });
 
