@@ -12667,12 +12667,25 @@ function hurdaTarihSirasi(metin) {
     return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
 }
 
-// Firmalar aynı sınıfı farklı adlandırıyor: "1. Grup", "1. Kalite", "1 SINIF" aynı cinstir.
+// Firmalar aynı cinsi farklı adlarla yayınlıyor ("1. Grup", "1. Kalite", "1 SINIF";
+// "DKP" / "DKP Hurda"; "BONUS**" / "Bonus"). Karşılaştırma için tek anahtara indirgenir.
+const HURDA_CINS_ESLER = {
+    dkp: "DKP",
+    dkphurda: "DKP",
+    ekstra: "Ekstra",
+    bonus: "Bonus",
+    talas: "Talaş",
+    pik: "Pik",
+    makas: "Makas",
+};
+
 function hurdaCinsAnahtari(cins) {
-    const anahtar = hurdaKatla(cins);
-    const m = anahtar.match(/^([12])(grup|kalite|sinif)$/);
+    const katli = hurdaKatla(cins);
+    const m = katli.match(/^([0-9]+)(grup|kalite|sinif)$/);
     if (m) return { anahtar: m[1] + "grup", ad: m[1] + ". Grup / Kalite / Sınıf" };
-    return { anahtar: anahtar, ad: cins };
+    const ad = HURDA_CINS_ESLER[katli];
+    if (ad) return { anahtar: hurdaKatla(ad), ad: ad };
+    return { anahtar: katli, ad: cins };
 }
 
 function hurdaGruplari(firmalar) {
