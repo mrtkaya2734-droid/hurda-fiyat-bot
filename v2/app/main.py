@@ -12667,17 +12667,32 @@ function hurdaTarihSirasi(metin) {
     return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
 }
 
+// Firmalar aynı sınıfı farklı adlandırıyor: "1. Grup", "1. Kalite", "1 SINIF" aynı cinstir.
+function hurdaCinsAnahtari(cins) {
+    const anahtar = hurdaKatla(cins);
+    const m = anahtar.match(/^([12])(grup|kalite|sinif)$/);
+    if (m) return { anahtar: m[1] + "grup", ad: m[1] + ". Grup / Kalite / Sınıf" };
+    return { anahtar: anahtar, ad: cins };
+}
+
 function hurdaGruplari(firmalar) {
     const gruplar = {};
 
     firmalar.forEach(function(f) {
         (f.kalemler || []).forEach(function(k) {
             const fiyat = hurdaKalemFiyati(k);
-            const anahtar = hurdaKatla(k.cins);
+            const cins = hurdaCinsAnahtari(k.cins);
+            const anahtar = cins.anahtar;
             if (!anahtar || !Number.isFinite(fiyat)) return;
 
-            if (!gruplar[anahtar]) gruplar[anahtar] = { ad: k.cins, uyeler: [] };
-            gruplar[anahtar].uyeler.push({ firma: f.baslik, fiyat: fiyat, yas: f.fiyat_yasi_gun });
+            if (!gruplar[anahtar]) gruplar[anahtar] = { ad: cins.ad, uyeler: [] };
+            const uyeler = gruplar[anahtar].uyeler;
+            const mevcut = uyeler.find(function(u) { return u.firma === f.baslik; });
+            if (mevcut) {
+                if (fiyat > mevcut.fiyat) mevcut.fiyat = fiyat;
+                return;
+            }
+            uyeler.push({ firma: f.baslik, fiyat: fiyat, yas: f.fiyat_yasi_gun });
         });
     });
 
