@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import requests
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -57,6 +58,12 @@ SUPABASE_BUCKET = os.getenv(
 
 _SUPABASE_DATA_SYNCED = False
 _SAVE_LOCK = threading.Lock()
+
+# Toplu yazım sırasında data.json Supabase'e her kayıtta değil, blok
+# sonunda bir kez gönderilir. Render'ın giden bant genişliği kotası
+# (Free: 5 GB/ay) her firma kaydında tam dosya yüklenince hızla doluyor.
+_TOPLU_DERINLIK = 0
+_TOPLU_BEKLEYEN = False
 
 
 def _supabase_enabled():
@@ -759,6 +766,8 @@ def load_data():
 
 def save_data(data):
 
+    global _TOPLU_BEKLEYEN
+
     os.makedirs(
         os.path.dirname(DATA_FILE),
         exist_ok=True,
@@ -801,7 +810,9 @@ def save_data(data):
             # her başarılı veri kaydından sonra Supabase'i güncelle.
             if _supabase_enabled():
                 if _SUPABASE_DATA_SYNCED:
-                    if supabase_upload_json(DATA_FILE, "data.json"):
+                    if _TOPLU_DERINLIK:
+                        _TOPLU_BEKLEYEN = True
+                    elif supabase_upload_json(DATA_FILE, "data.json"):
                         _supabase_yedek_al()
                 else:
                     print(
@@ -815,6 +826,27 @@ def save_data(data):
                     os.remove(temporary_file)
                 except OSError:
                     pass
+
+
+@contextmanager
+def toplu_yazim():
+    """Blok içindeki tüm save_data çağrılarını Supabase'e tek yüklemede gönderir."""
+    global _TOPLU_DERINLIK, _TOPLU_BEKLEYEN
+
+    with _SAVE_LOCK:
+        _TOPLU_DERINLIK += 1
+
+    try:
+        yield
+    finally:
+        with _SAVE_LOCK:
+            _TOPLU_DERINLIK -= 1
+
+            if _TOPLU_DERINLIK == 0 and _TOPLU_BEKLEYEN:
+                _TOPLU_BEKLEYEN = False
+
+                if supabase_upload_json(DATA_FILE, "data.json"):
+                    _supabase_yedek_al()
 
 
 # =========================================================

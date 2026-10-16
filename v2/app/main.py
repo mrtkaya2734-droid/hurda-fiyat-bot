@@ -2357,7 +2357,8 @@ def verileri_guncelle():
         return
 
     try:
-        _verileri_guncelle_calistir()
+        with storage_module.toplu_yazim():
+            _verileri_guncelle_calistir()
     finally:
         _GUNCELLEME_KILIDI.release()
 
