@@ -12,9 +12,12 @@ gecikmeli yayınlanıyor. MetalCharts gün içi fiyat veriyor:
 
 Ücretsiz planda ayda 200 istek hakkı var. Bu yüzden:
 - istekler ziyaretçi isteğiyle değil yalnızca zamanlayıcıdan atılır,
-- yalnızca hafta içi iş saatlerinde (İstanbul 09:00-21:00) çekilir,
-- aralık, ayın kalan istek hakkına ve kalan iş saatine göre otomatik
-  hesaplanır (ücretsiz planda ~1 saat, plan yükseltilince en sık 5 dk),
+- yalnızca LME işlem saatlerinde (hafta içi Londra 01:00-19:00,
+  Türkiye saatiyle kışın 04:00-22:00) çekilir,
+- aralık, ayın kalan istek hakkına ve kalan işlem saatine göre otomatik
+  hesaplanır (ücretsiz planda ~2 saat, plan yükseltilince en sık 5 dk),
+- hiç canlı veri yoksa (ilk kurulum) saat penceresi beklenmeden bir kez
+  çekilir,
 - son değer data.json'a yazılır; sunucu yeniden başlasa da hak harcanmaz.
 
 Anahtar ortam değişkeninden okunur: METALCHARTS_API_KEY.
@@ -35,6 +38,7 @@ KREDI_URL = "https://metalcharts.org/?via=81ca54d555"
 KREDI_METNI = "Metal prices by MetalCharts"
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
+LONDRA = ZoneInfo("Europe/London")
 
 # MetalCharts sembolü -> uygulamadaki LME_METALS anahtarı
 SEMBOLLER = {
@@ -52,8 +56,9 @@ BASKA_BORSA = {
 
 LB_TON = 2204.62262  # 1 metrik ton = 2204.62262 lb
 
-PENCERE_BASLANGIC_SAAT = 9
-PENCERE_BITIS_SAAT = 21
+# LME işlem saatleri (Londra yerel saati; yaz/kış saati otomatik).
+PENCERE_BASLANGIC_SAAT = 1
+PENCERE_BITIS_SAAT = 19
 EN_KISA_ARALIK_SN = 5 * 60
 GUVENLIK_PAYI = 5          # ay sonuna bu kadar istek hakkı bırakılır
 VARSAYILAN_AYLIK_LIMIT = 200
@@ -82,7 +87,7 @@ def etkin():
 
 
 def _pencerede(an):
-    yerel = an.astimezone(ISTANBUL)
+    yerel = an.astimezone(LONDRA)
     return (
         yerel.weekday() < 5
         and PENCERE_BASLANGIC_SAAT <= yerel.hour < PENCERE_BITIS_SAAT
@@ -97,9 +102,9 @@ def _ay_sonu(an):
 
 
 def _kalan_pencere_dakika(an, bitis):
-    """`an` ile `bitis` arasındaki hafta içi 09-21 (İstanbul) dakikaları."""
+    """`an` ile `bitis` arasındaki LME işlem dakikaları (hafta içi, Londra)."""
     toplam = 0.0
-    gun = an.astimezone(ISTANBUL).replace(hour=0, minute=0, second=0, microsecond=0)
+    gun = an.astimezone(LONDRA).replace(hour=0, minute=0, second=0, microsecond=0)
     while gun < bitis:
         if gun.weekday() < 5:
             bas = gun.replace(hour=PENCERE_BASLANGIC_SAAT)
@@ -297,11 +302,16 @@ def guncelle_gerekirse():
         simdi = time.time()
         an = datetime.now(timezone.utc)
 
-        if simdi < _DURUM["bekle_kadar"] or not _pencerede(an):
+        if simdi < _DURUM["bekle_kadar"]:
             return False
 
         aralik = aralik_saniye(an)
         if aralik is None:
+            return False
+
+        # İlk kurulumda (hiç canlı veri yokken) saat penceresini bekleme.
+        ilk = not _DURUM["veriler"] and not _DURUM["zaman"]
+        if not ilk and not _pencerede(an):
             return False
 
         son = max(_DURUM["zaman"] or 0, _DURUM["son_deneme"] or 0)
