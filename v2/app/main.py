@@ -3289,6 +3289,8 @@ async def lifespan(app):
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=120,
+                # İlk kontrol 5 dk beklemesin; açılıştan kısa süre sonra yapılsın.
+                next_run_time=datetime.now(ISTANBUL) + timedelta(seconds=45),
             )
             print("CANLI LME: MetalCharts etkin.")
 
@@ -11264,8 +11266,8 @@ LME
 Londra Metal Borsası
 </span>
 
-<span class="inline-flex items-center gap-1 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-black text-slate-500">
-7 METAL
+<span id="lmeMetalSayisi" class="inline-flex items-center gap-1 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-black text-slate-500">
+6 METAL
 </span>
 </div>
 
@@ -11282,7 +11284,7 @@ class="text-slate-400 text-sm transition-transform"
 </span>
 </div>
 
-<div class="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
+<div id="lmeAltBaslik" class="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
 Gün gecikmeli resmi piyasa verileri · USD / metrik ton
 </div>
 
@@ -12247,6 +12249,24 @@ async function lmeFiyatlariniGetir() {
         if (canliKredi) {
             canliKredi.classList.toggle("hidden", !canliVar);
         }
+        const metalSayisi =
+            document.getElementById("lmeMetalSayisi");
+        if (metalSayisi) {
+            metalSayisi.textContent = result.veriler.length + " METAL";
+        }
+        const altBaslik =
+            document.getElementById("lmeAltBaslik");
+        if (altBaslik) {
+            altBaslik.textContent = canliVar
+                ? "Resmî fiyat 1 gün gecikmeli · Canlı: "
+                    + Object.keys(canli).map(function(ad) {
+                        return canli[ad].lme === false
+                            ? ad + " (" + (canli[ad].borsa || "LME dışı") + ")"
+                            : ad;
+                    }).join(", ")
+                    + " (" + (result.canli.cekilme || "-") + ") · USD / metrik ton"
+                : "Gün gecikmeli resmi piyasa verileri · USD / metrik ton";
+        }
         const tlAciklama =
             document.getElementById("lmeTlAciklama");
         if (tlAciklama) {
@@ -12368,7 +12388,9 @@ async function lmeFiyatlariniGetir() {
                         if (!c) {
                             return '<td class="px-3 sm:px-4 py-3 text-right text-slate-400 whitespace-nowrap" title="Gün içi veri yok; resmî fiyat gösteriliyor">-</td>';
                         }
-                        const yuzde = Number(c.degisim_yuzde);
+                        const hamYuzde = Number(c.degisim_yuzde);
+                        // %0,005'ten küçük değişim ekranda "0%" görünür; ok gösterme.
+                        const yuzde = isFinite(hamYuzde) && Math.abs(hamYuzde) < 0.005 ? 0 : hamYuzde;
                         const yon = isFinite(yuzde) && yuzde !== 0
                             ? (yuzde > 0 ? "text-emerald-600" : "text-red-600")
                             : "text-slate-400";
