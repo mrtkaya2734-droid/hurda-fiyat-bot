@@ -764,9 +764,53 @@ def load_data():
 # VERİ KAYDETME
 # =========================================================
 
+BILDIRIM_SINIRI = 200
+GECMIS_KALEM_SINIRI = 400
+GECMIS_TOPLAM_SINIRI = 20000
+
+
+def _listeleri_sinirla(data):
+    """
+    Bildirim ve fiyat geçmişi sınırsız büyümesin. Her istekte data.json
+    baştan okunup ayrıştırıldığı için dosyanın büyümesi doğrudan RAM, CPU ve
+    Supabase'e yükleme trafiği demek.
+    """
+    bildirimler = data.get("notifications")
+    if isinstance(bildirimler, list) and len(bildirimler) > BILDIRIM_SINIRI:
+        del bildirimler[:-BILDIRIM_SINIRI]
+
+    gecmis = data.get("history")
+    if not isinstance(gecmis, list) or len(gecmis) <= GECMIS_KALEM_SINIRI:
+        return
+
+    sayac = {}
+    tut = [False] * len(gecmis)
+    # Sondan başa: her (firma, kalem) için en yeni kayıtları tut.
+    for i in range(len(gecmis) - 1, -1, -1):
+        kayit = gecmis[i]
+        if not isinstance(kayit, dict):
+            continue
+        anahtar = (
+            str(kayit.get("firma_id", "")).strip().casefold(),
+            str(kayit.get("kalem", "")).strip().casefold(),
+        )
+        adet = sayac.get(anahtar, 0)
+        if adet < GECMIS_KALEM_SINIRI:
+            sayac[anahtar] = adet + 1
+            tut[i] = True
+
+    yeni = [kayit for kayit, t in zip(gecmis, tut) if t]
+    if len(yeni) > GECMIS_TOPLAM_SINIRI:
+        yeni = yeni[-GECMIS_TOPLAM_SINIRI:]
+    if len(yeni) != len(gecmis):
+        gecmis[:] = yeni
+
+
 def save_data(data):
 
     global _TOPLU_BEKLEYEN
+
+    _listeleri_sinirla(data)
 
     os.makedirs(
         os.path.dirname(DATA_FILE),
