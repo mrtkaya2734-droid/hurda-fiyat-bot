@@ -38,6 +38,9 @@ import requests
 import xml.etree.ElementTree as ET
 
 from app.scrapers import TUMU
+from app import bellek
+from app.bellek import TekUcusOnbellek
+from app import lme_canli
 from app import webpush
 from app import adminauth
 import app.storage as storage_module
@@ -70,6 +73,11 @@ from app.storage import (
     supabase_restore_file,
     supabase_upload_json,
 )
+
+
+# İş parçacıkları açılmadan önce glibc arena sayısını sınırla; aksi halde
+# serbest bırakılan bellek işletim sistemine dönmeyip birikiyor.
+bellek.arena_sinirla(2)
 
 
 # =========================================================
@@ -1064,7 +1072,7 @@ def lme_gecmisi_oku(gun_sayisi=180):
     return {ad: seri[-gun_sayisi:] for ad, seri in gecmis.items()}
 
 
-def lme_verilerini_cek():
+def _lme_verilerini_cek_asil():
     global _LME_CACHE
 
     simdi = now_istanbul()
@@ -1178,6 +1186,20 @@ def lme_verilerini_cek():
     }
 
     return sonuc
+
+
+# Önbellek dolduğunda aynı anda gelen ziyaretçiler LME/Westmetall'a ayrı ayrı
+# gitmesin (her biri 20-45 sn bekliyordu); tek istek, eski veri hemen döner.
+_LME_ONBELLEK = TekUcusOnbellek(
+    "LME",
+    _lme_verilerini_cek_asil,
+    900,
+    hata_bekleme=120,
+)
+
+
+def lme_verilerini_cek():
+    return _LME_ONBELLEK.getir()
 
 
 DEFAULT_ADS = {
@@ -2562,9 +2584,9 @@ def _verileri_guncelle_calistir():
     except Exception as exc:
         print(f"PUSH KONTROL HATASI: {type(exc).__name__}: {exc}")
 
-    # Tarama sırasında oluşan geçici Python nesnelerini
-    # mümkün olduğunca hemen temizle.
-    gc.collect()
+    # Tarama sırasında oluşan geçici nesneleri temizle ve boşalan belleği
+    # işletim sistemine geri ver (aksi halde RSS turdan tura birikiyor).
+    bellek.bellegi_birak()
 
     print(
         f"Güncelleme tamamlandı. (toplam {time.perf_counter() - tur_baslangic:.1f} sn)"
@@ -2875,6 +2897,26 @@ def fiyat_verilerini_olustur():
             except (TypeError, ValueError):
                 trend = []
 
+            # Fiyatın geçerlilik tarihi: kaynağın sayfada yazdığı tarih ile
+            # bizim tespit ettiğimiz son gerçek değişimin yenisi. Bazı
+            # kaynaklar fiyatı değiştirip tarihi güncellemiyor (ör. Asil Çelik
+            # fiyatı dün +550 değişti ama sayfa hâlâ 21.09 diyor); bu durumda
+            # kart "46 gün önceki fiyat" / "eski" diye yanıltıyordu.
+            kaynak_tarihi = (
+                bilgi.get("fiyat_tarihi")
+                or firma.get("kaynak_fiyat_tarihi")
+            )
+            gecerli_tarih = kaynak_tarihi
+            son_degisim_zamani = None
+            for sira in range(len(kayitlar_dun) - 1, 0, -1):
+                if round(kayitlar_dun[sira][1]) != round(kayitlar_dun[sira - 1][1]):
+                    son_degisim_zamani = kayitlar_dun[sira][0]
+                    break
+            if son_degisim_zamani is not None:
+                degisim_gunu = son_degisim_zamani.date().isoformat()
+                if not gecerli_tarih or str(gecerli_tarih)[:10] < degisim_gunu:
+                    gecerli_tarih = degisim_gunu
+
             firma_kalemleri.append(
                 {
                     "cins": kalem,
@@ -2899,15 +2941,9 @@ def fiyat_verilerini_olustur():
                             or now_istanbul().strftime("%Y-%m-%d")
                         )
                         if manuel is not None
-                        else (
-                            bilgi.get(
-                                "fiyat_tarihi"
-                            )
-                            or firma.get(
-                                "kaynak_fiyat_tarihi"
-                            )
-                        )
+                        else gecerli_tarih
                     ),
+                    "kaynak_tarihi": kaynak_tarihi,
                 }
             )
 
@@ -2991,7 +3027,12 @@ def fiyat_verilerini_olustur():
 # FASTAPI
 # =========================================================
 
-scheduler = BackgroundScheduler()
+# Zamanlayıcı işleri sıralı ve seyrek; varsayılan 10 iş parçacığına gerek yok.
+from apscheduler.executors.pool import ThreadPoolExecutor as _ZamanlayiciHavuzu
+
+scheduler = BackgroundScheduler(
+    executors={"default": _ZamanlayiciHavuzu(max_workers=3)},
+)
 
 
 def kaynak_migrasyonunu_uygula():
@@ -3185,6 +3226,15 @@ AUTO_UPDATE_ENABLED = (
 @asynccontextmanager
 async def lifespan(app):
 
+    # Senkron uç noktalar varsayılan olarak 40 iş parçacığına kadar açılabiliyor;
+    # 0.1 CPU / 512 MB'lık sunucuda bu yalnızca bellek ve bağlam değişimi demek.
+    try:
+        import anyio.to_thread
+
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 12
+    except Exception as exc:
+        print(f"İŞ PARÇACIĞI SINIRI AYARLANAMADI: {type(exc).__name__}: {exc}")
+
     try:
         reklam_gorsellerini_optimize_et(load_ads())
     except Exception as exc:
@@ -3225,6 +3275,31 @@ async def lifespan(app):
             max_instances=1,
             coalesce=True,
             misfire_grace_time=1800,
+        )
+
+        # Canlı LME: istek bütçesine göre kendisi karar verir; çoğu çağrı
+        # hiçbir istek atmadan döner.
+        if lme_canli.etkin():
+            scheduler.add_job(
+                lme_canli.guncelle_gerekirse,
+                "interval",
+                minutes=5,
+                id="lme_canli",
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=120,
+            )
+            print("CANLI LME: MetalCharts etkin.")
+
+        scheduler.add_job(
+            bellek.bellegi_birak,
+            "interval",
+            minutes=30,
+            id="bellek_birak",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         scheduler.start()
@@ -3471,7 +3546,7 @@ def _yahoo_kurlari_cek():
     return sonuc
 
 
-def doviz_kurlarini_getir(force=False):
+def _doviz_kurlarini_cek(force=False):
 
     global DOVIZ_CACHE
     global DOVIZ_SON_CEKME
@@ -3661,6 +3736,20 @@ def doviz_kurlarini_getir(force=False):
     DOVIZ_HATA_ZAMANI = None
 
     return DOVIZ_CACHE
+
+
+# Aynı anda gelen ziyaretçiler kur kaynaklarına tek istek atar; süresi
+# dolmuş kur varsa ziyaretçi beklemez, yenileme arka planda yapılır.
+_DOVIZ_ONBELLEK = TekUcusOnbellek(
+    "DÖVİZ",
+    lambda: _doviz_kurlarini_cek(force=True),
+    DOVIZ_CACHE_SANIYE,
+    hata_bekleme=DOVIZ_HATA_BEKLEME_SANIYE,
+)
+
+
+def doviz_kurlarini_getir(force=False):
+    return _DOVIZ_ONBELLEK.getir(zorla=force)
 
 
 # =========================================================
@@ -8588,6 +8677,15 @@ def lme_fiyatlari():
     try:
 
         sonuc = lme_verilerini_cek()
+        canli = lme_canli.ozet()
+
+        if canli:
+            # Ön yüz satırları Türkçe adla eşleştirir.
+            canli = dict(canli)
+            canli["veriler"] = {
+                LME_METALS.get(isim, isim): deger
+                for isim, deger in canli["veriler"].items()
+            }
 
         return {
             "status": "success",
@@ -8596,6 +8694,9 @@ def lme_fiyatlari():
                 "LME Official Prices",
             ),
             "gecikme": "Gün gecikmeli",
+            # Gün içi fiyat (MetalCharts): Alüminyum, Nikel, Çinko, Kurşun (LME)
+            # ve Bakır (COMEX, "lme": false; TL/Ton hesabında kullanılmaz).
+            "canli": canli,
             "usd_tl": sonuc.get(
                 "usd_tl"
             ),
@@ -10910,6 +11011,48 @@ html.dark .market-design .bg-slate-900:not(header *) {
 html.dark [class*="bg-emerald-50/"] {
     background-color: rgba(16, 185, 129, .13) !important;
 }
+
+/* =====================================================
+   YAN SÜTUN TAŞMASI
+   Yan sütun (aside) kendi içinde grid; iz genişliği "auto"
+   kalınca en uzun select seçeneği sütunu 238px'e açıyor ve
+   sol sütun orta alanın üstüne biniyordu. İz sütun
+   genişliğiyle sınırlanır, select/input küçülebilir.
+   ===================================================== */
+.market-design .desktop-feature-column {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.market-design .desktop-feature-column select,
+.market-design .desktop-feature-column input {
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+/* LME tablosu: "Canlı $" sütunuyla birlikte grafiğin yanındaki alana sığsın. */
+#lmeGrid th,
+#lmeGrid td {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+}
+
+#lmeGrid td span.rounded-lg {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+}
+
+/* Karanlık mod: "Fabrika Fiyatları" başlığı koyu zemin üstünde koyu kalıyordu. */
+html.dark .market-design main > .text-center .text-white {
+    color: #f1f5f9 !important;
+}
+
+html.dark .market-design main > .text-center .text-cyan-300 {
+    color: #38bdf8 !important;
+}
+
+html.dark .market-design main > .text-center .text-slate-200 {
+    color: #9aa8bf !important;
+}
 </style>
 
 </head>
@@ -11209,6 +11352,9 @@ Satış (Nakit) $
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
 3 Ay Satış $
 </th>
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-emerald-600" title="Gün içi fiyat (MetalCharts). Alüminyum, Nikel, Çinko, Kurşun: LME. Bakır: COMEX (LME değil). Kalay: yok.">
+Canlı $
+</th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
 3 Ay TL / Ton
 </th>
@@ -11218,7 +11364,7 @@ Satış (Nakit) $
 <tbody id="lmeTableBody">
 <tr>
 <td
-colspan="6"
+colspan="7"
 class="px-4 py-8 text-center text-sm text-slate-500"
 >
 LME verileri alınıyor...
@@ -11260,12 +11406,12 @@ LME verileri alınıyor...
 </div>
 
 <div class="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[10px] text-slate-400">
-<div>
+<div id="lmeTlAciklama">
 3 Ay TL değeri: 3 aylık alış/satış ortalaması × USD/TRY alış kuru
 </div>
 
 <div class="shrink-0">
-Kaynak: LME Official Prices
+Kaynak: LME Official Prices<span id="lmeCanliKredi" class="hidden"> · Canlı: <a href="https://metalcharts.org/?via=81ca54d555" target="_blank" rel="noopener" class="underline hover:text-slate-600">Metal prices by MetalCharts</a></span>
 </div>
 </div>
 
@@ -11409,7 +11555,7 @@ class="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 te
 </div>
 </div>
 
-<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+<div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center lg:justify-between gap-3">
 
 <div class="grid grid-cols-2 sm:flex gap-2">
 <button
@@ -12091,6 +12237,39 @@ async function lmeFiyatlariniGetir() {
 
         try { lmeGrafikCiz(result); } catch (hata) { console.error("LME grafik:", hata); }
 
+        // Gün içi (canlı) fiyatlar: yalnızca bazı metaller için gelir.
+        const canli =
+            (result.canli && result.canli.veriler) || {};
+        const canliVar =
+            Object.keys(canli).length > 0;
+        const canliKredi =
+            document.getElementById("lmeCanliKredi");
+        if (canliKredi) {
+            canliKredi.classList.toggle("hidden", !canliVar);
+        }
+        const tlAciklama =
+            document.getElementById("lmeTlAciklama");
+        if (tlAciklama) {
+            tlAciklama.textContent = canliVar
+                ? "TL / Ton: canlı fiyat varsa canlı fiyat, yoksa 3 aylık alış/satış ortalaması × USD/TRY alış kuru"
+                : "3 Ay TL değeri: 3 aylık alış/satış ortalaması × USD/TRY alış kuru";
+        }
+        // LME olmayan (ör. COMEX bakır) fiyatlar yalnızca "Canlı $" sütununda
+        // etiketiyle gösterilir; TL/Ton ve şerit LME fiyatından hesaplanır.
+        const canliLme =
+            function(item) {
+                const c = canli[item.ad];
+                return c && c.lme !== false ? c : null;
+            };
+        const canliTl =
+            function(item) {
+                const c = canliLme(item);
+                if (!c || c.fiyat === null || c.fiyat === undefined || !result.usd_tl) {
+                    return null;
+                }
+                return Number(c.fiyat) * Number(result.usd_tl);
+            };
+
         tableBody.innerHTML = "";
 
         const ticker =
@@ -12111,7 +12290,12 @@ async function lmeFiyatlariniGetir() {
                                 : (ask !== null && ask !== undefined
                                     ? ask
                                     : bid);
-                        const deger = usdYaz(usdOrta);
+                        const c = canliLme(item);
+                        const deger = usdYaz(
+                            c && c.fiyat !== null && c.fiyat !== undefined
+                                ? c.fiyat
+                                : usdOrta
+                        );
 
                         return (
                             '<span class="lme-ticker-item">' +
@@ -12179,17 +12363,49 @@ async function lmeFiyatlariniGetir() {
                         ) +
                     "</td>" +
 
+                    (function() {
+                        const c = canli[item.ad];
+                        if (!c) {
+                            return '<td class="px-3 sm:px-4 py-3 text-right text-slate-400 whitespace-nowrap" title="Gün içi veri yok; resmî fiyat gösteriliyor">-</td>';
+                        }
+                        const yuzde = Number(c.degisim_yuzde);
+                        const yon = isFinite(yuzde) && yuzde !== 0
+                            ? (yuzde > 0 ? "text-emerald-600" : "text-red-600")
+                            : "text-slate-400";
+                        const ok = isFinite(yuzde) && yuzde !== 0
+                            ? (yuzde > 0 ? "▲ " : "▼ ")
+                            : "";
+                        const borsaEtiketi = c.lme === false
+                            ? '<span class="mr-1 inline-block rounded bg-slate-200 text-slate-600 px-1 text-[9px] font-black align-middle" title="LME değil: ' + escapeHtml(c.borsa || "") + ' fiyatı, ton başına çevrildi">' + escapeHtml(c.borsa || "") + "</span>"
+                            : "";
+                        return (
+                            '<td class="px-3 sm:px-4 py-3 text-right whitespace-nowrap">' +
+                                '<div class="font-black text-slate-900">' + usdYaz(c.fiyat) + "</div>" +
+                                '<div class="text-[10px] font-bold ' + yon + '">' +
+                                    borsaEtiketi +
+                                    (isFinite(yuzde)
+                                        ? ok + Math.abs(yuzde).toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + "%"
+                                        : "") +
+                                "</div>" +
+                            "</td>"
+                        );
+                    })() +
+
                     '<td class="px-3 sm:px-4 py-3 text-right whitespace-nowrap">' +
-                        '<span class="inline-flex items-center justify-end rounded-lg bg-slate-900 text-white px-2.5 py-1.5 font-black">' +
-                            (
-                                item.three_month_tl !== null
-                                && item.three_month_tl !== undefined
-                                    ? formatFiyat(
-                                        item.three_month_tl
-                                      ) + " TL"
-                                    : "-"
-                            ) +
-                        "</span>" +
+                        (function() {
+                            const tl = canliTl(item);
+                            const deger = tl !== null ? tl : item.three_month_tl;
+                            return (
+                                '<span class="inline-flex items-center justify-end rounded-lg bg-slate-900 text-white px-2.5 py-1.5 font-black">' +
+                                    (deger !== null && deger !== undefined
+                                        ? formatFiyat(deger) + " TL"
+                                        : "-") +
+                                "</span>" +
+                                (tl !== null
+                                    ? '<div class="text-[9px] font-black uppercase tracking-wide text-emerald-600 mt-1">canlı</div>'
+                                    : "")
+                            );
+                        })() +
                     "</td>";
 
                 tableBody.appendChild(
@@ -12210,6 +12426,11 @@ async function lmeFiyatlariniGetir() {
             )
             + " · Gün gecikmeli"
             + (
+                canliVar && result.canli.cekilme
+                    ? " · Canlı: " + result.canli.cekilme
+                    : ""
+            )
+            + (
                 result.usd_tl
                     ? " · USD/TRY alış: "
                     + Number(
@@ -12228,7 +12449,7 @@ async function lmeFiyatlariniGetir() {
 
         tableBody.innerHTML =
             '<tr>' +
-                '<td colspan="6" class="px-4 py-6 text-center bg-amber-50">' +
+                '<td colspan="7" class="px-4 py-6 text-center bg-amber-50">' +
                     '<div class="text-sm font-black text-amber-900">LME verisi şu anda alınamıyor</div>' +
                     '<div class="text-xs font-semibold text-amber-700 mt-1">Kaynak geçici olarak yanıt vermiyor; kısa süre içinde otomatik yeniden denenecek.</div>' +
                 "</td>" +
