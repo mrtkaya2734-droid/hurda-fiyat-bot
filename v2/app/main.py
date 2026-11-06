@@ -8694,7 +8694,8 @@ def lme_fiyatlari():
                 "LME Official Prices",
             ),
             "gecikme": "Gün gecikmeli",
-            # Gün içi fiyat (MetalCharts): Alüminyum, Nikel, Çinko, Kurşun.
+            # Gün içi fiyat (MetalCharts): Alüminyum, Nikel, Çinko, Kurşun (LME)
+            # ve Bakır (COMEX, "lme": false; TL/Ton hesabında kullanılmaz).
             "canli": canli,
             "usd_tl": sonuc.get(
                 "usd_tl"
@@ -11351,7 +11352,7 @@ Satış (Nakit) $
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
 3 Ay Satış $
 </th>
-<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-emerald-600" title="Gün içi fiyat (MetalCharts). Alüminyum, Nikel, Çinko ve Kurşun için.">
+<th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-emerald-600" title="Gün içi fiyat (MetalCharts). Alüminyum, Nikel, Çinko, Kurşun: LME. Bakır: COMEX (LME değil). Kalay: yok.">
 Canlı $
 </th>
 <th class="px-3 sm:px-4 py-3 text-right text-[10px] sm:text-[11px] uppercase tracking-wide font-black text-slate-500">
@@ -12253,9 +12254,16 @@ async function lmeFiyatlariniGetir() {
                 ? "TL / Ton: canlı fiyat varsa canlı fiyat, yoksa 3 aylık alış/satış ortalaması × USD/TRY alış kuru"
                 : "3 Ay TL değeri: 3 aylık alış/satış ortalaması × USD/TRY alış kuru";
         }
-        const canliTl =
+        // LME olmayan (ör. COMEX bakır) fiyatlar yalnızca "Canlı $" sütununda
+        // etiketiyle gösterilir; TL/Ton ve şerit LME fiyatından hesaplanır.
+        const canliLme =
             function(item) {
                 const c = canli[item.ad];
+                return c && c.lme !== false ? c : null;
+            };
+        const canliTl =
+            function(item) {
+                const c = canliLme(item);
                 if (!c || c.fiyat === null || c.fiyat === undefined || !result.usd_tl) {
                     return null;
                 }
@@ -12282,7 +12290,7 @@ async function lmeFiyatlariniGetir() {
                                 : (ask !== null && ask !== undefined
                                     ? ask
                                     : bid);
-                        const c = canli[item.ad];
+                        const c = canliLme(item);
                         const deger = usdYaz(
                             c && c.fiyat !== null && c.fiyat !== undefined
                                 ? c.fiyat
@@ -12367,10 +12375,14 @@ async function lmeFiyatlariniGetir() {
                         const ok = isFinite(yuzde) && yuzde !== 0
                             ? (yuzde > 0 ? "▲ " : "▼ ")
                             : "";
+                        const borsaEtiketi = c.lme === false
+                            ? '<span class="mr-1 inline-block rounded bg-slate-200 text-slate-600 px-1 text-[9px] font-black align-middle" title="LME değil: ' + escapeHtml(c.borsa || "") + ' fiyatı, ton başına çevrildi">' + escapeHtml(c.borsa || "") + "</span>"
+                            : "";
                         return (
                             '<td class="px-3 sm:px-4 py-3 text-right whitespace-nowrap">' +
                                 '<div class="font-black text-slate-900">' + usdYaz(c.fiyat) + "</div>" +
                                 '<div class="text-[10px] font-bold ' + yon + '">' +
+                                    borsaEtiketi +
                                     (isFinite(yuzde)
                                         ? ok + Math.abs(yuzde).toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + "%"
                                         : "") +

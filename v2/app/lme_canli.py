@@ -6,7 +6,9 @@ gecikmeli yayınlanıyor. MetalCharts gün içi fiyat veriyor:
 
 - ALI (Alüminyum) ve NI (Nikel): LME vadeli, USD/ton
 - ZN (Çinko) ve PB (Kurşun): spot, USD/ton (LME 3 ay ile uyumlu)
-- Bakır yalnızca COMEX (USD/lb), Kalay yok: bu ikisi resmî veriden gelir.
+- HG (Bakır): COMEX, USD/lb -> USD/ton'a çevrilir. LME fiyatı DEĞİLDİR;
+  yalnızca "COMEX" etiketiyle gösterilir, TL/Ton ve şerit LME resmî
+  fiyatından hesaplanmaya devam eder. Kalay yok: resmî veriden gelir.
 
 Ücretsiz planda ayda 200 istek hakkı var. Bu yüzden:
 - istekler ziyaretçi isteğiyle değil yalnızca zamanlayıcıdan atılır,
@@ -41,6 +43,14 @@ SEMBOLLER = {
     "ZN": "Zinc",
     "PB": "Lead",
 }
+
+# LME karşılığı olmayan, başka borsadan gösterilen metaller.
+# sembol -> (LME_METALS anahtarı, beklenen borsa)
+BASKA_BORSA = {
+    "HG": ("Copper", "COMEX"),
+}
+
+LB_TON = 2204.62262  # 1 metrik ton = 2204.62262 lb
 
 PENCERE_BASLANGIC_SAAT = 9
 PENCERE_BITIS_SAAT = 21
@@ -132,27 +142,63 @@ def _sayi(deger):
         return None
 
 
+def _ton_carpani(birim):
+    birim = str(birim or "").lower()
+    if birim in {"mt", "t", "ton", "tonne"}:
+        return 1.0
+    if birim in {"lb", "lbs", "pound"}:
+        return LB_TON
+    return None
+
+
+def _kayit_olustur(kayit, govde, carpan, lme_mi):
+    fiyat = _sayi(kayit.get("price"))
+    if fiyat is None or fiyat <= 0:
+        return None
+
+    def ton(deger):
+        deger = _sayi(deger)
+        return round(deger * carpan, 2) if deger is not None else None
+
+    return {
+        "fiyat": round(fiyat * carpan, 2),
+        "alis": ton(kayit.get("bid")),
+        "satis": ton(kayit.get("ask")),
+        "degisim": ton(kayit.get("change24h")),
+        "degisim_yuzde": _sayi(kayit.get("changePercent24h")),
+        "borsa": kayit.get("exchange") or "",
+        # False ise fiyat LME değildir: TL/Ton ve şerit hesabında kullanılmaz.
+        "lme": lme_mi,
+        "zaman": kayit.get("timestamp") or govde.get("timestamp"),
+        "eski": bool(kayit.get("stale")),
+    }
+
+
 def _ayristir(govde):
+    veri = govde.get("data") or {}
     veriler = {}
+
     for sembol, isim in SEMBOLLER.items():
-        kayit = (govde.get("data") or {}).get(sembol)
+        kayit = veri.get(sembol)
+        if not isinstance(kayit, dict) or _ton_carpani(kayit.get("unit")) != 1.0:
+            continue
+        sonuc = _kayit_olustur(kayit, govde, 1.0, True)
+        if sonuc:
+            veriler[isim] = sonuc
+
+    for sembol, (isim, borsa) in BASKA_BORSA.items():
+        kayit = veri.get(sembol)
         if not isinstance(kayit, dict):
             continue
-        if str(kayit.get("unit", "")).lower() not in {"mt", "t", "ton", "tonne"}:
+        if str(kayit.get("exchange", "")).upper() != borsa:
             continue
-        fiyat = _sayi(kayit.get("price"))
-        if fiyat is None or fiyat <= 0:
+        carpan = _ton_carpani(kayit.get("unit"))
+        if carpan is None:
             continue
-        veriler[isim] = {
-            "fiyat": round(fiyat, 2),
-            "alis": _sayi(kayit.get("bid")),
-            "satis": _sayi(kayit.get("ask")),
-            "degisim": _sayi(kayit.get("change24h")),
-            "degisim_yuzde": _sayi(kayit.get("changePercent24h")),
-            "borsa": kayit.get("exchange") or "",
-            "zaman": kayit.get("timestamp") or govde.get("timestamp"),
-            "eski": bool(kayit.get("stale")),
-        }
+        sonuc = _kayit_olustur(kayit, govde, carpan, False)
+        if sonuc:
+            veriler[isim] = sonuc
+
     return veriler
 
 

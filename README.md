@@ -10,4 +10,5 @@ Fabrika hurda alım fiyatlarını otomatik çeken ve yayınlayan FastAPI uygulam
 - Canlı LME (isteğe bağlı): Render'da `METALCHARTS_API_KEY` tanımlanırsa Alüminyum, Nikel,
   Çinko ve Kurşun için gün içi fiyat MetalCharts'tan alınır (`v2/app/lme_canli.py`).
   Ücretsiz planda ayda 200 istek var; istek aralığı kalan hakka göre otomatik ayarlanır
-  (hafta içi 09:00-21:00, ~1 saatte bir). Bakır ve Kalay resmî (1 gün gecikmeli) veriden gelir.
+  (hafta içi 09:00-21:00, ~1 saatte bir). Bakır için LME karşılığı olmadığından COMEX fiyatı
+  "COMEX" etiketiyle ayrıca gösterilir (TL/Ton LME resmî fiyatından); Kalay resmî (1 gün gecikmeli) veriden gelir.
