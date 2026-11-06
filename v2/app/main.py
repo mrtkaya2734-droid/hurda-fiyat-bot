@@ -10910,6 +10910,36 @@ html.dark .market-design .bg-slate-900:not(header *) {
 html.dark [class*="bg-emerald-50/"] {
     background-color: rgba(16, 185, 129, .13) !important;
 }
+
+/* =====================================================
+   YAN SÜTUN TAŞMASI
+   Yan sütun (aside) kendi içinde grid; iz genişliği "auto"
+   kalınca en uzun select seçeneği sütunu 238px'e açıyor ve
+   sol sütun orta alanın üstüne biniyordu. İz sütun
+   genişliğiyle sınırlanır, select/input küçülebilir.
+   ===================================================== */
+.market-design .desktop-feature-column {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.market-design .desktop-feature-column select,
+.market-design .desktop-feature-column input {
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+/* Karanlık mod: "Fabrika Fiyatları" başlığı koyu zemin üstünde koyu kalıyordu. */
+html.dark .market-design main > .text-center .text-white {
+    color: #f1f5f9 !important;
+}
+
+html.dark .market-design main > .text-center .text-cyan-300 {
+    color: #38bdf8 !important;
+}
+
+html.dark .market-design main > .text-center .text-slate-200 {
+    color: #9aa8bf !important;
+}
 </style>
 
 </head>
@@ -11409,7 +11439,7 @@ class="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 te
 </div>
 </div>
 
-<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+<div class="flex flex-col lg:flex-row lg:flex-wrap lg:items-center lg:justify-between gap-3">
 
 <div class="grid grid-cols-2 sm:flex gap-2">
 <button
