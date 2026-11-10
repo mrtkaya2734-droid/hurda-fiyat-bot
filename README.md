@@ -17,4 +17,6 @@ Fabrika hurda alım fiyatlarını otomatik çeken ve yayınlayan FastAPI uygulam
   satırı günceller (`storage.veritabani_canli_tut`). Tablo yoksa Supabase SQL düzenleyicisinde
   oluşturun: `create table public.canli_kalma (id smallint primary key default 1 check (id = 1),
   son_ping timestamptz not null default now(), kaynak text); alter table public.canli_kalma enable
-  row level security; insert into public.canli_kalma (id) values (1);`
+  row level security; grant select, update on public.canli_kalma to service_role;
+  insert into public.canli_kalma (id) values (1);` (Bu projede yeni tablolara varsayılan yazma
+  yetkisi verilmiyor; `grant` satırı olmadan uygulama 403 alır.)
