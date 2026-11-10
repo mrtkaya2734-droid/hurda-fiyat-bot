@@ -324,6 +324,38 @@ def _supabase_yedek_al():
     )
 
 
+def veritabani_canli_tut():
+    """
+    Supabase Free planı, son 7 günde veritabanı sorgusu almayan projeleri
+    duraklatıyor; Storage trafiği etkinlik sayılmıyor. Uygulama yalnızca
+    Storage kullandığı için zamanlayıcı günde birkaç kez public.canli_kalma
+    tablosundaki tek satırı günceller. Dönüş: başarılıysa True.
+    """
+    if not _supabase_enabled():
+        return False
+
+    headers = _supabase_headers("application/json")
+    headers["Prefer"] = "return=minimal"
+
+    try:
+        cevap = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/canli_kalma",
+            params={"id": "eq.1"},
+            headers=headers,
+            json={
+                "son_ping": datetime.now(ZoneInfo("UTC")).isoformat(),
+                "kaynak": "hurda-fiyat-bot",
+            },
+            timeout=15,
+        )
+        cevap.raise_for_status()
+        print("SUPABASE: veritabanı etkinliği gönderildi (duraklatma önlemi).")
+        return True
+    except requests.RequestException as exc:
+        print(f"SUPABASE CANLI TUTMA HATASI: {type(exc).__name__}: {exc}")
+        return False
+
+
 def supabase_nesneleri_listele(onek):
     """Bucket'ta `onek/` altındaki dosya yollarını döndürür; hata olursa None."""
     onek = str(onek).strip("/")
