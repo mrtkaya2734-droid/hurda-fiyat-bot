@@ -3304,6 +3304,20 @@ async def lifespan(app):
             coalesce=True,
         )
 
+        # Supabase Free projesi veritabanı sorgusu almayınca 7 günde
+        # duraklatılıyor (Storage sayılmıyor); günde 3 kez küçük bir yazma yap.
+        scheduler.add_job(
+            storage_module.veritabani_canli_tut,
+            "interval",
+            hours=8,
+            id="supabase_canli_tut",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+            next_run_time=datetime.now(ISTANBUL) + timedelta(seconds=60),
+        )
+
         scheduler.start()
     else:
         print(

@@ -12,3 +12,9 @@ Fabrika hurda alım fiyatlarını otomatik çeken ve yayınlayan FastAPI uygulam
   Ücretsiz planda ayda 200 istek var; istek aralığı kalan hakka göre otomatik ayarlanır
   (LME işlem saatlerinde, hafta içi Londra 01:00-19:00; ücretsiz planda ~2 saatte bir). Bakır için LME karşılığı olmadığından COMEX fiyatı
   "COMEX" etiketiyle ayrıca gösterilir (TL/Ton LME resmî fiyatından); Kalay resmî (1 gün gecikmeli) veriden gelir.
+- Supabase uyumasın diye: Free plan, veritabanı sorgusu almayan projeyi 7 günde duraklatıyor
+  (Storage trafiği sayılmıyor). Uygulama 8 saatte bir `public.canli_kalma` tablosundaki tek
+  satırı günceller (`storage.veritabani_canli_tut`). Tablo yoksa Supabase SQL düzenleyicisinde
+  oluşturun: `create table public.canli_kalma (id smallint primary key default 1 check (id = 1),
+  son_ping timestamptz not null default now(), kaynak text); alter table public.canli_kalma enable
+  row level security; insert into public.canli_kalma (id) values (1);`
